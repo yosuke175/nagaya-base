@@ -1,4 +1,4 @@
-# gadget-spec.md — ガジェット開発仕様 v1.0
+# gadget-spec.md — ガジェット開発仕様 v1.1
 
 この文書だけを読めばガジェットが作れる、を目標にした仕様書です。
 プラットフォーム内部のコードを読む必要はありません。
@@ -45,7 +45,7 @@ npm run dev:gadget my-gadget
       "id": "anthropic-api",
       "name": "Claude API",
       "auth": "byok",
-      "baseUrl": "https://api.anthropic.com",
+      "baseUrls": ["https://api.anthropic.com"],
       "purpose": "音声メモのテキストをタスクに構造化するため"
     }
   ]
@@ -64,7 +64,7 @@ npm run dev:gadget my-gadget
 | entry | ✔ | iframe にロードされるHTML（ガジェットルートからの相対パス） |
 | size.default | ✔ | `small`(1x1) / `medium`(2x1) / `large`(2x2) / `full`(横幅いっぱい) |
 | permissions | ✔ | 使用するSDK機能の宣言（§5参照）。宣言していない機能の呼び出しは実行時に拒否されます |
-| externalServices | – | 外部サービスを使う場合は必ず宣言。`auth` は `byok` のみ（v1）。`baseUrl` 以外への通信はCSPでブロックされます |
+| externalServices | – | 外部サービスを使う場合は必ず宣言。`auth` は `byok` のみ（v1）。通信先は `baseUrls`（配列）で宣言し、宣言外への通信はCSPでブロックされます。リダイレクト先が別ドメインの場合（例: GAS WebApp の `script.googleusercontent.com`）はそれも宣言に含めること。旧形式の `baseUrl`（文字列・単数）も後方互換で受理されます |
 
 ## 4. SDK の使い方
 
@@ -109,6 +109,7 @@ npm run dev:gadget my-gadget
 | storage | gadget.storage.* | 「このガジェット専用の保存領域を使用します」 |
 | notify | gadget.notify | 「通知を表示することがあります」 |
 | profile | gadget.user.getProfile | 「あなたの表示名を取得します」 |
+| microphone | （SDK APIなし）承認されたガジェットの iframe にのみブラウザのマイク使用許可が付与される（Web Speech API 等の音声入力用） | 「マイクを使用することがあります（音声入力）」 |
 
 externalServices の宣言は、それ自体が権限承認の対象になります。
 ユーザーはインストール時に permissions と externalServices の一覧を見て承認します。
@@ -140,3 +141,8 @@ A. v1では対応しません（プラットフォームの外部連携ポリシ
 
 **Q. ガジェット同士でデータをやり取りしたい**
 A. v1では不可です。要望が多ければv2で共有ストレージAPIを検討します。
+
+## 8. 変更履歴
+
+- **v1.1（2026-07-02）**: externalServices の `baseUrl`（単数）を `baseUrls`（配列）に変更（旧形式も後方互換で受理）。permissions に `microphone` を追加
+- v1.0: 初版

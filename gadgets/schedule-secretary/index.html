@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>スケジュール秘書</title>
+    <style>
+      :root {
+        font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+        color: #1c1917;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        font-size: 14px;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 13px;
+        margin: 16px 0 6px;
+        color: #57534e;
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      button {
+        font-size: 13px;
+        padding: 5px 12px;
+        border: 1px solid #a8a29e;
+        border-radius: 8px;
+        background: #fafaf9;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #f5f5f4;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      button.primary {
+        background: #44403c;
+        border-color: #44403c;
+        color: #fafaf9;
+      }
+      button.danger {
+        color: #b91c1c;
+        border-color: #fca5a5;
+      }
+      button.mic {
+        padding: 5px 8px;
+      }
+      button.mic.listening {
+        background: #fee2e2;
+        border-color: #ef4444;
+      }
+      #status {
+        font-size: 12px;
+        color: #57534e;
+      }
+      #status.error {
+        color: #b91c1c;
+      }
+      .notice {
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        padding: 12px;
+        background: #fafaf9;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      .notice code {
+        background: #f5f5f4;
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .notice .actions {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .sub {
+        font-size: 12px;
+        color: #78716c;
+      }
+      #error-banner {
+        border: 1px solid #fca5a5;
+        background: #fef2f2;
+        color: #b91c1c;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 12px;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: start;
+      }
+      #error-banner button {
+        border: none;
+        background: none;
+        color: #b91c1c;
+        padding: 0 4px;
+        font-size: 14px;
+      }
+      .loading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #57534e;
+        padding: 8px 0;
+      }
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid #d6d3d1;
+        border-top-color: #44403c;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        flex: none;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .event {
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        background: #fff;
+      }
+      .event .time {
+        font-size: 12px;
+        color: #57534e;
+      }
+      .event .title {
+        font-weight: 600;
+      }
+      .event .desc {
+        font-size: 12px;
+        color: #78716c;
+        white-space: pre-wrap;
+        margin: 2px 0 0;
+      }
+      .event .row {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .event .editor {
+        margin-top: 8px;
+        display: grid;
+        gap: 6px;
+      }
+      form {
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        padding: 12px;
+        background: #fff;
+        display: grid;
+        gap: 8px;
+      }
+      label {
+        display: grid;
+        gap: 3px;
+        font-size: 12px;
+        color: #57534e;
+      }
+      .with-mic {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .with-mic > input,
+      .with-mic > textarea {
+        flex: 1;
+      }
+      input,
+      textarea {
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid #d6d3d1;
+        border-radius: 8px;
+        min-width: 0;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 48px;
+      }
+      .empty {
+        color: #78716c;
+        font-size: 13px;
+        padding: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <h1>スケジュール秘書</h1>
+      <button id="refresh" hidden type="button">再読み込み</button>
+    </div>
+    <p id="status">プラットフォームに接続中…</p>
+
+    <!-- Shown when the platform does not implement gadget.services.* yet -->
+    <section id="unsupported" class="notice" hidden>
+      <strong>プラットフォーム側の準備待ちです</strong><br />
+      このガジェットは外部サービス連携（<code>gadget.services</code> API /
+      gadget-spec.md §4）を使いますが、お使いのプラットフォームはまだこの API に
+      対応していません。プラットフォームの対応後、自動で使えるようになります。
+    </section>
+
+    <!-- Shown when the GAS WebApp credential is not configured yet -->
+    <section id="setup" class="notice" hidden>
+      <strong>はじめに: Google カレンダーとの連携設定</strong><br />
+      このガジェットは、あなた自身の Google アカウントに設置する
+      GAS WebApp を通じてカレンダーを操作します（プラットフォームには
+      Google の権限を渡しません）。<br />
+      ① 同梱の <code>gas/SETUP.md</code> の手順で WebApp を作成（10〜15分）<br />
+      ② 下のボタンから「<code>WebAppのURL 半角スペース 合言葉</code>」の形式で登録
+      <div class="actions">
+        <button id="open-setup" class="primary" type="button">連携設定をひらく</button>
+        <button id="recheck" type="button">設定が終わったら再確認</button>
+      </div>
+      <p id="setup-note" class="sub"></p>
+    </section>
+
+    <section id="main" hidden>
+      <div id="error-banner" hidden>
+        <span id="error-text"></span>
+        <button id="error-close" type="button" aria-label="閉じる">×</button>
+      </div>
+      <div id="loading" class="loading" hidden>
+        <span class="spinner"></span><span id="loading-text">読み込み中…</span>
+      </div>
+      <p id="cache-note" class="sub" hidden></p>
+
+      <div id="events"></div>
+
+      <h2>予定を追加</h2>
+      <form id="create-form">
+        <label>
+          案件名
+          <span class="with-mic">
+            <input id="create-title" required maxlength="200" placeholder="例: 山田様 打ち合わせ" />
+            <button class="mic" type="button" data-target="create-title" hidden aria-label="案件名を音声入力">🎤</button>
+          </span>
+        </label>
+        <label>
+          開始日時
+          <input id="create-start" type="datetime-local" required />
+        </label>
+        <label>
+          終了日時
+          <input id="create-end" type="datetime-local" required />
+        </label>
+        <label>
+          メモ
+          <span class="with-mic">
+            <textarea id="create-memo" maxlength="2000" placeholder="場所・持ち物など"></textarea>
+            <button class="mic" type="button" data-target="create-memo" hidden aria-label="メモを音声入力">🎤</button>
+          </span>
+        </label>
+        <div>
+          <button class="primary" type="submit">追加する</button>
+        </div>
+      </form>
+    </section>
+
+    <script type="module">
+      // All platform access goes through the SDK (gadget-spec.md §4).
+      // The GAS WebApp URL and token come ONLY from the BYOK credential —
+      // they are never hardcoded and never written to gadget storage.
+      import { createGadget } from "/sdk/gadget-sdk.js";
+
+      const SERVICE_ID = "gas-webapp";
+      const CACHE_KEY = "events-cache";
+      const GAS_URL_PREFIX = "https://script.google.com/";
+      const REQUEST_TIMEOUT_MS = 30_000;
+
+      const el = (id) => document.getElementById(id);
+      const statusEl = el("status");
+      const unsupportedEl = el("unsupported");
+      const setupEl = el("setup");
+      const setupNoteEl = el("setup-note");
+      const mainEl = el("main");
+      const refreshButton = el("refresh");
+      const loadingEl = el("loading");
+      const loadingTextEl = el("loading-text");
+      const errorBannerEl = el("error-banner");
+      const errorTextEl = el("error-text");
+      const cacheNoteEl = el("cache-note");
+      const eventsEl = el("events");
+      const createForm = el("create-form");
+
+      let gadget = null;
+      let credential = null; // { url, token } — kept in memory only
+      let events = [];
+      let busy = false;
+
+      // ---------------- bootstrap ----------------
+
+      async function init() {
+        try {
+          gadget = await createGadget();
+        } catch (error) {
+          statusEl.textContent = `プラットフォームに接続できませんでした: ${error.message}`;
+          statusEl.classList.add("error");
+          return;
+        }
+        statusEl.hidden = true;
+
+        // gadget.services is part of the spec (§4) but may not be implemented
+        // by the platform yet — degrade to an explanatory screen.
+        if (!gadget.services || typeof gadget.services.getCredential !== "function") {
+          unsupportedEl.hidden = false;
+          return;
+        }
+        await checkCredentialAndStart();
+      }
+
+      async function checkCredentialAndStart() {
+        let raw = null;
+        try {
+          raw = await gadget.services.getCredential(SERVICE_ID);
+        } catch (error) {
+          showSetup(`設定の読み込みに失敗しました: ${error.message}`);
+          return;
+        }
+        if (!raw) {
+          showSetup("");
+          return;
+        }
+        try {
+          credential = parseCredential(raw);
+        } catch (error) {
+          showSetup(`設定の形式に問題があります: ${error.message}`);
+          return;
+        }
+        setupEl.hidden = true;
+        mainEl.hidden = false;
+        refreshButton.hidden = false;
+        await restoreCache();
+        await refreshEvents();
+      }
+
+      function showSetup(note) {
+        mainEl.hidden = true;
+        refreshButton.hidden = true;
+        setupEl.hidden = false;
+        setupNoteEl.textContent = note;
+      }
+
+      /**
+       * Credential format (documented in gas/SETUP.md):
+       *   "https://script.google.com/macros/s/xxx/exec TOKEN"
+       * A JSON object {"url": "...", "token": "..."} is also accepted.
+       */
+      function parseCredential(raw) {
+        const text = String(raw).trim();
+        let url = "";
+        let token = "";
+        if (text.startsWith("{")) {
+          const parsed = JSON.parse(text);
+          url = String(parsed.url ?? "").trim();
+          token = String(parsed.token ?? "").trim();
+        } else {
+          const parts = text.split(/\s+/);
+          url = parts[0] ?? "";
+          token = parts[1] ?? "";
+        }
+        if (!url.startsWith(GAS_URL_PREFIX)) {
+          throw new Error(`URL は ${GAS_URL_PREFIX} で始まる必要があります`);
+        }
+        if (!token) {
+          throw new Error("「URL 半角スペース 合言葉」の形式で登録してください");
+        }
+        return { url, token };
+      }
+
+      // ---------------- GAS WebApp call ----------------
+
+      async function callGas(action, params) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        try {
+          // text/plain keeps this a "simple request" (no CORS preflight,
+          // which GAS WebApps do not answer).
+          const response = await fetch(credential.url, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ token: credential.token, action, params: params ?? {} }),
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            throw new Error(`WebApp がエラーを返しました (HTTP ${response.status})`);
+          }
+          const data = await response.json();
+          if (!data.ok) {
+            throw new Error(data.error?.message ?? "WebApp で不明なエラーが発生しました");
+          }
+          return data.result;
+        } catch (error) {
+          if (error.name === "AbortError") {
+            throw new Error("WebApp の応答がタイムアウトしました（30秒）。時間をおいて再試行してください");
+          }
+          throw error;
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
+      // GAS responses take seconds — every call goes through this loading UI.
+      async function runAction(text, task) {
+        if (busy) return;
+        busy = true;
+        hideError();
+        loadingTextEl.textContent = text;
+        loadingEl.hidden = false;
+        setButtonsDisabled(true);
+        try {
+          await task();
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          busy = false;
+          loadingEl.hidden = true;
+          setButtonsDisabled(false);
+        }
+      }
+
+      function setButtonsDisabled(disabled) {
+        for (const button of mainEl.querySelectorAll("button")) {
+          if (button.id !== "error-close" && !button.classList.contains("mic")) {
+            button.disabled = disabled;
+          }
+        }
+        refreshButton.disabled = disabled;
+      }
+
+      function showError(message) {
+        errorTextEl.textContent = message;
+        errorBannerEl.hidden = false;
+      }
+      function hideError() {
+        errorBannerEl.hidden = true;
+      }
+
+      // ---------------- events list ----------------
+
+      async function reloadList() {
+        events = await callGas("list");
+        cacheNoteEl.hidden = true;
+        renderEvents();
+        await saveCache();
+      }
+
+      function refreshEvents() {
+        return runAction("予定を取得しています…（数秒かかります）", reloadList);
+      }
+
+      function renderEvents() {
+        eventsEl.replaceChildren();
+        if (events.length === 0) {
+          const empty = document.createElement("p");
+          empty.className = "empty";
+          empty.textContent = "今後7日間の予定はありません";
+          eventsEl.append(empty);
+          return;
+        }
+        const sorted = [...events].sort((a, b) => new Date(a.start) - new Date(b.start));
+        const dayFormat = new Intl.DateTimeFormat("ja-JP", {
+          month: "numeric",
+          day: "numeric",
+          weekday: "short",
+        });
+        let currentDay = "";
+        for (const event of sorted) {
+          const day = dayFormat.format(new Date(event.start));
+          if (day !== currentDay) {
+            currentDay = day;
+            const heading = document.createElement("h2");
+            heading.textContent = day;
+            eventsEl.append(heading);
+          }
+          eventsEl.append(renderEventCard(event));
+        }
+      }
+
+      function formatTimeRange(event) {
+        if (event.allDay) return "終日";
+        const timeFormat = new Intl.DateTimeFormat("ja-JP", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        return `${timeFormat.format(new Date(event.start))}〜${timeFormat.format(new Date(event.end))}`;
+      }
+
+      function renderEventCard(event) {
+        const card = document.createElement("article");
+        card.className = "event";
+
+        const time = document.createElement("div");
+        time.className = "time";
+        time.textContent = formatTimeRange(event);
+        const title = document.createElement("div");
+        title.className = "title";
+        title.textContent = event.title;
+        card.append(time, title);
+        if (event.description) {
+          const desc = document.createElement("p");
+          desc.className = "desc";
+          desc.textContent = event.description;
+          card.append(desc);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "row";
+        const moveButton = document.createElement("button");
+        moveButton.type = "button";
+        moveButton.textContent = "移動";
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "danger";
+        deleteButton.textContent = "削除";
+        actions.append(moveButton, deleteButton);
+        card.append(actions);
+
+        // Inline move editor (sandboxed iframes have no prompt()/confirm())
+        const editor = document.createElement("div");
+        editor.className = "editor";
+        editor.hidden = true;
+        const startInput = document.createElement("input");
+        startInput.type = "datetime-local";
+        const endInput = document.createElement("input");
+        endInput.type = "datetime-local";
+        const editorRow = document.createElement("div");
+        editorRow.className = "row";
+        const saveButton = document.createElement("button");
+        saveButton.type = "button";
+        saveButton.className = "primary";
+        saveButton.textContent = "この日時に移動";
+        const cancelButton = document.createElement("button");
+        cancelButton.type = "button";
+        cancelButton.textContent = "キャンセル";
+        editorRow.append(saveButton, cancelButton);
+        editor.append(startInput, endInput, editorRow);
+        card.append(editor);
+
+        moveButton.addEventListener("click", () => {
+          editor.hidden = !editor.hidden;
+          if (!editor.hidden) {
+            startInput.value = toLocalInputValue(new Date(event.start));
+            endInput.value = toLocalInputValue(new Date(event.end));
+          }
+        });
+        cancelButton.addEventListener("click", () => {
+          editor.hidden = true;
+        });
+        saveButton.addEventListener("click", () => {
+          const range = readRange(startInput, endInput);
+          if (!range) return;
+          runAction("予定を移動しています…", async () => {
+            await callGas("move", { eventId: event.id, ...range });
+            await reloadList();
+          });
+        });
+
+        // Two-step inline delete confirmation
+        deleteButton.addEventListener("click", () => {
+          if (deleteButton.dataset.confirming) {
+            runAction("予定を削除しています…", async () => {
+              await callGas("delete", { eventId: event.id });
+              await reloadList();
+            });
+          } else {
+            deleteButton.dataset.confirming = "1";
+            deleteButton.textContent = "本当に削除する";
+            setTimeout(() => {
+              delete deleteButton.dataset.confirming;
+              deleteButton.textContent = "削除";
+            }, 4000);
+          }
+        });
+
+        return card;
+      }
+
+      function readRange(startInput, endInput) {
+        if (!startInput.value || !endInput.value) {
+          showError("開始日時と終了日時を入力してください");
+          return null;
+        }
+        const start = new Date(startInput.value);
+        const end = new Date(endInput.value);
+        if (end.getTime() <= start.getTime()) {
+          showError("終了日時は開始日時より後にしてください");
+          return null;
+        }
+        return { start: start.toISOString(), end: end.toISOString() };
+      }
+
+      function toLocalInputValue(date) {
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+
+      // ---------------- create form ----------------
+
+      function resetFormDefaults() {
+        const start = new Date();
+        start.setMinutes(0, 0, 0);
+        start.setHours(start.getHours() + 1);
+        el("create-start").value = toLocalInputValue(start);
+        el("create-end").value = toLocalInputValue(new Date(start.getTime() + 60 * 60 * 1000));
+      }
+
+      createForm.addEventListener("submit", (submitEvent) => {
+        submitEvent.preventDefault();
+        const title = el("create-title").value.trim();
+        if (!title) {
+          showError("案件名を入力してください");
+          return;
+        }
+        const range = readRange(el("create-start"), el("create-end"));
+        if (!range) return;
+        const description = el("create-memo").value.trim();
+        runAction("予定を作成しています…", async () => {
+          await callGas("create", { title, description, ...range });
+          el("create-title").value = "";
+          el("create-memo").value = "";
+          resetFormDefaults();
+          await reloadList();
+        });
+      });
+
+      // ---------------- storage cache (permissions: "storage") ----------------
+
+      async function saveCache() {
+        try {
+          await gadget.storage.set(CACHE_KEY, { savedAt: new Date().toISOString(), events });
+        } catch {
+          // The cache is best-effort only.
+        }
+      }
+
+      async function restoreCache() {
+        try {
+          const cache = await gadget.storage.get(CACHE_KEY);
+          if (cache && Array.isArray(cache.events)) {
+            events = cache.events;
+            renderEvents();
+            cacheNoteEl.textContent = "前回取得した内容を表示中。最新の予定を取得しています…";
+            cacheNoteEl.hidden = false;
+          }
+        } catch {
+          // Ignore cache errors and fetch fresh data.
+        }
+      }
+
+      // ---------------- voice input (Web Speech API) ----------------
+
+      const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognitionImpl) {
+        for (const micButton of document.querySelectorAll("button.mic")) {
+          micButton.hidden = false;
+          micButton.addEventListener("click", () => {
+            startDictation(micButton, el(micButton.dataset.target));
+          });
+        }
+      }
+      // Unsupported browsers: buttons simply stay hidden.
+
+      function startDictation(button, target) {
+        const recognition = new SpeechRecognitionImpl();
+        recognition.lang = "ja-JP";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        button.classList.add("listening");
+        button.disabled = true;
+        recognition.onresult = (recognitionEvent) => {
+          const transcript = recognitionEvent.results[0][0].transcript;
+          target.value = target.value ? `${target.value} ${transcript}` : transcript;
+        };
+        recognition.onerror = (recognitionEvent) => {
+          if (recognitionEvent.error === "not-allowed" || recognitionEvent.error === "service-not-allowed") {
+            showError(
+              "マイクを使用できません。ブラウザの許可設定のほか、プラットフォーム側でガジェットへのマイク許可が必要な場合があります",
+            );
+          } else if (recognitionEvent.error !== "aborted" && recognitionEvent.error !== "no-speech") {
+            showError(`音声認識エラー: ${recognitionEvent.error}`);
+          }
+        };
+        recognition.onend = () => {
+          button.classList.remove("listening");
+          button.disabled = false;
+        };
+        recognition.start();
+      }
+
+      // ---------------- wire up static buttons ----------------
+
+      refreshButton.addEventListener("click", refreshEvents);
+      el("error-close").addEventListener("click", hideError);
+      el("open-setup").addEventListener("click", async () => {
+        try {
+          await gadget.services.requestSetup(SERVICE_ID);
+          await checkCredentialAndStart();
+        } catch (error) {
+          setupNoteEl.textContent = `設定画面を開けませんでした: ${error.message}`;
+        }
+      });
+      el("recheck").addEventListener("click", checkCredentialAndStart);
+
+      resetFormDefaults();
+      init();
+    </script>
+  </body>
+</html>

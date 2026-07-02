@@ -19,3 +19,10 @@ npm run dev:gadget my-gadget
 
 - `createGadget()` でプラットフォームとハンドシェイク
 - `gadget.storage.get / set` でカウンタを保存・復元（`permissions: ["storage"]` が必要）
+
+## 知っておくこと
+
+- ダッシュボードに初めて表示されるとき、ユーザーには `permissions` と
+  `externalServices` の**承認画面**が表示されます（承認されるまでガジェットは動きません）
+- 外部サービスと通信する場合は `externalServices` の `baseUrls`（配列）に通信先を宣言します。
+  宣言していないドメインへの通信は CSP でブロックされます（詳細は gadget-spec.md §3）

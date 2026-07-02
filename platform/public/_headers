@@ -3,4 +3,3 @@
 
 /gadgets/*
   Access-Control-Allow-Origin: *
-  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; img-src 'self' data:; connect-src 'self'

@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { buildGadgetCsp, manifestConnectSrc } from './src/host/csp'
 
 const platformDir = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = path.resolve(platformDir, '..')
@@ -36,6 +37,17 @@ const CONTENT_TYPES: Record<string, string> = {
 function gadgetDevHost(): Plugin {
   const sdkBundle = path.join(repoRoot, 'packages', 'gadget-sdk', 'dist', 'index.js')
   const gadgetsRoot = path.join(repoRoot, 'gadgets')
+
+  // connect-src entries a gadget declared via manifest.externalServices
+  // (empty on any read/parse problem — the CSP then stays fully closed)
+  const readGadgetConnectSrc = (gadgetDir: string): string[] => {
+    try {
+      const manifestPath = path.join(gadgetsRoot, gadgetDir, 'manifest.json')
+      return manifestConnectSrc(JSON.parse(fs.readFileSync(manifestPath, 'utf8')))
+    } catch {
+      return []
+    }
+  }
 
   return {
     name: 'gadget-dev-host',
@@ -74,15 +86,10 @@ function gadgetDevHost(): Plugin {
           res.setHeader('Access-Control-Allow-Origin', '*')
           if (ext === '.html') {
             const origin = `http://${req.headers.host ?? 'localhost'}`
+            const gadgetDir = relativePath.split('/')[0]
             res.setHeader(
               'Content-Security-Policy',
-              [
-                "default-src 'none'",
-                `script-src 'unsafe-inline' ${origin}`,
-                `style-src 'unsafe-inline' ${origin}`,
-                `img-src ${origin} data:`,
-                `connect-src ${origin}`,
-              ].join('; '),
+              buildGadgetCsp(origin, readGadgetConnectSrc(gadgetDir)),
             )
           }
           res.end(fs.readFileSync(filePath))
@@ -105,6 +112,20 @@ function gadgetDevHost(): Plugin {
       fs.mkdirSync(path.join(outDir, 'sdk'), { recursive: true })
       fs.copyFileSync(sdkBundle, path.join(outDir, 'sdk', 'gadget-sdk.js'))
       fs.cpSync(gadgetsRoot, path.join(outDir, 'gadgets'), { recursive: true })
+
+      // Append one CSP rule per gadget to the Cloudflare Pages _headers file
+      // (the base file in public/ carries the CORS rules). connect-src is
+      // widened only with each gadget's own declared baseUrls.
+      const headerLines: string[] = []
+      for (const entry of fs.readdirSync(gadgetsRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        headerLines.push(
+          '',
+          `/gadgets/${entry.name}/*`,
+          `  Content-Security-Policy: ${buildGadgetCsp("'self'", readGadgetConnectSrc(entry.name))}`,
+        )
+      }
+      fs.appendFileSync(path.join(outDir, '_headers'), headerLines.join('\n') + '\n')
     },
   }
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   STORAGE_KEY_MAX_LENGTH,
   ensureJsonSerializable,
+  externalServiceBaseUrls,
+  validateServiceId,
   validateStorageKey,
 } from './index';
 
@@ -36,5 +38,41 @@ describe('ensureJsonSerializable', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
     expect(() => ensureJsonSerializable(circular)).toThrow();
+  });
+});
+
+describe('externalServiceBaseUrls', () => {
+  const base = { id: 'svc', name: 'S', auth: 'byok' as const, purpose: 'p' };
+
+  it('returns baseUrls when declared (spec v1.1)', () => {
+    expect(
+      externalServiceBaseUrls({ ...base, baseUrls: ['https://a.example', 'https://b.example'] }),
+    ).toEqual(['https://a.example', 'https://b.example']);
+  });
+
+  it('falls back to legacy baseUrl (spec v1.0)', () => {
+    expect(externalServiceBaseUrls({ ...base, baseUrl: 'https://a.example' })).toEqual([
+      'https://a.example',
+    ]);
+  });
+
+  it('prefers baseUrls over baseUrl and returns [] when neither is set', () => {
+    expect(
+      externalServiceBaseUrls({
+        ...base,
+        baseUrls: ['https://new.example'],
+        baseUrl: 'https://old.example',
+      }),
+    ).toEqual(['https://new.example']);
+    expect(externalServiceBaseUrls(base)).toEqual([]);
+  });
+});
+
+describe('validateServiceId', () => {
+  it('accepts a non-empty string and rejects everything else', () => {
+    expect(() => validateServiceId('gas-webapp')).not.toThrow();
+    expect(() => validateServiceId('')).toThrow();
+    expect(() => validateServiceId(undefined)).toThrow();
+    expect(() => validateServiceId(42)).toThrow();
   });
 });

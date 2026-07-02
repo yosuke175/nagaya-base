@@ -15,9 +15,27 @@ export const PROTOCOL_VERSION = 1;
 // Protocol types (also imported by the platform-side host)
 // ---------------------------------------------------------------------------
 
-export type GadgetPermission = 'storage' | 'notify' | 'profile';
+export type GadgetPermission = 'storage' | 'notify' | 'profile' | 'microphone';
 
 export type GadgetSize = 'small' | 'medium' | 'large' | 'full';
+
+/** External service declaration — docs/gadget-spec.md §3 */
+export interface GadgetExternalService {
+  id: string;
+  name: string;
+  auth: 'byok';
+  /** Allowed origins for this service (spec v1.1+). */
+  baseUrls?: string[];
+  /** Legacy single-URL form (spec v1.0) — still accepted. */
+  baseUrl?: string;
+  purpose: string;
+}
+
+/** Normalizes baseUrls / legacy baseUrl into one list. */
+export function externalServiceBaseUrls(service: GadgetExternalService): string[] {
+  if (service.baseUrls && service.baseUrls.length > 0) return service.baseUrls;
+  return service.baseUrl ? [service.baseUrl] : [];
+}
 
 /** manifest.json schema — docs/gadget-spec.md §3 */
 export interface GadgetManifest {
@@ -30,13 +48,7 @@ export interface GadgetManifest {
   entry: string;
   size: { default: GadgetSize; supported: GadgetSize[] };
   permissions: GadgetPermission[];
-  externalServices?: Array<{
-    id: string;
-    name: string;
-    auth: 'byok';
-    baseUrl: string;
-    purpose: string;
-  }>;
+  externalServices?: GadgetExternalService[];
 }
 
 export const MSG_HANDSHAKE = 'gadget:handshake';
@@ -117,8 +129,29 @@ export interface GadgetStorage {
   set(key: string, value: unknown): Promise<void>;
 }
 
+export interface GadgetServices {
+  /**
+   * Returns the user's credential for a service declared in
+   * manifest.externalServices, or null if the user has not set it up yet.
+   */
+  getCredential(serviceId: string): Promise<string | null>;
+  /**
+   * Asks the platform to open the credential settings UI for the service.
+   * Resolves once the UI is open (not when the user finishes) — call
+   * getCredential again after the user completed the setup.
+   */
+  requestSetup(serviceId: string): Promise<void>;
+}
+
 export interface Gadget {
   storage: GadgetStorage;
+  services: GadgetServices;
+}
+
+export function validateServiceId(serviceId: unknown): asserts serviceId is string {
+  if (typeof serviceId !== 'string' || serviceId.length === 0) {
+    throw new Error('serviceId must be a non-empty string');
+  }
 }
 
 /**
@@ -146,6 +179,17 @@ export async function createGadget(): Promise<Gadget> {
         validateStorageKey(key);
         ensureJsonSerializable(value);
         await call('storage.set', { key, value });
+      },
+    },
+    services: {
+      async getCredential(serviceId: string): Promise<string | null> {
+        validateServiceId(serviceId);
+        const result = await call('services.getCredential', { serviceId });
+        return (result ?? null) as string | null;
+      },
+      async requestSetup(serviceId: string): Promise<void> {
+        validateServiceId(serviceId);
+        await call('services.requestSetup', { serviceId });
       },
     },
   };

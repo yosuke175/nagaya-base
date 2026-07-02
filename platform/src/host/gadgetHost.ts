@@ -6,6 +6,7 @@ import {
   PROTOCOL_VERSION,
   STORAGE_QUOTA_BYTES,
   validateStorageKey,
+  type GadgetExternalService,
   type GadgetManifest,
   type GadgetPermission,
   type HandshakeAckMessage,
@@ -93,8 +94,42 @@ class MockGadgetStorage {
   }
 }
 
+// ---------------------------------------------------------------------------
+// BYOK credential store (mock)
+// ---------------------------------------------------------------------------
+//
+// TODO(ADR-005): Phase 1 mock, plaintext and per-device. In the Supabase
+// iteration, credentials move server-side: AES-GCM-encrypted inside Workers
+// (key in a Workers Secret) before storage, decrypted only when handed to
+// the owning gadget's execution context. The interface stays the same.
+// The keyspace is deliberately separate from MockGadgetStorage
+// ('gadget-storage:') so gadgets can never read credentials via
+// gadget.storage.*.
+const CREDENTIAL_PREFIX = 'gadget-credential:'
+
+function credentialKey(gadgetId: string, serviceId: string): string {
+  return `${CREDENTIAL_PREFIX}${gadgetId}:${serviceId}`
+}
+
+export const credentialStore = {
+  get(gadgetId: string, serviceId: string): string | null {
+    return localStorage.getItem(credentialKey(gadgetId, serviceId))
+  },
+  set(gadgetId: string, serviceId: string, value: string): void {
+    localStorage.setItem(credentialKey(gadgetId, serviceId), value)
+  },
+  remove(gadgetId: string, serviceId: string): void {
+    localStorage.removeItem(credentialKey(gadgetId, serviceId))
+  },
+}
+
 export interface GadgetHost {
   dispose(): void
+}
+
+export interface GadgetRpcHandlerOptions {
+  /** Called when the gadget asks to open the credential settings UI. */
+  onRequestSetup?: (service: GadgetExternalService) => void
 }
 
 /**
@@ -109,8 +144,9 @@ export interface GadgetHost {
 export function createGadgetHost(
   iframe: HTMLIFrameElement,
   manifest: GadgetManifest,
+  options?: GadgetRpcHandlerOptions,
 ): GadgetHost {
-  const handleRpc = createGadgetRpcHandler(manifest)
+  const handleRpc = createGadgetRpcHandler(manifest, options)
   // The SDK re-sends the handshake until acked, so more than one can arrive;
   // each gets its own channel and stale ports simply go unused.
   const ports: MessagePort[] = []
@@ -155,9 +191,24 @@ export function createGadgetHost(
  */
 export function createGadgetRpcHandler(
   manifest: GadgetManifest,
+  options?: GadgetRpcHandlerOptions,
 ): (request: RpcRequestMessage) => RpcResponseMessage {
   const storage = new MockGadgetStorage(manifest.id)
   const granted = new Set<GadgetPermission>(manifest.permissions)
+
+  // The externalServices declaration itself is what the user approves
+  // (docs/gadget-spec.md §5) — undeclared service ids are rejected here.
+  const requireService = (params: Record<string, unknown>): GadgetExternalService => {
+    const serviceId = typeof params.serviceId === 'string' ? params.serviceId : ''
+    const service = (manifest.externalServices ?? []).find((entry) => entry.id === serviceId)
+    if (!service) {
+      throw new RpcError(
+        'unknown_service',
+        `manifest.json の externalServices に "${serviceId}" が宣言されていません`,
+      )
+    }
+    return service
+  }
 
   const dispatch = (request: RpcRequestMessage): unknown => {
     const [namespace] = request.method.split('.')
@@ -166,6 +217,20 @@ export function createGadgetRpcHandler(
         'permission_denied',
         'manifest.json の permissions に "storage" が宣言されていません',
       )
+    }
+    if (namespace === 'services') {
+      const service = requireService(request.params)
+      switch (request.method) {
+        case 'services.getCredential':
+          return credentialStore.get(manifest.id, service.id)
+        case 'services.requestSetup':
+          // Resolves immediately after notifying the UI; the gadget calls
+          // getCredential again once the user finished the setup.
+          options?.onRequestSetup?.(service)
+          return null
+        default:
+          throw new RpcError('unknown_method', `未対応のメソッドです: ${request.method}`)
+      }
     }
     switch (request.method) {
       case 'storage.get': {

@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "schedule-secretary",
+  "name": "スケジュール秘書",
+  "version": "0.1.1",
+  "description": "Google カレンダーの今後7日の予定を表示・追加・移動・削除できるスケジュール秘書。案件名とメモは音声入力にも対応。連携にはユーザー自身がデプロイする GAS WebApp を使います（セットアップ手順は gas/SETUP.md）。",
+  "author": { "name": "向井庸祐", "contact": "yosuke175@gmail.com" },
+  "entry": "index.html",
+  "size": { "default": "large", "supported": ["large", "full"] },
+  "permissions": ["storage", "microphone"],
+  "externalServices": [
+    {
+      "id": "gas-webapp",
+      "name": "Google Apps Script WebApp（自分のカレンダー連携）",
+      "auth": "byok",
+      "baseUrls": ["https://script.google.com", "https://script.googleusercontent.com"],
+      "purpose": "ユーザー自身が自分の Google アカウントにデプロイした GAS WebApp を呼び出し、本人のデフォルトカレンダーの予定を取得・作成・移動・削除するため。プラットフォームは Google の権限を一切仲介しない（BYOK）"
+    }
+  ]
+}

@@ -2,32 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MSG_RPC_REQUEST,
   STORAGE_KEY_MAX_LENGTH,
+  type GadgetExternalService,
   type GadgetManifest,
   type RpcRequestMessage,
 } from 'gadget-sdk'
-import { createGadgetRpcHandler } from './gadgetHost'
-
-class LocalStorageStub {
-  private store = new Map<string, string>()
-  get length() {
-    return this.store.size
-  }
-  key(index: number) {
-    return [...this.store.keys()][index] ?? null
-  }
-  getItem(key: string) {
-    return this.store.get(key) ?? null
-  }
-  setItem(key: string, value: string) {
-    this.store.set(key, String(value))
-  }
-  removeItem(key: string) {
-    this.store.delete(key)
-  }
-  clear() {
-    this.store.clear()
-  }
-}
+import { LocalStorageStub } from '../testing/localStorageStub'
+import { createGadgetRpcHandler, credentialStore } from './gadgetHost'
 
 const manifest = (permissions: GadgetManifest['permissions']): GadgetManifest => ({
   manifestVersion: 1,
@@ -100,5 +80,62 @@ describe('createGadgetRpcHandler', () => {
     const unknown = handle(request(2, 'storage.list', {}))
     expect(unknown.ok).toBe(false)
     expect(unknown.error?.code).toBe('unknown_method')
+  })
+})
+
+describe('createGadgetRpcHandler — services (BYOK)', () => {
+  const gasService: GadgetExternalService = {
+    id: 'gas-webapp',
+    name: 'GAS WebApp',
+    auth: 'byok',
+    baseUrls: ['https://script.google.com', 'https://script.googleusercontent.com'],
+    purpose: 'test',
+  }
+  const withService = (): GadgetManifest => ({
+    ...manifest(['storage']),
+    externalServices: [gasService],
+  })
+
+  it('getCredential returns null before setup and the stored value after', () => {
+    const handle = createGadgetRpcHandler(withService())
+
+    const before = handle(request(1, 'services.getCredential', { serviceId: 'gas-webapp' }))
+    expect(before.ok).toBe(true)
+    expect(before.result).toBeNull()
+
+    credentialStore.set('test-gadget', 'gas-webapp', 'https://example.invalid token')
+    const after = handle(request(2, 'services.getCredential', { serviceId: 'gas-webapp' }))
+    expect(after.result).toBe('https://example.invalid token')
+  })
+
+  it('isolates credentials from gadget.storage and between gadgets', () => {
+    credentialStore.set('test-gadget', 'gas-webapp', 'secret')
+    const handle = createGadgetRpcHandler(withService())
+
+    // Not readable through the storage namespace
+    const viaStorage = handle(request(1, 'storage.get', { key: 'gas-webapp' }))
+    expect(viaStorage.result).toBeNull()
+
+    // Not readable by another gadget id
+    expect(credentialStore.get('other-gadget', 'gas-webapp')).toBeNull()
+  })
+
+  it('rejects undeclared service ids', () => {
+    const handle = createGadgetRpcHandler(withService())
+    const response = handle(request(1, 'services.getCredential', { serviceId: 'not-declared' }))
+    expect(response.ok).toBe(false)
+    expect(response.error?.code).toBe('unknown_service')
+  })
+
+  it('requestSetup notifies the host callback with the declared service', () => {
+    let requested: string | null = null
+    const handle = createGadgetRpcHandler(withService(), {
+      onRequestSetup: (service) => {
+        requested = service.id
+      },
+    })
+    const response = handle(request(1, 'services.requestSetup', { serviceId: 'gas-webapp' }))
+    expect(response.ok).toBe(true)
+    expect(requested).toBe('gas-webapp')
   })
 })

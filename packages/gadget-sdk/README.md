@@ -15,8 +15,9 @@ import { createGadget } from "/sdk/gadget-sdk.js";
 |---|---|
 | `createGadget()`（ハンドシェイク） | 実装済み |
 | `gadget.storage.get / set` | 実装済み（プラットフォーム側はモック応答） |
+| `gadget.services.getCredential / requestSetup` | 実装済み（保存は localStorage モック。暗号化は docs/backlog.md #1） |
 | `gadget.storage.remove / list` | 未実装 |
-| `gadget.notify` / `gadget.ui.*` / `gadget.user.*` / `gadget.services.*` | 未実装 |
+| `gadget.notify` / `gadget.ui.*` / `gadget.user.*` | 未実装 |
 
 プロトコル（postMessage の型定義）はこのパッケージからエクスポートされ、
 platform 側ホストも同じ型を参照します。**docs/gadget-spec.md の更新なしに
