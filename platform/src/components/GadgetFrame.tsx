@@ -189,7 +189,7 @@ function ApprovalCard({
         <button
           type="button"
           onClick={onApprove}
-          className="rounded-lg bg-stone-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-700"
+          className="btn-primary rounded-lg px-3 py-1.5 text-xs font-medium"
         >
           上記を承認して表示する
         </button>
@@ -256,7 +256,7 @@ function CredentialDialog({
         <button
           type="button"
           onClick={save}
-          className="rounded-lg bg-stone-800 px-3 py-1.5 font-medium text-white hover:bg-stone-700"
+          className="btn-primary rounded-lg px-3 py-1.5 font-medium"
         >
           保存
         </button>

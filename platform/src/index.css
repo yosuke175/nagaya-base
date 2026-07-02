@@ -1,1 +1,18 @@
 @import "tailwindcss";
+
+:root {
+  --accent: #292524;
+}
+
+/* User-selectable accent color (src/theme.ts). Keep primary actions on this
+   class instead of hardcoded Tailwind colors. */
+.btn-primary {
+  background-color: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--accent), black 15%);
+}
+.accent-topbar {
+  border-top: 3px solid var(--accent);
+}

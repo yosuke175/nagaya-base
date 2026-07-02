@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { roleAtLeast } from './auth/roles'
 import { useAuth } from './auth/useAuth'
 import { CatalogView } from './components/CatalogView'
+import { ThemePicker } from './components/ThemePicker'
 import { GadgetFrame } from './components/GadgetFrame'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
@@ -59,7 +60,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-stone-100 text-stone-900">
-      <header className="border-b border-stone-200 bg-white px-4 py-3 shadow-sm">
+      <header className="accent-topbar border-b border-stone-200 bg-white px-4 py-3 shadow-sm">
         <div className="mx-auto flex max-w-5xl items-end justify-between gap-4">
           <div>
             <h1 className="text-lg font-bold">
@@ -102,6 +103,7 @@ export default function App() {
                 </TabButton>
               </nav>
             )}
+            <ThemePicker />
           </div>
         </div>
       </header>
@@ -145,7 +147,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-        active ? 'bg-stone-800 text-white' : 'text-stone-600 hover:bg-stone-100'
+        active ? 'btn-primary' : 'text-stone-600 hover:bg-stone-100'
       }`}
     >
       {children}
@@ -182,7 +184,7 @@ function Dashboard({
         <button
           type="button"
           onClick={onOpenCatalog}
-          className="mt-3 rounded-lg bg-stone-800 px-4 py-2 text-xs font-medium text-white hover:bg-stone-700"
+          className="btn-primary mt-3 rounded-lg px-4 py-2 text-xs font-medium"
         >
           カタログからさがす
         </button>

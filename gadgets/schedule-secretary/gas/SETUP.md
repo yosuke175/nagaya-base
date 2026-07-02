@@ -81,7 +81,7 @@
 
    例: `https://script.google.com/macros/s/AKfy.../exec a8Kx2mP9qL4wN7vB3cD6fG1h`
 
-3. ガジェットに今後7日の予定が表示されれば完了です 🎉
+3. ガジェットに今後30日の予定が表示されれば完了です 🎉
 
 ---
 

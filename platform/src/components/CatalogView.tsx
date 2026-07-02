@@ -123,7 +123,7 @@ function CatalogCard({
           <button
             type="button"
             onClick={() => onInstall(entry.dir)}
-            className="rounded-lg bg-stone-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-700"
+            className="btn-primary rounded-lg px-3 py-1.5 text-xs font-medium"
           >
             インストール
           </button>

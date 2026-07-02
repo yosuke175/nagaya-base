@@ -9,7 +9,7 @@
  * Setup for non-engineers: see SETUP.md in this folder.
  */
 
-var DAYS_TO_LIST = 7;
+var DAYS_TO_LIST = 30;
 
 function doPost(e) {
   var request;
@@ -57,7 +57,7 @@ function doPost(e) {
   }
 }
 
-/** Events from today 00:00 through the next 7 days. */
+/** Events from today 00:00 through the next DAYS_TO_LIST days. */
 function listEvents() {
   var calendar = CalendarApp.getDefaultCalendar();
   var now = new Date();
