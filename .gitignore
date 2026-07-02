@@ -23,6 +23,7 @@ Thumbs.db
 coverage/
 
 # Local tool state
+.claude/
 .wrangler/
 supabase/.temp/
 supabase/.branches/

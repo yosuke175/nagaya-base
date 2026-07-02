@@ -92,6 +92,20 @@ function gadgetDevHost(): Plugin {
         next()
       })
     },
+    // On production build, copy the SDK bundle and gadget assets into dist/
+    // so they are served from the same paths as in dev (/sdk/gadget-sdk.js,
+    // /gadgets/...). The CORS/CSP headers these paths need on Cloudflare
+    // Pages live in public/_headers.
+    closeBundle() {
+      const outDir = path.join(platformDir, 'dist')
+      if (!fs.existsSync(outDir)) return
+      if (!fs.existsSync(sdkBundle)) {
+        throw new Error('gadget-sdk is not built. Run: npm run build --workspace gadget-sdk')
+      }
+      fs.mkdirSync(path.join(outDir, 'sdk'), { recursive: true })
+      fs.copyFileSync(sdkBundle, path.join(outDir, 'sdk', 'gadget-sdk.js'))
+      fs.cpSync(gadgetsRoot, path.join(outDir, 'gadgets'), { recursive: true })
+    },
   }
 }
 
