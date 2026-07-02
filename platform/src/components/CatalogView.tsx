@@ -5,12 +5,14 @@ import { PERMISSION_LABELS } from '../host/permissionLabels'
 
 interface CatalogViewProps {
   installed: string[]
+  /** False for guests — catalog stays browsable but install is disabled. */
+  canInstall: boolean
   onInstall: (dir: string) => void
   onUninstall: (dir: string) => void
 }
 
 /** Gadget catalog (FR-03) with per-user install/uninstall (FR-04). */
-export function CatalogView({ installed, onInstall, onUninstall }: CatalogViewProps) {
+export function CatalogView({ installed, canInstall, onInstall, onUninstall }: CatalogViewProps) {
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +51,7 @@ export function CatalogView({ installed, onInstall, onUninstall }: CatalogViewPr
           key={entry.dir}
           entry={entry}
           installed={installed.includes(entry.dir)}
+          canInstall={canInstall}
           onInstall={onInstall}
           onUninstall={onUninstall}
         />
@@ -60,11 +63,13 @@ export function CatalogView({ installed, onInstall, onUninstall }: CatalogViewPr
 function CatalogCard({
   entry,
   installed,
+  canInstall,
   onInstall,
   onUninstall,
 }: {
   entry: CatalogEntry
   installed: boolean
+  canInstall: boolean
   onInstall: (dir: string) => void
   onUninstall: (dir: string) => void
 }) {
@@ -114,7 +119,7 @@ function CatalogCard({
           >
             アンインストール
           </button>
-        ) : (
+        ) : canInstall ? (
           <button
             type="button"
             onClick={() => onInstall(entry.dir)}
@@ -122,6 +127,19 @@ function CatalogCard({
           >
             インストール
           </button>
+        ) : (
+          <div>
+            <button
+              type="button"
+              disabled
+              className="cursor-default rounded-lg bg-stone-300 px-3 py-1.5 text-xs font-medium text-white"
+            >
+              インストール
+            </button>
+            <p className="mt-1 text-xs text-stone-400">
+              インストールには user ロール以上が必要です（管理者がロールを付与します）
+            </p>
+          </div>
         )}
       </div>
     </section>

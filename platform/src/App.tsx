@@ -1,12 +1,16 @@
 import { useState } from 'react'
+import { roleAtLeast } from './auth/roles'
+import { useAuth } from './auth/useAuth'
 import { CatalogView } from './components/CatalogView'
 import { GadgetFrame } from './components/GadgetFrame'
+import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
 
 type View = 'dashboard' | 'catalog'
 
 export default function App() {
+  const auth = useAuth()
   const [view, setView] = useState<View>('dashboard')
   const [installed, setInstalled] = useState<string[]>(() => listInstallations())
 
@@ -19,6 +23,11 @@ export default function App() {
     setInstalled(listInstallations())
   }
 
+  // UI-side gate only — RLS enforces the same rule server-side (ADR-003)
+  const canInstall =
+    auth.status === 'disabled' ||
+    (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))
+
   return (
     <div className="min-h-screen bg-stone-100 text-stone-900">
       <header className="border-b border-stone-200 bg-white px-4 py-3 shadow-sm">
@@ -30,28 +39,59 @@ export default function App() {
                 仮称
               </span>
             </h1>
-            <p className="text-xs text-stone-500">Phase 1 scaffold・ログインなし開発版</p>
+            <p className="text-xs text-stone-500">
+              {auth.status === 'disabled'
+                ? 'Phase 1・ログインなしローカル開発モード'
+                : 'Phase 1'}
+            </p>
           </div>
-          <nav className="flex gap-1 text-sm">
-            <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
-              ダッシュボード
-            </TabButton>
-            <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
-              カタログ
-            </TabButton>
-          </nav>
+          <div className="flex items-center gap-3">
+            {auth.status === 'signed-in' && (
+              <span className="flex items-center gap-2 text-xs text-stone-600">
+                <span>
+                  {auth.profile?.displayName ?? auth.email}
+                  <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
+                    {auth.profile?.role ?? '…'}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void auth.signOut()}
+                  className="rounded border border-stone-200 px-2 py-1 text-stone-500 hover:bg-stone-50"
+                >
+                  ログアウト
+                </button>
+              </span>
+            )}
+            {(auth.status === 'signed-in' || auth.status === 'disabled') && (
+              <nav className="flex gap-1 text-sm">
+                <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
+                  ダッシュボード
+                </TabButton>
+                <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
+                  カタログ
+                </TabButton>
+              </nav>
+            )}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-5xl p-4">
-        {view === 'dashboard' ? (
-          <Dashboard installed={installed} onOpenCatalog={() => setView('catalog')} />
-        ) : (
-          <CatalogView
-            installed={installed}
-            onInstall={handleInstall}
-            onUninstall={handleUninstall}
-          />
+        {auth.status === 'loading' && (
+          <p className="p-8 text-center text-sm text-stone-400">読み込み中…</p>
         )}
+        {auth.status === 'signed-out' && <LoginView onSubmit={auth.signInWithMagicLink} />}
+        {(auth.status === 'signed-in' || auth.status === 'disabled') &&
+          (view === 'dashboard' ? (
+            <Dashboard installed={installed} onOpenCatalog={() => setView('catalog')} />
+          ) : (
+            <CatalogView
+              installed={installed}
+              canInstall={canInstall}
+              onInstall={handleInstall}
+              onUninstall={handleUninstall}
+            />
+          ))}
       </main>
     </div>
   )
