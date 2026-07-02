@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { roleAtLeast } from './auth/roles'
 import { useAuth } from './auth/useAuth'
 import { CatalogView } from './components/CatalogView'
@@ -12,15 +12,44 @@ type View = 'dashboard' | 'catalog'
 export default function App() {
   const auth = useAuth()
   const [view, setView] = useState<View>('dashboard')
-  const [installed, setInstalled] = useState<string[]>(() => listInstallations())
+  const [installed, setInstalled] = useState<string[]>([])
+  const [storeError, setStoreError] = useState<string | null>(null)
 
-  const handleInstall = (dir: string) => {
-    installGadget(dir)
-    setInstalled(listInstallations())
+  const refreshInstalled = async () => {
+    try {
+      setInstalled(await listInstallations())
+      setStoreError(null)
+    } catch (error) {
+      setStoreError(error instanceof Error ? error.message : String(error))
+    }
   }
-  const handleUninstall = (dir: string) => {
-    uninstallGadget(dir)
-    setInstalled(listInstallations())
+
+  // (Re)load installations once the auth state is settled — from Supabase
+  // when signed in, from the local mock in no-login dev mode.
+  useEffect(() => {
+    if (auth.status === 'signed-in' || auth.status === 'disabled') {
+      void refreshInstalled()
+    } else {
+      setInstalled([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.status])
+
+  const handleInstall = async (dir: string) => {
+    try {
+      await installGadget(dir)
+      await refreshInstalled()
+    } catch (error) {
+      setStoreError(error instanceof Error ? error.message : String(error))
+    }
+  }
+  const handleUninstall = async (dir: string) => {
+    try {
+      await uninstallGadget(dir)
+      await refreshInstalled()
+    } catch (error) {
+      setStoreError(error instanceof Error ? error.message : String(error))
+    }
   }
 
   // UI-side gate only — RLS enforces the same rule server-side (ADR-003)
@@ -77,6 +106,11 @@ export default function App() {
         </div>
       </header>
       <main className="mx-auto max-w-5xl p-4">
+        {storeError && (
+          <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {storeError}
+          </p>
+        )}
         {auth.status === 'loading' && (
           <p className="p-8 text-center text-sm text-stone-400">読み込み中…</p>
         )}

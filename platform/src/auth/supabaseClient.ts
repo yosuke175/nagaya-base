@@ -7,3 +7,10 @@ export const supabase: SupabaseClient | null =
   appConfig.supabaseUrl && appConfig.supabaseAnonKey
     ? createClient(appConfig.supabaseUrl, appConfig.supabaseAnonKey)
     : null
+
+/** Signed-in user's id, or null (not configured / signed out). */
+export async function currentUserId(): Promise<string | null> {
+  if (!supabase) return null
+  const { data } = await supabase.auth.getSession()
+  return data.session?.user.id ?? null
+}

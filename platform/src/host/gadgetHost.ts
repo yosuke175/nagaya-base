@@ -13,6 +13,8 @@ import {
   type RpcRequestMessage,
   type RpcResponseMessage,
 } from 'gadget-sdk'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { currentUserId, supabase } from '../auth/supabaseClient'
 
 const REQUIRED_MANIFEST_FIELDS = [
   'manifestVersion',
@@ -51,10 +53,43 @@ class RpcError extends Error {
 }
 
 /**
- * Mock of the per-user × per-gadget KV storage (FR-07), backed by
- * localStorage so the demo survives reloads. The real implementation moves
- * to Supabase `gadget_storage` behind RLS in a later iteration — the
- * postMessage protocol stays identical, so gadgets won't notice the swap.
+ * Per-user × per-gadget KV storage (FR-07) on Supabase `gadget_storage`.
+ * RLS is the enforcement layer: only the user's own rows, and only for
+ * installed gadgets. The 1MB quota (gadget-spec §4) is enforced only by the
+ * local mock for now — the server-side check moves to Workers later.
+ */
+class SupabaseGadgetStorage {
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly userId: string,
+    private readonly gadgetId: string,
+  ) {}
+
+  async get(key: string): Promise<unknown> {
+    const { data, error } = await this.client
+      .from('gadget_storage')
+      .select('value')
+      .eq('gadget_id', this.gadgetId)
+      .eq('key', key)
+      .maybeSingle()
+    if (error) throw new RpcError('storage_error', error.message)
+    return data ? (data.value as unknown) : null
+  }
+
+  async set(key: string, value: unknown): Promise<void> {
+    const { error } = await this.client
+      .from('gadget_storage')
+      .upsert(
+        { user_id: this.userId, gadget_id: this.gadgetId, key, value },
+        { onConflict: 'user_id,gadget_id,key' },
+      )
+    if (error) throw new RpcError('storage_error', error.message)
+  }
+}
+
+/**
+ * localStorage fallback used when Supabase is not configured / signed out
+ * (no-login local dev mode). Same behavior over the postMessage protocol.
  */
 class MockGadgetStorage {
   private readonly prefix: string
@@ -161,7 +196,7 @@ export function createGadgetHost(
     channel.port1.onmessage = (rpcEvent: MessageEvent) => {
       const request = rpcEvent.data as RpcRequestMessage | undefined
       if (request?.type !== MSG_RPC_REQUEST) return
-      channel.port1.postMessage(handleRpc(request))
+      void handleRpc(request).then((response) => channel.port1.postMessage(response))
     }
     ports.push(channel.port1)
 
@@ -192,9 +227,21 @@ export function createGadgetHost(
 export function createGadgetRpcHandler(
   manifest: GadgetManifest,
   options?: GadgetRpcHandlerOptions,
-): (request: RpcRequestMessage) => RpcResponseMessage {
-  const storage = new MockGadgetStorage(manifest.id)
+): (request: RpcRequestMessage) => Promise<RpcResponseMessage> {
   const granted = new Set<GadgetPermission>(manifest.permissions)
+
+  // Backend chosen lazily on first storage call: Supabase (RLS) when signed
+  // in, localStorage mock otherwise.
+  let storagePromise: Promise<SupabaseGadgetStorage | MockGadgetStorage> | null = null
+  const getStorage = () => {
+    storagePromise ??= (async () => {
+      const userId = await currentUserId()
+      return supabase && userId
+        ? new SupabaseGadgetStorage(supabase, userId, manifest.id)
+        : new MockGadgetStorage(manifest.id)
+    })()
+    return storagePromise
+  }
 
   // The externalServices declaration itself is what the user approves
   // (docs/gadget-spec.md §5) — undeclared service ids are rejected here.
@@ -210,7 +257,7 @@ export function createGadgetRpcHandler(
     return service
   }
 
-  const dispatch = (request: RpcRequestMessage): unknown => {
+  const dispatch = async (request: RpcRequestMessage): Promise<unknown> => {
     const [namespace] = request.method.split('.')
     if (namespace === 'storage' && !granted.has('storage')) {
       throw new RpcError(
@@ -234,13 +281,13 @@ export function createGadgetRpcHandler(
     }
     switch (request.method) {
       case 'storage.get': {
-        return storage.get(requireKey(request.params))
+        return (await getStorage()).get(requireKey(request.params))
       }
       case 'storage.set': {
         if (request.params.value === undefined) {
           throw new RpcError('invalid_value', 'value が undefined です')
         }
-        storage.set(requireKey(request.params), request.params.value)
+        await (await getStorage()).set(requireKey(request.params), request.params.value)
         return null
       }
       default:
@@ -248,9 +295,9 @@ export function createGadgetRpcHandler(
     }
   }
 
-  return (request: RpcRequestMessage): RpcResponseMessage => {
+  return async (request: RpcRequestMessage): Promise<RpcResponseMessage> => {
     try {
-      return { type: MSG_RPC_RESPONSE, id: request.id, ok: true, result: dispatch(request) }
+      return { type: MSG_RPC_RESPONSE, id: request.id, ok: true, result: await dispatch(request) }
     } catch (error) {
       const code = error instanceof RpcError ? error.code : 'internal_error'
       const message = error instanceof Error ? error.message : String(error)
