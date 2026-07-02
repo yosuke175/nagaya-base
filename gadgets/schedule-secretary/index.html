@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>スケジュール秘書</title>
     <style>
+      /* Keep the hidden attribute working: author display rules (e.g.
+         .loading / #error-banner use display:flex) would otherwise override
+         the UA's [hidden] { display: none }. */
+      [hidden] {
+        display: none !important;
+      }
       :root {
         font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
         color: #1c1917;
