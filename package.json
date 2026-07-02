@@ -1,0 +1,24 @@
+{
+  "name": "nagaya-base",
+  "private": true,
+  "version": "0.1.0",
+  "license": "BUSL-1.1",
+  "description": "Platform + gadgets monorepo (project name is provisional; see docs/requirements.md section 0)",
+  "workspaces": [
+    "packages/*",
+    "platform"
+  ],
+  "scripts": {
+    "dev": "npm run build --workspace gadget-sdk && npm run dev --workspace platform",
+    "dev:gadget": "node scripts/dev-gadget.mjs",
+    "build": "npm run build --workspace gadget-sdk && npm run build --workspace platform",
+    "test": "vitest run",
+    "db:migrate": "supabase migration up"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

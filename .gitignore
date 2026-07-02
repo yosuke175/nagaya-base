@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dev-dist/
+*.tsbuildinfo
+
+# Environment (never commit secrets; keep .env.example only)
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / coverage
+*.log
+coverage/
+
+# Local tool state
+.wrangler/
+supabase/.temp/
+supabase/.branches/

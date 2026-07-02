@@ -1,0 +1,11 @@
+{
+  "manifestVersion": 1,
+  "id": "gadget-template",
+  "name": "ガジェット雛形",
+  "version": "0.1.0",
+  "description": "SDKのハンドシェイクとストレージの動作を確認できる雛形ガジェット。コピーして自分のガジェットを作ってください。",
+  "author": { "name": "プラットフォーム管理者", "contact": "replace-me@example.com" },
+  "entry": "index.html",
+  "size": { "default": "medium", "supported": ["medium", "large"] },
+  "permissions": ["storage"]
+}

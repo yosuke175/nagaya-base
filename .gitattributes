@@ -1,0 +1,14 @@
+# Normalize line endings to LF for all text files (Windows/macOS mixed team)
+* text=auto eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.pdf binary
