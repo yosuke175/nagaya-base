@@ -3,10 +3,10 @@ import {
   externalServiceBaseUrls,
   type GadgetExternalService,
   type GadgetManifest,
-  type GadgetPermission,
   type GadgetSize,
 } from 'gadget-sdk'
 import { getStoredApproval, isApprovalCurrent, saveApproval } from '../host/approvals'
+import { PERMISSION_LABELS } from '../host/permissionLabels'
 import {
   createGadgetHost,
   credentialStore,
@@ -19,14 +19,6 @@ const SIZE_CLASSES: Record<GadgetSize, string> = {
   medium: 'col-span-2 min-h-48',
   large: 'col-span-2 min-h-96',
   full: 'col-span-full min-h-96',
-}
-
-// User-facing wording defined in docs/gadget-spec.md §5
-const PERMISSION_LABELS: Record<GadgetPermission, string> = {
-  storage: 'このガジェット専用の保存領域を使用します',
-  notify: '通知を表示することがあります',
-  profile: 'あなたの表示名を取得します',
-  microphone: 'マイクを使用することがあります（音声入力）',
 }
 
 interface GadgetFrameProps {

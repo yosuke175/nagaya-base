@@ -49,6 +49,29 @@ function gadgetDevHost(): Plugin {
     }
   }
 
+  // Catalog index (FR-03) built from gadgets/*/manifest.json. Directories
+  // starting with '_' (templates, scratch) or '.' are not published. The
+  // real registry moves to Supabase (gadgets/gadget_versions) later.
+  const readCatalog = (): Array<{ dir: string; manifest: unknown }> => {
+    const entries: Array<{ dir: string; manifest: unknown }> = []
+    for (const entry of fs.readdirSync(gadgetsRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('_') || entry.name.startsWith('.')) {
+        continue
+      }
+      try {
+        entries.push({
+          dir: entry.name,
+          manifest: JSON.parse(
+            fs.readFileSync(path.join(gadgetsRoot, entry.name, 'manifest.json'), 'utf8'),
+          ),
+        })
+      } catch {
+        // A broken or missing manifest just drops the gadget from the catalog.
+      }
+    }
+    return entries
+  }
+
   return {
     name: 'gadget-dev-host',
     configureServer(server: ViteDevServer) {
@@ -65,6 +88,12 @@ function gadgetDevHost(): Plugin {
           res.setHeader('Content-Type', CONTENT_TYPES['.js'])
           res.setHeader('Access-Control-Allow-Origin', '*')
           res.end(fs.readFileSync(sdkBundle))
+          return
+        }
+
+        if (url === '/gadgets/index.json') {
+          res.setHeader('Content-Type', CONTENT_TYPES['.json'])
+          res.end(JSON.stringify(readCatalog()))
           return
         }
 
@@ -112,6 +141,7 @@ function gadgetDevHost(): Plugin {
       fs.mkdirSync(path.join(outDir, 'sdk'), { recursive: true })
       fs.copyFileSync(sdkBundle, path.join(outDir, 'sdk', 'gadget-sdk.js'))
       fs.cpSync(gadgetsRoot, path.join(outDir, 'gadgets'), { recursive: true })
+      fs.writeFileSync(path.join(outDir, 'gadgets', 'index.json'), JSON.stringify(readCatalog()))
 
       // Append one CSP rule per gadget to the Cloudflare Pages _headers file
       // (the base file in public/ carries the CORS rules). connect-src is
