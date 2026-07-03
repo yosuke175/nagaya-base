@@ -2,6 +2,23 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-03（追記: CLA 自動チェック導入）
+
+- `.github/workflows/cla.yml` を追加（contributor-assistant/github-action v2.6.1、
+  CLA Assistant Lite）。対象文書は CLA.md、署名記録は**リポジトリ内**
+  `cla-signatures` ブランチの `signatures/cla.json`。bot はallowlistで除外。
+  未署名者への依頼コメントは日本語カスタム文（署名フレーズは既定の英文のまま）
+- **テストPR（#2）で動作確認済み**:
+  1. PR作成 → CLA Assistant が同意依頼コメントを投稿し、チェック `cla-assistant` が fail
+  2. 「I have read the CLA Document and I hereby sign the CLA」をコメント
+     → チェックが **pass** に変化
+  3. `cla-signatures` ブランチの signatures/cla.json に署名記録
+     （name: yosuke175 / PR #2 / comment_id / 日時）が保存されたことを確認
+  4. テストPRはクローズ（マージなし）、ブランチ削除済み
+- 気づき: **main のブランチ保護（PR必須）が有効化されており、admin の直 push は
+  "Bypassed rule violations" 警告付きで通る状態**。今後の開発フロー（直push継続 or
+  全てPR経由）は要決定
+
 ## 2026-07-03（追記: backlog #4 実施 — /api/ai 代理実行）
 
 - セキュリティ検収の指摘（平文AIキーがブラウザに返る）を解消:
