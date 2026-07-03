@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { roleAtLeast } from './auth/roles'
 import { useAuth } from './auth/useAuth'
+import { AiSettingsDialog } from './components/AiSettingsDialog'
 import { CatalogView } from './components/CatalogView'
 import { ThemePicker } from './components/ThemePicker'
 import { GadgetFrame } from './components/GadgetFrame'
@@ -15,6 +16,7 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard')
   const [installed, setInstalled] = useState<string[]>([])
   const [storeError, setStoreError] = useState<string | null>(null)
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
 
   const refreshInstalled = async () => {
     try {
@@ -103,6 +105,13 @@ export default function App() {
                 </TabButton>
               </nav>
             )}
+            <button
+              type="button"
+              onClick={() => setAiSettingsOpen(true)}
+              className="rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
+            >
+              AI設定
+            </button>
             <ThemePicker />
           </div>
         </div>
@@ -129,6 +138,7 @@ export default function App() {
             />
           ))}
       </main>
+      {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
     </div>
   )
 }

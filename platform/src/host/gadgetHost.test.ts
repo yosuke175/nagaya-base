@@ -127,7 +127,101 @@ describe('createGadgetRpcHandler — services (BYOK)', () => {
     expect(response.error?.code).toBe('unknown_service')
   })
 
+})
+
+describe('createGadgetRpcHandler — ai.complete', () => {
+  const aiRequest = (id: number, request: unknown): RpcRequestMessage => ({
+    type: MSG_RPC_REQUEST,
+    id,
+    method: 'ai.complete',
+    params: { request },
+  })
+  const validRequest = { messages: [{ role: 'user', content: 'こんにちは' }], maxTokens: 100 }
+
+  it('rejects when "ai" is not declared in the manifest', async () => {
+    const handle = createGadgetRpcHandler(manifest(['storage']))
+    const response = await handle(aiRequest(1, validRequest))
+    expect(response.ok).toBe(false)
+    expect(response.error?.code).toBe('permission_denied')
+  })
+
+  it('returns ai_not_configured when no key is registered', async () => {
+    const handle = createGadgetRpcHandler(manifest(['ai']))
+    const response = await handle(aiRequest(1, validRequest))
+    expect(response.ok).toBe(false)
+    expect(response.error?.code).toBe('ai_not_configured')
+  })
+
+  it('rejects malformed requests before calling the API', async () => {
+    const handle = createGadgetRpcHandler(manifest(['ai']))
+    const response = await handle(aiRequest(1, { messages: [] }))
+    expect(response.ok).toBe(false)
+    expect(response.error?.code).toBe('invalid_request')
+  })
+
+  it('joins text blocks and sends the stored key/model', async () => {
+    localStorage.setItem(
+      'platform-ai-settings',
+      JSON.stringify({ apiKey: 'test-key', model: 'test-model' }),
+    )
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        content: [
+          { type: 'text', text: 'こん' },
+          { type: 'tool_use' },
+          { type: 'text', text: 'にちは' },
+        ],
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const handle = createGadgetRpcHandler(manifest(['ai']))
+    const response = await handle(aiRequest(1, validRequest))
+    expect(response.ok).toBe(true)
+    expect(response.result).toBe('こんにちは')
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('https://api.anthropic.com/v1/messages')
+    const headers = init.headers as Record<string, string>
+    expect(headers['x-api-key']).toBe('test-key')
+    const body = JSON.parse(String(init.body)) as { model: string; max_tokens: number }
+    expect(body.model).toBe('test-model')
+    expect(body.max_tokens).toBe(100)
+  })
+
+  it('surfaces API errors with code ai_error', async () => {
+    localStorage.setItem(
+      'platform-ai-settings',
+      JSON.stringify({ apiKey: 'test-key', model: 'test-model' }),
+    )
+    vi.stubGlobal('fetch', async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: { message: 'invalid x-api-key' } }),
+    }))
+    const handle = createGadgetRpcHandler(manifest(['ai']))
+    const response = await handle(aiRequest(1, validRequest))
+    expect(response.ok).toBe(false)
+    expect(response.error?.code).toBe('ai_error')
+    expect(response.error?.message).toBe('invalid x-api-key')
+  })
+})
+
+describe('createGadgetRpcHandler — services callbacks', () => {
+  const gasService2: GadgetExternalService = {
+    id: 'gas-webapp',
+    name: 'GAS WebApp',
+    auth: 'byok',
+    baseUrls: ['https://script.google.com'],
+    purpose: 'test',
+  }
+
   it('requestSetup notifies the host callback with the declared service', async () => {
+    const withService = (): GadgetManifest => ({
+      ...manifest(['storage']),
+      externalServices: [gasService2],
+    })
     let requested: string | null = null
     const handle = createGadgetRpcHandler(withService(), {
       onRequestSetup: (service) => {

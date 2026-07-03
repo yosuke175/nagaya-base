@@ -3,6 +3,7 @@ import {
   STORAGE_KEY_MAX_LENGTH,
   ensureJsonSerializable,
   externalServiceBaseUrls,
+  validateAiRequest,
   validateServiceId,
   validateStorageKey,
 } from './index';
@@ -67,6 +68,35 @@ describe('externalServiceBaseUrls', () => {
     expect(externalServiceBaseUrls(base)).toEqual([]);
   });
 });
+
+describe('validateAiRequest', () => {
+  it('accepts a valid request', () => {
+    expect(() =>
+      validateAiRequest({
+        system: 'sys',
+        messages: [{ role: 'user', content: 'hi' }],
+        maxTokens: 100,
+      }),
+    ).not.toThrow()
+    expect(() => validateAiRequest({ messages: [{ role: 'user', content: 'hi' }] })).not.toThrow()
+  })
+
+  it('rejects empty or malformed messages', () => {
+    expect(() => validateAiRequest({ messages: [] })).toThrow()
+    expect(() => validateAiRequest({ messages: [{ role: 'system', content: 'x' }] })).toThrow()
+    expect(() => validateAiRequest({ messages: [{ role: 'user', content: '' }] })).toThrow()
+    expect(() => validateAiRequest(undefined)).toThrow()
+  })
+
+  it('rejects bad system / maxTokens types', () => {
+    expect(() =>
+      validateAiRequest({ system: 5, messages: [{ role: 'user', content: 'x' }] }),
+    ).toThrow()
+    expect(() =>
+      validateAiRequest({ messages: [{ role: 'user', content: 'x' }], maxTokens: -1 }),
+    ).toThrow()
+  })
+})
 
 describe('validateServiceId', () => {
   it('accepts a non-empty string and rejects everything else', () => {

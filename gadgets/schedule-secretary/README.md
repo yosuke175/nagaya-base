@@ -32,6 +32,15 @@ schedule-secretary/
 npm run dev:gadget schedule-secretary
 ```
 
+## AIに相談（v0.2）
+
+- 自由文（音声可）で依頼すると、直近7日の予定と「個人ルール」を踏まえた
+  **挿入案を最大3件**、理由つきでAIが提案します。**登録は「この案で登録」を
+  押したときだけ**（既存の create で GAS へ送信）。却下・再提案も可能
+- AI は `gadget.ai.complete`（permissions: `"ai"`）経由。**API キーはガジェットに
+  渡されず**、プラットフォームの「AI設定」に登録したユーザー自身のキーが使われます
+- 個人ルールは自由記述で `gadget.storage` に保存（例: 平日午前は予定を入れない）
+
 ## 実装メモ
 
 - GAS WebApp への POST は `Content-Type: text/plain` で送る（GAS は CORS プリフライトに
@@ -51,4 +60,5 @@ npm run dev:gadget schedule-secretary
 
 ## ロードマップ
 
-- v0.2: 自然言語の解釈・AI による予定提案（今回スコープ外）
+- v0.2: AI による予定挿入提案（実装済み）
+- v0.3 候補: AIとの継続会話・5段階記憶（`wip/ai-secretary` ブランチに試作あり）

@@ -15,7 +15,7 @@ export const PROTOCOL_VERSION = 1;
 // Protocol types (also imported by the platform-side host)
 // ---------------------------------------------------------------------------
 
-export type GadgetPermission = 'storage' | 'notify' | 'profile' | 'microphone';
+export type GadgetPermission = 'storage' | 'notify' | 'profile' | 'microphone' | 'ai';
 
 export type GadgetSize = 'small' | 'medium' | 'large' | 'full';
 
@@ -90,6 +90,8 @@ export interface RpcResponseMessage {
 export const STORAGE_KEY_MAX_LENGTH = 128;
 export const STORAGE_QUOTA_BYTES = 1024 * 1024;
 export const CALL_TIMEOUT_MS = 10_000;
+/** ai.complete goes out to an external AI API — it gets a longer budget. */
+export const AI_CALL_TIMEOUT_MS = 30_000;
 
 const HANDSHAKE_RETRY_MS = 100;
 
@@ -146,11 +148,58 @@ export interface GadgetServices {
 export interface Gadget {
   storage: GadgetStorage;
   services: GadgetServices;
+  ai: GadgetAi;
 }
 
 export function validateServiceId(serviceId: unknown): asserts serviceId is string {
   if (typeof serviceId !== 'string' || serviceId.length === 0) {
     throw new Error('serviceId must be a non-empty string');
+  }
+}
+
+export interface AiMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AiCompleteRequest {
+  system?: string;
+  messages: AiMessage[];
+  maxTokens?: number;
+}
+
+export interface GadgetAi {
+  /**
+   * Text generation via the AI the user registered on the platform.
+   * The API key stays on the platform side — it never enters the iframe
+   * (ADR-001). Returns the generated text only.
+   */
+  complete(request: AiCompleteRequest): Promise<string>;
+}
+
+export function validateAiRequest(request: unknown): asserts request is AiCompleteRequest {
+  const candidate = request as Partial<AiCompleteRequest> | null | undefined;
+  if (!candidate || !Array.isArray(candidate.messages) || candidate.messages.length === 0) {
+    throw new Error('ai.complete requires a non-empty messages array');
+  }
+  for (const message of candidate.messages) {
+    if (
+      !message ||
+      (message.role !== 'user' && message.role !== 'assistant') ||
+      typeof message.content !== 'string' ||
+      message.content.length === 0
+    ) {
+      throw new Error('each message needs role ("user"|"assistant") and non-empty content');
+    }
+  }
+  if (candidate.system !== undefined && typeof candidate.system !== 'string') {
+    throw new Error('system must be a string');
+  }
+  if (
+    candidate.maxTokens !== undefined &&
+    (typeof candidate.maxTokens !== 'number' || candidate.maxTokens <= 0)
+  ) {
+    throw new Error('maxTokens must be a positive number');
   }
 }
 
@@ -190,6 +239,17 @@ export async function createGadget(): Promise<Gadget> {
       async requestSetup(serviceId: string): Promise<void> {
         validateServiceId(serviceId);
         await call('services.requestSetup', { serviceId });
+      },
+    },
+    ai: {
+      async complete(request: AiCompleteRequest): Promise<string> {
+        validateAiRequest(request);
+        const result = await call(
+          'ai.complete',
+          { request: { system: request.system, messages: request.messages, maxTokens: request.maxTokens } },
+          AI_CALL_TIMEOUT_MS,
+        );
+        return String(result ?? '');
       },
     },
   };
@@ -262,13 +322,17 @@ function createRpcClient(port: MessagePort) {
     }
   };
 
-  return (method: string, params: Record<string, unknown>): Promise<unknown> =>
+  return (
+    method: string,
+    params: Record<string, unknown>,
+    timeoutMs: number = CALL_TIMEOUT_MS,
+  ): Promise<unknown> =>
     new Promise((resolve, reject) => {
       const id = nextId++;
       const timer = window.setTimeout(() => {
         pending.delete(id);
         reject(new Error(`platform call timed out: ${method}`));
-      }, CALL_TIMEOUT_MS);
+      }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
       const message: RpcRequestMessage = {
         type: MSG_RPC_REQUEST,

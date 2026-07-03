@@ -212,6 +212,23 @@
         font-size: 13px;
         padding: 8px 0;
       }
+      .proposal {
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+        border-radius: 10px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+      }
+      .proposal .reason {
+        font-size: 12px;
+        color: #57534e;
+        margin: 4px 0 0;
+      }
+      #consult-note,
+      #rules-note {
+        font-size: 11px;
+        color: #78716c;
+      }
     </style>
   </head>
   <body>
@@ -282,6 +299,40 @@
         </label>
         <div>
           <button class="primary" type="submit">追加する</button>
+        </div>
+      </form>
+
+      <h2>AIに相談（空き時間への挿入案）</h2>
+      <form id="consult-form">
+        <label>
+          やりたいこと・期限・所要時間などを自由に
+          <span class="with-mic">
+            <input
+              id="consult-input"
+              maxlength="500"
+              placeholder="例: 来週金曜までに見積書づくり、3時間ほしい"
+            />
+            <button class="mic" type="button" data-target="consult-input" hidden aria-label="音声で相談">🎤</button>
+          </span>
+        </label>
+        <div>
+          <button id="consult-send" class="primary" type="submit">AIに相談する</button>
+          <button id="consult-retry" type="button" hidden>別の案を出してもらう</button>
+        </div>
+        <p id="consult-note" hidden></p>
+      </form>
+      <div id="proposals"></div>
+
+      <h2>個人ルール（AIが提案時に厳守します）</h2>
+      <form id="rules-form">
+        <textarea
+          id="rules-input"
+          maxlength="2000"
+          placeholder="例: 平日の午前は集中作業にあてたいので予定を入れない / 移動を伴う予定の前後は30分空ける / 金曜の午後は空けておく"
+        ></textarea>
+        <div>
+          <button class="primary" type="submit">ルールを保存</button>
+          <span id="rules-note" hidden></span>
         </div>
       </form>
     </section>
@@ -359,6 +410,7 @@
         setupEl.hidden = true;
         mainEl.hidden = false;
         refreshButton.hidden = false;
+        void loadRules();
         await restoreCache();
         await refreshEvents();
       }
@@ -715,6 +767,214 @@
           button.disabled = false;
         };
         recognition.start();
+      }
+
+      // ---------------- AI consult (gadget.ai, permissions: "ai") ----------
+      // The AI key lives in the platform's「AI設定」— this gadget only calls
+      // gadget.ai.complete and receives generated text (never the key).
+
+      const RULES_KEY = "personal-rules";
+      const consultInput = el("consult-input");
+      const consultNote = el("consult-note");
+      const consultRetry = el("consult-retry");
+      const proposalsEl = el("proposals");
+      const rulesInput = el("rules-input");
+      const rulesNote = el("rules-note");
+      let lastConsultText = "";
+
+      async function loadRules() {
+        try {
+          rulesInput.value = (await gadget.storage.get(RULES_KEY)) ?? "";
+        } catch {
+          // rules are optional — start empty on read failure
+        }
+      }
+
+      el("rules-form").addEventListener("submit", async (submitEvent) => {
+        submitEvent.preventDefault();
+        try {
+          await gadget.storage.set(RULES_KEY, rulesInput.value.trim());
+          rulesNote.textContent = "保存しました";
+          rulesNote.hidden = false;
+          setTimeout(() => {
+            rulesNote.hidden = true;
+          }, 3000);
+        } catch (error) {
+          showError(error.message);
+        }
+      });
+
+      el("consult-form").addEventListener("submit", (submitEvent) => {
+        submitEvent.preventDefault();
+        const text = consultInput.value.trim();
+        if (!text) return;
+        void runConsult(text, false);
+      });
+      consultRetry.addEventListener("click", () => {
+        if (lastConsultText) void runConsult(lastConsultText, true);
+      });
+
+      async function runConsult(text, isRetry) {
+        lastConsultText = text;
+        consultNote.hidden = true;
+        proposalsEl.replaceChildren();
+        await runAction("AIが挿入案を考えています…（数秒〜十数秒かかります）", async () => {
+          const proposals = await fetchProposals(text, isRetry);
+          renderProposals(proposals);
+          consultRetry.hidden = false;
+        });
+      }
+
+      function consultPrompts(text, isRetry) {
+        const now = new Date();
+        const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const fmt = new Intl.DateTimeFormat("ja-JP", {
+          month: "numeric",
+          day: "numeric",
+          weekday: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const eventLines =
+          events
+            .filter((ev) => new Date(ev.start) < weekOut)
+            .map(
+              (ev) =>
+                `- ${fmt.format(new Date(ev.start))}〜${fmt.format(new Date(ev.end))} ${ev.title} (start=${ev.start}, end=${ev.end})`,
+            )
+            .join("\n") || "（直近7日の予定なし）";
+        const system = [
+          "あなたはスケジュール調整の専門家です。ユーザーの依頼内容に合う予定の挿入案を最大3件提案します。",
+          "必須条件:",
+          "- 提案する時間帯は【既存の予定】のどれとも重ならないこと（衝突回避は絶対条件）",
+          "- 【個人ルール】があれば厳守すること",
+          "- 現在日時より過去の時間帯を提案しないこと",
+          "- 依頼に所要時間の指定があればその長さを確保すること",
+          "出力は次の JSON オブジェクトのみ。コードフェンス・説明文・前置きは一切禁止:",
+          '{"proposals":[{"title":"予定名","start":"ISO8601（例 2026-07-04T10:00:00+09:00）","end":"ISO8601","reason":"この時間帯を選んだ理由（既存予定やルールとの関係を1〜2文で）"}]}',
+        ].join("\n");
+        const user = [
+          `現在日時: ${now.toString()}`,
+          `【既存の予定（直近7日）】\n${eventLines}`,
+          `【個人ルール】\n${rulesInput.value.trim() || "（なし）"}`,
+          `【依頼】\n${text}`,
+          isRetry ? "※前回とは異なる時間帯の案を出してください。" : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        return { system, user };
+      }
+
+      async function fetchProposals(text, isRetry) {
+        const { system, user } = consultPrompts(text, isRetry);
+        let raw = await gadget.ai.complete({
+          system,
+          messages: [{ role: "user", content: user }],
+          maxTokens: 1200,
+        });
+        let proposals = tryParseProposals(raw);
+        if (!proposals) {
+          // Robustness: one retry with an explicit format reminder
+          raw = await gadget.ai.complete({
+            system,
+            messages: [
+              { role: "user", content: user },
+              { role: "assistant", content: raw },
+              {
+                role: "user",
+                content:
+                  "出力を JSON として解析できませんでした。コードフェンスや説明文を付けず、指定した JSON オブジェクトのみを出力し直してください。",
+              },
+            ],
+            maxTokens: 1200,
+          });
+          proposals = tryParseProposals(raw);
+        }
+        if (!proposals) {
+          throw new Error("AIの応答を解析できませんでした。時間をおいてもう一度お試しください");
+        }
+        if (proposals.length === 0) {
+          throw new Error("条件に合う挿入案が見つかりませんでした。依頼内容や個人ルールを見直してみてください");
+        }
+        return proposals.slice(0, 3);
+      }
+
+      function tryParseProposals(raw) {
+        try {
+          let text = String(raw).trim();
+          text = text.replace(/^```[a-zA-Z]*\s*/, "").replace(/```\s*$/, "");
+          const start = text.indexOf("{");
+          const end = text.lastIndexOf("}");
+          if (start < 0 || end <= start) return null;
+          const parsed = JSON.parse(text.slice(start, end + 1));
+          if (!Array.isArray(parsed.proposals)) return null;
+          const valid = [];
+          for (const proposal of parsed.proposals) {
+            if (!proposal || typeof proposal.title !== "string" || !proposal.title.trim()) continue;
+            const startDate = new Date(proposal.start);
+            const endDate = new Date(proposal.end);
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) continue;
+            valid.push({
+              title: proposal.title.trim(),
+              start: startDate.toISOString(),
+              end: endDate.toISOString(),
+              reason: typeof proposal.reason === "string" ? proposal.reason : "",
+            });
+          }
+          return valid;
+        } catch {
+          return null;
+        }
+      }
+
+      function renderProposals(proposals) {
+        proposalsEl.replaceChildren();
+        const fmt = new Intl.DateTimeFormat("ja-JP", {
+          month: "numeric",
+          day: "numeric",
+          weekday: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        proposals.forEach((proposal, index) => {
+          const card = document.createElement("article");
+          card.className = "proposal";
+          const title = document.createElement("div");
+          title.className = "title";
+          title.textContent = `案${index + 1}: ${proposal.title}`;
+          const time = document.createElement("div");
+          time.className = "time";
+          time.textContent = `${fmt.format(new Date(proposal.start))} 〜 ${fmt.format(new Date(proposal.end))}`;
+          const reason = document.createElement("p");
+          reason.className = "reason";
+          reason.textContent = `理由: ${proposal.reason || "—"}`;
+          const row = document.createElement("div");
+          row.className = "row";
+          const register = document.createElement("button");
+          register.type = "button";
+          register.className = "primary";
+          register.textContent = "この案で登録";
+          const dismiss = document.createElement("button");
+          dismiss.type = "button";
+          dismiss.textContent = "却下";
+          row.append(register, dismiss);
+          card.append(title, time, reason, row);
+          proposalsEl.append(card);
+
+          dismiss.addEventListener("click", () => card.remove());
+          register.addEventListener("click", () => {
+            runAction("予定を登録しています…", async () => {
+              await callGas("create", {
+                title: proposal.title,
+                start: proposal.start,
+                end: proposal.end,
+                description: "",
+              });
+              card.remove();
+              await reloadList();
+            });
+          });
+        });
       }
 
       // ---------------- wire up static buttons ----------------

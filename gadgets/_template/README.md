@@ -20,6 +20,24 @@ npm run dev:gadget my-gadget
 - `createGadget()` でプラットフォームとハンドシェイク
 - `gadget.storage.get / set` でカウンタを保存・復元（`permissions: ["storage"]` が必要）
 
+## AI を使いたいとき（permissions: "ai"）
+
+`manifest.json` の `permissions` に `"ai"` を追加すると、AI による文章生成が使えます。
+API キーは**ユーザーがプラットフォームの「AI設定」に登録したもの**が使われ、
+ガジェットには渡されません（返ってくるのは生成テキストのみ）:
+
+```js
+const text = await gadget.ai.complete({
+  system: "あなたは俳句の先生です",                  // 任意
+  messages: [{ role: "user", content: "秋の俳句を1句" }],
+  maxTokens: 500,                                    // 任意
+});
+```
+
+- タイムアウトは30秒（他のSDK呼び出しは10秒）
+- ユーザーがキー未登録の場合はエラー（メッセージに「AI設定」への誘導が含まれます）
+- 詳細は gadget-spec.md §4・§5
+
 ## 知っておくこと
 
 - ダッシュボードに初めて表示されるとき、ユーザーには `permissions` と

@@ -13,8 +13,10 @@ import {
   type RpcRequestMessage,
   type RpcResponseMessage,
 } from 'gadget-sdk'
+import { validateAiRequest, type AiCompleteRequest } from 'gadget-sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { currentUserId, supabase } from '../auth/supabaseClient'
+import { AI_MAX_TOKENS_LIMIT, getAiSettings } from './aiSettings'
 
 const REQUIRED_MANIFEST_FIELDS = [
   'manifestVersion',
@@ -265,6 +267,26 @@ export function createGadgetRpcHandler(
         'manifest.json の permissions に "storage" が宣言されていません',
       )
     }
+    if (namespace === 'ai') {
+      if (!granted.has('ai')) {
+        throw new RpcError(
+          'permission_denied',
+          'manifest.json の permissions に "ai" が宣言されていません',
+        )
+      }
+      if (request.method === 'ai.complete') {
+        try {
+          validateAiRequest(request.params.request)
+        } catch (error) {
+          throw new RpcError(
+            'invalid_request',
+            error instanceof Error ? error.message : 'invalid ai request',
+          )
+        }
+        return completeWithPlatformAi(request.params.request)
+      }
+      throw new RpcError('unknown_method', `未対応のメソッドです: ${request.method}`)
+    }
     if (namespace === 'services') {
       const service = requireService(request.params)
       switch (request.method) {
@@ -304,6 +326,50 @@ export function createGadgetRpcHandler(
       return { type: MSG_RPC_RESPONSE, id: request.id, ok: false, error: { code, message } }
     }
   }
+}
+
+/**
+ * gadget.ai backend: calls the Anthropic Messages API with the key the USER
+ * registered in the platform's AI settings. The key never enters any gadget
+ * iframe (ADR-001) — gadgets only see the generated text. The transport
+ * will be swapped for the Workers AI gateway later (docs/backlog.md #3,
+ * ADR-008 candidate) without changing the gadget-facing API.
+ */
+async function completeWithPlatformAi(request: AiCompleteRequest): Promise<string> {
+  const settings = getAiSettings()
+  if (!settings.apiKey) {
+    throw new RpcError(
+      'ai_not_configured',
+      'AIのAPIキーが未登録です。プラットフォーム右上の「AI設定」から登録してください',
+    )
+  }
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': settings.apiKey,
+      'anthropic-version': '2023-06-01',
+      // Required for browser-direct calls; the key owner (the user) opted in.
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: settings.model,
+      max_tokens: Math.min(request.maxTokens ?? 1000, AI_MAX_TOKENS_LIMIT),
+      ...(request.system ? { system: request.system } : {}),
+      messages: request.messages,
+    }),
+  })
+  const data = (await response.json()) as {
+    content?: Array<{ type: string; text?: string }>
+    error?: { message?: string }
+  }
+  if (!response.ok) {
+    throw new RpcError('ai_error', data.error?.message ?? `AI APIエラー (HTTP ${response.status})`)
+  }
+  return (data.content ?? [])
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text ?? '')
+    .join('')
 }
 
 function requireKey(params: Record<string, unknown>): string {
