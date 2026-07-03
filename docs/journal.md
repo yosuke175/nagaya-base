@@ -2,6 +2,41 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-03（追記: ADR-005 実装のセキュリティ検収）
+
+5観点の検収結果。コード参照つき。
+
+1. **暗号鍵の置き場所 — 合格**。AES鍵（CREDENTIALS_ENCRYPTION_KEY）の参照は
+   `functions/api/credentials.ts` の `env.CREDENTIALS_ENCRYPTION_KEY` のみ。リポジトリ内の
+   文字列ヒットは同ファイルと手順文書（README/journal）だけで、鍵の値はどこにもない。
+   VITE_ プレフィックスでないため Vite のクライアント埋め込み対象外
+   （`platform/.env` は VITE_APP_NAME / VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY のみ）。
+   ビルド成果物 `platform/dist/assets/index-*.js` に該当文字列なしを実測確認。
+   Supabase に保存されるのは ciphertext と iv のみ（鍵は保存しない）
+2. **平文キーの到達範囲 — 要改善（唯一の指摘）**。`/api/credentials` の `get` は復号済み
+   平文を `{ value }` でクライアント（`platform/src/host/credentialsApi.ts`）に返す。
+   gadget.ai は Function の代理実行では**なく**、`platform/src/host/gadgetHost.ts` の
+   `completeWithPlatformAi()` がブラウザから Anthropic を直接呼ぶ。iframe には渡らないが、
+   **platform オリジンの XSS 一撃で窃取できる距離**にある。評価: AI キーは本来クライアントに
+   返す必要がないため、`/api/ai`（Function 代理実行）への前倒し移行を推奨（backlog #4）。
+   GAS 等の BYOK はガジェット実行コンテキストへ渡す契約（gadget-spec の getCredential、
+   ADR-005 の「受け渡し時のみ」）のため現状が仕様どおり
+3. **復号APIの認証 — 合格（Supabase Auth）**。`functions/api/credentials.ts` の
+   `requireUserId()` が Authorization: Bearer のアクセストークンを
+   `GET {SUPABASE_URL}/auth/v1/user` で検証し、**検証済みの user.id** を行キーに使う
+   （リクエストボディ由来の ID は使わない）。トークン無効は 401。本人への紐づけは
+   Supabase ログインセッションそのもの。Cookie 認証でないため CSRF 不成立。
+   レート制限は未実装（ゲートウェイ移行時、backlog #3）
+4. **Supabase側の防御 — 合格**。`20260703010000_user_credentials.sql`: RLS 有効かつ
+   **ポリシーゼロ**（クライアントロールはデフォルト拒否）、grant は service_role のみ。
+   anon での SELECT が "permission denied" になることを実測確認。service_role キーは
+   platform/src・クライアントバンドルに文字列ヒットなし（DO NOT 1 遵守）。存在場所は
+   Pages の Secret のみ。DB 単独漏洩でも中身は AES-GCM 暗号文（鍵は Cloudflare 側）
+5. **GASクレデンシャル — 移行済み**。`gadgetHost.ts` の `credentialStore` は
+   `gadget:<gadgetId>:<serviceId>` の credential_id で同じ `/api/credentials` に保存
+   （AI設定は `platform-ai`）。schedule-secretary の GAS URL+合言葉も対象。
+   未ログイン・ローカル開発時は localStorage フォールバック（設計どおり）
+
 ## 2026-07-03（追記: 文書の整合性メンテナンス）
 
 - 本番でクレデンシャル暗号化保管の稼働を確認（/api/credentials が 204、
