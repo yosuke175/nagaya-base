@@ -103,13 +103,13 @@ describe('createGadgetRpcHandler — services (BYOK)', () => {
     expect(before.ok).toBe(true)
     expect(before.result).toBeNull()
 
-    credentialStore.set('test-gadget', 'gas-webapp', 'https://example.invalid token')
+    await credentialStore.set('test-gadget', 'gas-webapp', 'https://example.invalid token')
     const after = await handle(request(2, 'services.getCredential', { serviceId: 'gas-webapp' }))
     expect(after.result).toBe('https://example.invalid token')
   })
 
   it('isolates credentials from gadget.storage and between gadgets', async () => {
-    credentialStore.set('test-gadget', 'gas-webapp', 'secret')
+    await credentialStore.set('test-gadget', 'gas-webapp', 'secret')
     const handle = createGadgetRpcHandler(withService())
 
     // Not readable through the storage namespace
@@ -117,7 +117,7 @@ describe('createGadgetRpcHandler — services (BYOK)', () => {
     expect(viaStorage.result).toBeNull()
 
     // Not readable by another gadget id
-    expect(credentialStore.get('other-gadget', 'gas-webapp')).toBeNull()
+    expect(await credentialStore.get('other-gadget', 'gas-webapp')).toBeNull()
   })
 
   it('rejects undeclared service ids', async () => {

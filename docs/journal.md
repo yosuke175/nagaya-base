@@ -2,6 +2,29 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-03（追記: クレデンシャルのサーバー側暗号化保管）
+
+### 変更
+
+- `functions/api/credentials.ts`（Pages Function）を新設: Supabase トークン検証 →
+  AES-GCM（鍵は Pages Secret、AAD=user:credential でスワップ防止）→ `user_credentials`
+  テーブルへ service_role で保存。クライアントは復号済みの値のみ受け取る（ADR-005 準拠）
+- マイグレーション `20260703010000_user_credentials.sql`: RLS有効・ポリシーなし
+  （クライアントからは一切読めない。アクセスは Function 経由のみ）
+- AI設定・BYOK クレデンシャルは「**ログイン + Function 稼働ならアカウント保存（全端末共有）**、
+  それ以外は従来どおり端末内保存」に自動フォールバック。AI設定ダイアログに保存先を表示
+
+### 決定
+
+- Pages Functions は Cloudflare の仕様上リポジトリ直下 `functions/` に配置
+  （CLAUDE.md 構成図の `platform/functions/` と差異 → 文書側の更新は要判断）
+
+### 未決（このイテレーション分）
+
+- Cloudflare Pages への Secret 設定（SUPABASE_SERVICE_ROLE_KEY / CREDENTIALS_ENCRYPTION_KEY）
+  と `user_credentials` マイグレーション適用 → 向井の作業待ち。未設定の間は端末保存で動作
+- 鍵ローテーション手順の文書化
+
 ## 2026-07-03
 
 ### 変更

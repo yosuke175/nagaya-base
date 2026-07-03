@@ -16,7 +16,8 @@ import {
 import { validateAiRequest, type AiCompleteRequest } from 'gadget-sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { currentUserId, supabase } from '../auth/supabaseClient'
-import { AI_MAX_TOKENS_LIMIT, getAiSettings } from './aiSettings'
+import { AI_MAX_TOKENS_LIMIT, loadAiSettings } from './aiSettings'
+import { remoteCredentials, useRemoteCredentials } from './credentialsApi'
 
 const REQUIRED_MANIFEST_FIELDS = [
   'manifestVersion',
@@ -148,14 +149,31 @@ function credentialKey(gadgetId: string, serviceId: string): string {
   return `${CREDENTIAL_PREFIX}${gadgetId}:${serviceId}`
 }
 
+function credentialRemoteId(gadgetId: string, serviceId: string): string {
+  return `gadget:${gadgetId}:${serviceId}`
+}
+
+// Account-first (AES-GCM encrypted via /api/credentials, ADR-005) with the
+// original localStorage mock as the per-device fallback for local dev.
 export const credentialStore = {
-  get(gadgetId: string, serviceId: string): string | null {
+  async get(gadgetId: string, serviceId: string): Promise<string | null> {
+    if (await useRemoteCredentials()) {
+      return remoteCredentials.get(credentialRemoteId(gadgetId, serviceId))
+    }
     return localStorage.getItem(credentialKey(gadgetId, serviceId))
   },
-  set(gadgetId: string, serviceId: string, value: string): void {
+  async set(gadgetId: string, serviceId: string, value: string): Promise<void> {
+    if (await useRemoteCredentials()) {
+      await remoteCredentials.set(credentialRemoteId(gadgetId, serviceId), value)
+      return
+    }
     localStorage.setItem(credentialKey(gadgetId, serviceId), value)
   },
-  remove(gadgetId: string, serviceId: string): void {
+  async remove(gadgetId: string, serviceId: string): Promise<void> {
+    if (await useRemoteCredentials()) {
+      await remoteCredentials.remove(credentialRemoteId(gadgetId, serviceId))
+      return
+    }
     localStorage.removeItem(credentialKey(gadgetId, serviceId))
   },
 }
@@ -336,7 +354,7 @@ export function createGadgetRpcHandler(
  * ADR-008 candidate) without changing the gadget-facing API.
  */
 async function completeWithPlatformAi(request: AiCompleteRequest): Promise<string> {
-  const settings = getAiSettings()
+  const settings = await loadAiSettings()
   if (!settings.apiKey) {
     throw new RpcError(
       'ai_not_configured',

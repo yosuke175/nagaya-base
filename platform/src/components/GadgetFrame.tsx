@@ -208,20 +208,41 @@ function CredentialDialog({
   service: GadgetExternalService
   onClose: () => void
 }) {
-  const [value, setValue] = useState(() => credentialStore.get(gadgetId, service.id) ?? '')
+  const [value, setValue] = useState('')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const save = () => {
+  useEffect(() => {
+    let cancelled = false
+    void credentialStore.get(gadgetId, service.id).then((stored) => {
+      if (!cancelled && stored) setValue(stored)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [gadgetId, service.id])
+
+  const save = async () => {
     const trimmed = value.trim()
     if (!trimmed) return
-    credentialStore.set(gadgetId, service.id, trimmed)
-    setSaved(true)
+    setError(null)
+    try {
+      await credentialStore.set(gadgetId, service.id, trimmed)
+      setSaved(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
   }
 
-  const remove = () => {
-    credentialStore.remove(gadgetId, service.id)
-    setValue('')
-    setSaved(false)
+  const remove = async () => {
+    setError(null)
+    try {
+      await credentialStore.remove(gadgetId, service.id)
+      setValue('')
+      setSaved(false)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
   }
 
   return (
@@ -255,14 +276,14 @@ function CredentialDialog({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={save}
+          onClick={() => void save()}
           className="btn-primary rounded-lg px-3 py-1.5 font-medium"
         >
           保存
         </button>
         <button
           type="button"
-          onClick={remove}
+          onClick={() => void remove()}
           className="rounded-lg border border-red-200 px-3 py-1.5 text-red-700 hover:bg-red-50"
         >
           削除
@@ -271,6 +292,7 @@ function CredentialDialog({
           <span className="text-green-700">保存しました。ガジェット側で再確認してください</span>
         )}
       </div>
+      {error && <p className="text-red-700">{error}</p>}
     </div>
   )
 }
