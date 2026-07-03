@@ -1,0 +1,56 @@
+# 稟議（商用利用の相談）用 Issue フォーム — CONTRIBUTING.md §6
+name: 商用利用の相談（稟議）
+description: 他人のコードを有償の製品に組み込む等、商用利用の事前相談（CONTRIBUTING.md §6）
+title: "商用利用の相談: "
+labels: ["商用利用の相談"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        CONTRIBUTING.md §6 の稟議手続きです。**自分が書いたコードのみを使う場合、この稟議は不要です**（あなたの著作物は自由に使えます）。
+
+        承認は「ハンコ2つ」= ① **原作者の同意** → ② **プロジェクト管理者の許諾** の2段階で、どちらもこの Issue 上のコメントで行われます。許諾後、この Issue は**クローズせず**ラベル「商用許諾済み」が付与され、承認記録として永続します。
+  - type: textarea
+    id: what
+    attributes:
+      label: 何を（対象のコード・ガジェット）
+      description: 対象のファイル/ガジェット名と、原作者の GitHub ユーザー名（@メンション）
+      placeholder: "例: gadgets/daily-scheduler/ の音声入力部分（原作者: @yamada）"
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: どこで（利用先）
+      placeholder: "例: 自社サービス「○○」の管理画面 / 顧客△△社への納品物"
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: どのように（利用方法・改変の有無・クレジット表記）
+      placeholder: "例: 一部を改変して組み込み。READMEにクレジット表記を行う"
+    validations:
+      required: true
+  - type: dropdown
+    id: paid
+    attributes:
+      label: 有償か
+      options:
+        - 有償（販売・サブスクリプション・受託納品など）
+        - 無償だが商用の文脈（営業資料・宣伝など）
+        - その他（下の補足に記載）
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足（任意）
+      placeholder: 期間・規模・その他伝えておきたいこと
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 確認
+      options:
+        - label: CONTRIBUTING.md §6（稟議手続き）と CLA.md を読みました
+          required: true
