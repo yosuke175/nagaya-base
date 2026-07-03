@@ -37,11 +37,16 @@ Windows/Mac 対応・日本語UI）。GitHub Releases で配布します。
 ## 開発・ビルド
 
 ```bash
-npm install                       # ルートで（workspaces）
-npm start -w setup-wizard         # 開発起動
-npm run dist -w setup-wizard      # Windows インストーラ（NSIS）を dist/ に生成
-npm run dist:mac -w setup-wizard  # Mac の dmg（Mac 上でのみ実行可）
+npm install                             # ルートで（workspaces）
+npm start -w setup-wizard               # 開発起動
+npm run dist -w setup-wizard            # Windows ポータブル exe（単一ファイル・推奨）
+npm run dist:installer -w setup-wizard  # （任意）NSIS インストーラー形式
+npm run dist:mac -w setup-wizard        # Mac の dmg（Mac 上でのみ実行可）
 ```
+
+生成物: `tools/setup-wizard/dist/NagayaBaseSetup-<version>-portable.exe`
+（ダブルクリックで直接起動。インストール不要。**config.json は exe に内蔵されるため、
+`githubClientId` を記入してからビルドすること**）
 
 生成物を GitHub Releases にアップロードして配布します。
 

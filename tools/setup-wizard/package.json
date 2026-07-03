@@ -3,14 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "description": "Member onboarding wizard (desktop). Display name comes from config.json (provisional).",
+  "author": "studio Ricordi",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis --publish never",
+    "dist": "electron-builder --win portable --publish never",
+    "dist:installer": "electron-builder --win nsis --publish never",
     "dist:mac": "electron-builder --mac dmg --publish never"
   },
   "devDependencies": {
-    "electron": "^35.0.0",
+    "electron": "35.7.5",
     "electron-builder": "^26.0.0"
   },
   "build": {
@@ -24,7 +26,8 @@
       "renderer/**"
     ],
     "win": {
-      "target": "nsis"
+      "target": "portable",
+      "artifactName": "${productName}-${version}-portable.${ext}"
     },
     "mac": {
       "target": "dmg"
