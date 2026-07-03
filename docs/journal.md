@@ -19,6 +19,24 @@
   "Bypassed rule violations" 警告付きで通る状態**。今後の開発フロー（直push継続 or
   全てPR経由）は要決定
 
+## 2026-07-03（追記: メンバー受け入れ準備）
+
+- **Public化の事前点検（全履歴秘密情報スキャン）: 問題なし**。trufflehog 不在のため
+  全ブランチの `git log --all -p`（約18,000行）への正規表現点検で代替。
+  sk-ant / JWT(eyJ…) / sb_secret / sb_publishable / AKIA / ghp_ / PRIVATE KEY /
+  AIzaSy / SHARED_TOKEN実値 / 汎用 secret・token・apikey 代入 — **全パターン0件**。
+  .env 系ファイルのコミット履歴もなし
+- ガバナンス文書の改訂（PR: docs/member-onboarding）:
+  - requirements.md FR-08 / §8: 勉強会フェーズは**事前審査なし・事後統治**
+    （CI機械チェック + インストール時ユーザー承認 + admin緊急停止）、
+    B2Bフェーズで署名制へ移行、に改訂
+  - gadget-spec.md v1.3: §6 を同方針で簡素化、§2 に `_template` のID規則例外を明文化
+  - CONTRIBUTING.md に「権利の早見表」を追加（CLA.md / ADR-006 / LICENSE から構成）
+  - PRレビュー反映: スライド9の**行為ベース早見表**（5行・○/△/✕、原文は向井から受領）を
+    「まず読む早見表」として権利表の手前に追加。欄外注記（AI書き直しもコピー）と、
+    △行から参照する「§6 商用利用の相談（稟議）」の節を新設。
+    稟議は「原作者の同意 + 管理者の許諾」の2段に改訂（自分のコードのみなら稟議不要）
+
 ## 2026-07-03（追記: backlog #4 実施 — /api/ai 代理実行）
 
 - セキュリティ検収の指摘（平文AIキーがブラウザに返る）を解消:
