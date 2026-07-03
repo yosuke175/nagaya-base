@@ -6,6 +6,9 @@ dist/
 dev-dist/
 *.tsbuildinfo
 
+# Electron builder output
+tools/setup-wizard/dist/
+
 # Environment (never commit secrets; keep .env.example only)
 .env
 .env.*

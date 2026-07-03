@@ -1,0 +1,33 @@
+{
+  "name": "setup-wizard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Member onboarding wizard (desktop). Display name comes from config.json (provisional).",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --publish never",
+    "dist:mac": "electron-builder --mac dmg --publish never"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "jp.studioricordi.gadget-setup-wizard",
+    "productName": "NagayaBaseSetup",
+    "files": [
+      "main.js",
+      "preload.js",
+      "checks.js",
+      "config.json",
+      "renderer/**"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  }
+}

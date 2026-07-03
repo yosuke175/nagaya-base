@@ -6,7 +6,8 @@
   "description": "Platform + gadgets monorepo (project name is provisional; see docs/requirements.md section 0)",
   "workspaces": [
     "packages/*",
-    "platform"
+    "platform",
+    "tools/*"
   ],
   "scripts": {
     "dev": "npm run build --workspace gadget-sdk && npm run dev --workspace platform",

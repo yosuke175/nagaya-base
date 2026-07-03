@@ -2,6 +2,22 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-03（追記: セットアップウィザード新規作成）
+
+- `tools/setup-wizard/`（Electron、Win/Mac・日本語UI）を新規作成し、monorepo の
+  workspaces（`tools/*`）に追加。6画面フロー: ようこそ→環境診断→GitHub連携→
+  長屋に入る（Fork/clone/npm install）→部屋を建てる（_template コピー+manifest 書換）→完成
+- セキュリティ: GitHub トークンは**メインプロセスのメモリのみ**（ファイル保存なし、
+  clone は公開https URLで .git/config にも残さない）。contextIsolation 有効・
+  renderer に CSP。**前提: リポジトリ Public 化 + OAuth App（Device Flow・Client ID のみ）**
+- 各画面に「ここまでの状態」＋「手動で続行する場合」を常設（ウィザードが死んでも手作業へ）
+- 配布は GitHub Releases、未署名警告の対処手順は README に記載
+- Windows 実機検証手順書 `TESTING.md`（初回ユーザー井上さん=Windows想定を優先）
+- 検証: gadget-id/version パーサの単体テスト追加（全47テスト green）。electron 起動で
+  ウィンドウ生成・renderer ロードを確認。**GUI 通し操作は TESTING.md に沿って向井の実機で要実施**
+- 未決: config.json の githubClientId 記入（OAuth App 作成）、Public 化、実機通し検証、
+  Mac ビルド（Mac 実機必要・後回し）
+
 ## 2026-07-03（追記: 決定済み事項の記録漏れを補完）
 
 - 開発フローの運用判断（決定済み）: Claude Code の作業は当面 **main への直 push（B案）で続行**し、

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:"
+    />
+    <title>セットアップ</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1 id="app-title">セットアップ</h1>
+      <ol id="steps-nav">
+        <li data-step="1">ようこそ</li>
+        <li data-step="2">環境診断</li>
+        <li data-step="3">GitHub連携</li>
+        <li data-step="4">長屋に入る</li>
+        <li data-step="5">部屋を建てる</li>
+        <li data-step="6">完成</li>
+      </ol>
+    </header>
+
+    <main>
+      <!-- 1. ようこそ -->
+      <section class="step" data-step="1">
+        <h2>ようこそ！</h2>
+        <p id="welcome-text">
+          このウィザードは、ガジェット開発を始めるための準備を、順番に案内します。
+        </p>
+        <ul class="plain">
+          <li>⏱ 所要時間: 約 <span id="estimated-minutes">15</span> 分</li>
+          <li>🧰 やること: 環境チェック → GitHub 連携 → リポジトリの取得 → 自分のガジェットの雛形作成</li>
+          <li>💡 途中で失敗しても大丈夫。各画面に「手動で続行する方法」があります</li>
+        </ul>
+        <div class="nav"><button class="primary" data-next>次へ</button></div>
+      </section>
+
+      <!-- 2. 環境診断 -->
+      <section class="step" data-step="2" hidden>
+        <h2>環境診断</h2>
+        <p>開発に必要なツールがインストールされているか確認します。</p>
+        <div id="env-list" class="checklist">診断中…</div>
+        <p class="hint">
+          ✗ がある場合: ダウンロードボタンから公式インストーラーを入手してインストールし、
+          「再診断」を押してください（インストール後に再診断しても ✗ のままの場合は、
+          このアプリを一度閉じて開き直してください）。
+        </p>
+        <div class="nav">
+          <button data-back>戻る</button>
+          <button id="env-recheck">再診断</button>
+          <button class="primary" id="env-next" data-next disabled>次へ</button>
+        </div>
+        <details class="manual">
+          <summary>手動で確認する場合</summary>
+          <p>ターミナル（コマンドプロンプト）で次を実行し、バージョンが表示されればOKです:</p>
+          <pre>git --version
+node --version</pre>
+        </details>
+      </section>
+
+      <!-- 3. GitHub 連携 -->
+      <section class="step" data-step="3" hidden>
+        <h2>GitHub 連携</h2>
+        <p>コードの置き場所である GitHub と連携します。</p>
+        <div class="box">
+          <p><strong>GitHub アカウントをまだ持っていない方</strong>は、先に作成してください（無料）:</p>
+          <button id="gh-signup">GitHub アカウントを作る（ブラウザが開きます）</button>
+        </div>
+        <div class="box">
+          <p><strong>アカウントを持っている方</strong>はこちら:</p>
+          <button class="primary" id="auth-start">GitHub と連携する</button>
+          <div id="auth-code-panel" hidden>
+            <p>ブラウザで GitHub のページが開きます。次のコードを入力してください:</p>
+            <p class="user-code" id="auth-user-code">----</p>
+            <button id="auth-copy-code">コードをコピー</button>
+            <button id="auth-open-page">認証ページを開き直す</button>
+            <p class="hint" id="auth-status">認証を待っています…（ブラウザ側で承認するとここが自動で進みます）</p>
+          </div>
+          <p id="auth-done" class="ok" hidden></p>
+        </div>
+        <div class="error" id="error-3" hidden></div>
+        <div class="nav">
+          <button data-back>戻る</button>
+          <button class="primary" id="auth-next" data-next disabled>次へ</button>
+        </div>
+        <details class="manual">
+          <summary>手動で続行する場合</summary>
+          <p>
+            認証がうまくいかない場合も、GitHub アカウントさえあれば手作業で進められます。
+            ブラウザで github.com にログインした状態で、次の手順（手順4の手動版）へ進んでください。
+          </p>
+        </details>
+      </section>
+
+      <!-- 4. 長屋に入る -->
+      <section class="step" data-step="4" hidden>
+        <h2>長屋に入る（リポジトリの取得）</h2>
+        <p>
+          あなた専用のコピー（Fork）を GitHub 上に作り、このPCにダウンロード（clone）して、
+          開発に必要な部品を取り込みます（npm install）。
+        </p>
+        <div class="box">
+          <p>保存先フォルダ: <code id="parent-dir">…</code>
+            <button id="choose-dir">変更</button>
+          </p>
+          <p class="hint">この中に「<span class="repo-name">nagaya-base</span>」フォルダが作られます。</p>
+          <button class="primary" id="setup-run">Fork → clone → npm install を実行</button>
+          <button id="use-existing">clone 済みフォルダを指定して続行</button>
+        </div>
+        <pre id="setup-log" class="log" hidden></pre>
+        <p id="setup-done" class="ok" hidden></p>
+        <div class="error" id="error-4" hidden></div>
+        <div class="nav">
+          <button data-back>戻る</button>
+          <button class="primary" id="setup-next" data-next disabled>次へ</button>
+        </div>
+        <details class="manual">
+          <summary>手動で続行する場合</summary>
+          <ol>
+            <li>ブラウザで <span id="manual-upstream-url">https://github.com/…</span> を開き、右上の「Fork」を押す</li>
+            <li>ターミナルで:
+              <pre id="manual-clone-cmd">git clone https://github.com/&lt;あなたのID&gt;/nagaya-base.git
+cd nagaya-base
+npm install</pre>
+            </li>
+            <li>完了したら、このウィザードの「clone 済みフォルダを指定して続行」を押す</li>
+          </ol>
+        </details>
+      </section>
+
+      <!-- 5. 部屋を建てる -->
+      <section class="step" data-step="5" hidden>
+        <h2>部屋を建てる（自分のガジェットを作る）</h2>
+        <p>あなたのガジェットの「ID」を決めてください。雛形をコピーして専用フォルダを作ります。</p>
+        <div class="box">
+          <label>ガジェットID（半角英小文字・数字・ハイフン、3〜40文字）
+            <input id="gadget-id" placeholder="例: my-first-gadget" spellcheck="false" />
+          </label>
+          <p id="gadget-id-feedback" class="hint"></p>
+          <label>表示名（日本語OK。カタログに表示されます）
+            <input id="gadget-name" placeholder="例: はじめてのガジェット" />
+          </label>
+          <button class="primary" id="gadget-create" disabled>雛形をコピーして作成</button>
+          <p id="gadget-done" class="ok" hidden></p>
+        </div>
+        <div class="error" id="error-5" hidden></div>
+        <div class="nav">
+          <button data-back>戻る</button>
+          <button class="primary" id="gadget-next" data-next disabled>次へ</button>
+        </div>
+        <details class="manual">
+          <summary>手動で続行する場合</summary>
+          <p>ターミナルでリポジトリのフォルダに入り:</p>
+          <pre>cp -r gadgets/_template gadgets/&lt;あなたのID&gt;
+（Windows: xcopy /E /I gadgets\_template gadgets\&lt;あなたのID&gt;）</pre>
+          <p>その後 <code>gadgets/&lt;ID&gt;/manifest.json</code> の <code>id</code> をフォルダ名と同じに、
+            <code>name</code> を表示名に書き換えてください。</p>
+        </details>
+      </section>
+
+      <!-- 6. 完成 -->
+      <section class="step" data-step="6" hidden>
+        <h2>🎉 完成！</h2>
+        <p>開発サーバを起動して、あなたのガジェットをブラウザで表示します。</p>
+        <div class="box">
+          <button class="primary" id="dev-run">開発サーバを起動してブラウザで開く</button>
+          <p id="dev-status" class="hint" hidden></p>
+          <p class="hint">
+            ⚠ このウィザードを閉じると開発サーバも止まります。次からはターミナルで
+            <code id="dev-cmd">npm run dev:gadget &lt;ID&gt;</code>
+            <button id="copy-dev-cmd" class="small">コピー</button> を実行してください。
+          </p>
+        </div>
+        <div class="box">
+          <p><strong>次の一歩: AI にガジェットを作らせる</strong></p>
+          <p class="hint">お使いの AI ツール（Claude 等）に貼り付ける最初の指示文:</p>
+          <pre id="ai-prompt" class="log"></pre>
+          <button id="copy-ai-prompt">指示文をコピー</button>
+        </div>
+        <pre id="dev-log" class="log" hidden></pre>
+        <div class="error" id="error-6" hidden></div>
+        <div class="nav">
+          <button data-back>戻る</button>
+        </div>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
