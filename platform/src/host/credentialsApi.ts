@@ -28,6 +28,13 @@ export async function useRemoteCredentials(): Promise<boolean> {
   return remoteCredentialsAvailable()
 }
 
+/** Supabase access token for calling the Pages Functions, or null. */
+export async function getAccessToken(): Promise<string | null> {
+  if (!supabase) return null
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
 async function callApi(
   action: 'get' | 'set' | 'delete',
   credentialId: string,

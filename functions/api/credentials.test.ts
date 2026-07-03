@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { b64encode, decryptValue, encryptValue, importAesKey } from './credentials'
+import { b64encode, decryptValue, encryptValue, importAesKey } from './_shared'
 
 const randomKeyB64 = () => b64encode(crypto.getRandomValues(new Uint8Array(32)))
 

@@ -16,8 +16,8 @@ import {
 import { validateAiRequest, type AiCompleteRequest } from 'gadget-sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { currentUserId, supabase } from '../auth/supabaseClient'
-import { AI_MAX_TOKENS_LIMIT, loadAiSettings } from './aiSettings'
-import { remoteCredentials, useRemoteCredentials } from './credentialsApi'
+import { AI_MAX_TOKENS_LIMIT, getAiSettings } from './aiSettings'
+import { getAccessToken, remoteCredentials, useRemoteCredentials } from './credentialsApi'
 
 const REQUIRED_MANIFEST_FIELDS = [
   'manifestVersion',
@@ -347,14 +347,40 @@ export function createGadgetRpcHandler(
 }
 
 /**
- * gadget.ai backend: calls the Anthropic Messages API with the key the USER
- * registered in the platform's AI settings. The key never enters any gadget
- * iframe (ADR-001) — gadgets only see the generated text. The transport
- * will be swapped for the Workers AI gateway later (docs/backlog.md #3,
- * ADR-008 candidate) without changing the gadget-facing API.
+ * gadget.ai backend. The key never enters any gadget iframe (ADR-001), and
+ * on the account scope it never enters the browser at all: /api/ai decrypts
+ * and calls Anthropic server-side (backlog #4, first step toward the ADR-008
+ * gateway). The device path below remains for no-login local dev only.
  */
 async function completeWithPlatformAi(request: AiCompleteRequest): Promise<string> {
-  const settings = await loadAiSettings()
+  if (await useRemoteCredentials()) {
+    return remoteAiComplete(request)
+  }
+  return deviceAiComplete(request)
+}
+
+/** Production path: server-side proxy — plaintext key stays in the Function. */
+async function remoteAiComplete(request: AiCompleteRequest): Promise<string> {
+  const token = await getAccessToken()
+  if (!token) throw new RpcError('ai_error', 'ログインが必要です')
+  const response = await fetch('/api/ai', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'complete', request }),
+  })
+  const data = (await response.json()) as { text?: string; error?: string; code?: string }
+  if (!response.ok) {
+    throw new RpcError(
+      data.code === 'ai_not_configured' ? 'ai_not_configured' : 'ai_error',
+      data.error ?? `AI APIエラー (HTTP ${response.status})`,
+    )
+  }
+  return String(data.text ?? '')
+}
+
+/** Local-dev fallback: key from this device's localStorage, browser-direct call. */
+async function deviceAiComplete(request: AiCompleteRequest): Promise<string> {
+  const settings = getAiSettings()
   if (!settings.apiKey) {
     throw new RpcError(
       'ai_not_configured',

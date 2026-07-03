@@ -2,6 +2,24 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-03（追記: backlog #4 実施 — /api/ai 代理実行）
+
+- セキュリティ検収の指摘（平文AIキーがブラウザに返る）を解消:
+  - `functions/api/ai.ts` 新設: status / set / delete / complete を提供。
+    復号とAnthropic呼び出しは**サーバー側のみ**で行い、クライアントには生成テキストと
+    非秘匿メタ情報（registered / model）だけを返す。認証は credentials と同じ
+    `requireUserId`（Supabase トークン検証）。model のみの更新は既存キーを
+    サーバー内で引き継ぎ（平文がブラウザを経由しない）
+  - `/api/credentials` は credential_id `platform-ai` を**全アクション403で拒否**
+    （AIキーは /api/ai 専用。get からの除外を包含）
+  - 共通処理を `functions/api/_shared.ts` に集約（`_` 始まりはルーティング対象外）
+  - クライアント: `gadgetHost.completeWithPlatformAi` はログイン時 `/api/ai` 経由に変更。
+    AI設定ダイアログはキーを表示しない（登録済み表示+変更時のみ入力）。
+    未ログイン/ローカル dev は従来の端末内直呼びフォールバック（挙動不変）
+- これで AI キーの平文が存在する場所は「ユーザーの入力欄（登録の瞬間）」と
+  「Pages Function 内」のみ。ADR-008 ゲートウェイの残りは利用量記録・レート制限・
+  モデル許可リスト（backlog #3）
+
 ## 2026-07-03（追記: ADR-005 実装のセキュリティ検収）
 
 5観点の検収結果。コード参照つき。

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
   DEFAULT_AI_MODEL,
-  aiSettingsScope,
-  loadAiSettings,
+  fetchAiStatus,
+  getAiSettings,
   persistAiSettings,
   removeAiSettings,
   type AiSettingsScope,
@@ -10,14 +10,15 @@ import {
 
 /**
  * Platform-wide AI settings (one key per user, used by gadget.ai).
- * The key never reaches gadget iframes (ADR-001). Signed in with the
- * credentials API available -> stored AES-GCM-encrypted per account
- * (ADR-005); otherwise stored on this device only.
+ * Account scope: the key is stored encrypted server-side and used only by
+ * /api/ai — it is never displayed nor returned to the browser. Device scope
+ * (no-login local dev) keeps the old localStorage behavior.
  */
 export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState(DEFAULT_AI_MODEL)
   const [scope, setScope] = useState<AiSettingsScope>('device')
+  const [registered, setRegistered] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState<AiSettingsScope | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -25,11 +26,15 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const [settings, currentScope] = await Promise.all([loadAiSettings(), aiSettingsScope()])
+      const status = await fetchAiStatus()
       if (cancelled) return
-      setApiKey(settings.apiKey ?? '')
-      setModel(settings.model)
-      setScope(currentScope)
+      setScope(status.scope)
+      setRegistered(status.registered)
+      setModel(status.model)
+      if (status.scope === 'device') {
+        // Device fallback only — on the account scope the key never comes back
+        setApiKey(getAiSettings().apiKey ?? '')
+      }
       setLoading(false)
     })()
     return () => {
@@ -39,14 +44,16 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
 
   const save = async () => {
     const trimmed = apiKey.trim()
-    if (!trimmed) return
+    if (!trimmed && !(scope === 'account' && registered)) return
     setError(null)
     try {
       const storedScope = await persistAiSettings({
-        apiKey: trimmed,
+        apiKey: trimmed || null,
         model: model.trim() || DEFAULT_AI_MODEL,
       })
       setSaved(storedScope)
+      setRegistered(true)
+      setApiKey('')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     }
@@ -58,6 +65,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
       await removeAiSettings()
       setApiKey('')
       setModel(DEFAULT_AI_MODEL)
+      setRegistered(false)
       setSaved(null)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -85,6 +93,14 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
           <p className="mt-3 text-stone-400">読み込み中…</p>
         ) : (
           <>
+            <p className="mt-2 text-stone-500">
+              現在の状態:{' '}
+              {registered ? (
+                <span className="text-green-700">APIキー登録済み</span>
+              ) : (
+                'APIキー未登録'
+              )}
+            </p>
             <label className="mt-3 grid gap-1">
               <span className="text-stone-600">
                 Anthropic API キー（console.anthropic.com で取得）
@@ -96,7 +112,11 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
                   setApiKey(changeEvent.target.value)
                   setSaved(null)
                 }}
-                placeholder="sk-ant-..."
+                placeholder={
+                  scope === 'account' && registered
+                    ? '登録済み（変更する場合のみ入力）'
+                    : 'sk-ant-...'
+                }
                 className="rounded-lg border border-stone-300 p-2 font-mono"
               />
             </label>
@@ -137,7 +157,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
             {error && <p className="mt-2 text-red-700">{error}</p>}
             <p className="mt-2 text-stone-400">
               {scope === 'account'
-                ? '保存先: あなたのアカウント（サーバー側で暗号化。どの端末でも同じ設定が使えます）'
+                ? '保存先: あなたのアカウント（サーバー側で暗号化保管。AI呼び出しもサーバー側で代理実行され、キーがブラウザに返ることはありません）'
                 : '保存先: この端末のみ（ログイン + サーバー設定が揃うとアカウント保存に切り替わります。docs/backlog.md 参照）'}
             </p>
           </>

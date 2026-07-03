@@ -6,7 +6,7 @@
 // ADR-008 candidate). The keyspace is deliberately separate from
 // 'gadget-credential:' — this key belongs to the platform, not to any
 // single gadget, and is NEVER sent into a gadget iframe (ADR-001).
-import { remoteCredentials, useRemoteCredentials } from './credentialsApi'
+import { getAccessToken, useRemoteCredentials } from './credentialsApi'
 
 const AI_SETTINGS_KEY = 'platform-ai-settings'
 
@@ -48,52 +48,75 @@ export function clearAiSettings(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Account-scoped storage (ADR-005): when signed in and the credentials Pages
-// Function is available, the settings live encrypted in `user_credentials`
-// and follow the user across devices. Otherwise the localStorage functions
-// above act as the per-device fallback.
+// Account-scoped settings (ADR-005 / backlog #4): when signed in and the
+// Pages Functions are available, the key lives encrypted server-side and is
+// ONLY used by /api/ai — the plaintext never reaches the browser. The client
+// sees non-secret metadata (registered / model). The localStorage functions
+// above remain the per-device fallback for local dev.
 // ---------------------------------------------------------------------------
-
-const AI_CREDENTIAL_ID = 'platform-ai'
 
 export type AiSettingsScope = 'account' | 'device'
 
-export async function aiSettingsScope(): Promise<AiSettingsScope> {
-  return (await useRemoteCredentials()) ? 'account' : 'device'
+export interface AiStatus {
+  scope: AiSettingsScope
+  registered: boolean
+  model: string
 }
 
-export async function loadAiSettings(): Promise<AiSettings> {
+async function aiApi<T>(body: Record<string, unknown>): Promise<T> {
+  const token = await getAccessToken()
+  if (!token) throw new Error('ログインが必要です')
+  const response = await fetch('/api/ai', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+  const payload = (await response.json()) as T & { error?: string }
+  if (!response.ok) throw new Error(payload.error ?? `AI API エラー (HTTP ${response.status})`)
+  return payload
+}
+
+export async function fetchAiStatus(): Promise<AiStatus> {
   if (await useRemoteCredentials()) {
     try {
-      const raw = await remoteCredentials.get(AI_CREDENTIAL_ID)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<AiSettings>
-        return {
-          apiKey: typeof parsed.apiKey === 'string' && parsed.apiKey ? parsed.apiKey : null,
-          model: typeof parsed.model === 'string' && parsed.model ? parsed.model : DEFAULT_AI_MODEL,
-        }
+      const status = await aiApi<{ registered: boolean; model: string }>({ action: 'status' })
+      return {
+        scope: 'account',
+        registered: Boolean(status.registered),
+        model: status.model || DEFAULT_AI_MODEL,
       }
-      return { apiKey: null, model: DEFAULT_AI_MODEL }
     } catch {
-      // API hiccup — fall back to the device copy rather than failing
+      // API hiccup — report the device copy rather than failing
     }
   }
-  return getAiSettings()
+  const local = getAiSettings()
+  return { scope: 'device', registered: Boolean(local.apiKey), model: local.model }
 }
 
-/** Returns where the settings were stored. */
-export async function persistAiSettings(settings: AiSettings): Promise<AiSettingsScope> {
+/**
+ * apiKey may be null on the account scope to update the model only
+ * (the stored key is kept server-side). Returns where it was stored.
+ */
+export async function persistAiSettings(settings: {
+  apiKey: string | null
+  model: string
+}): Promise<AiSettingsScope> {
   if (await useRemoteCredentials()) {
-    await remoteCredentials.set(AI_CREDENTIAL_ID, JSON.stringify(settings))
+    await aiApi({
+      action: 'set',
+      apiKey: settings.apiKey ?? undefined,
+      model: settings.model || DEFAULT_AI_MODEL,
+    })
     return 'account'
   }
-  saveAiSettings(settings)
+  if (!settings.apiKey) throw new Error('APIキーを入力してください')
+  saveAiSettings({ apiKey: settings.apiKey, model: settings.model || DEFAULT_AI_MODEL })
   return 'device'
 }
 
 export async function removeAiSettings(): Promise<void> {
   if (await useRemoteCredentials()) {
-    await remoteCredentials.remove(AI_CREDENTIAL_ID)
+    await aiApi({ action: 'delete' })
   }
   clearAiSettings()
 }
