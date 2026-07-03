@@ -27,11 +27,17 @@ Windows/Mac 対応・日本語UI）。GitHub Releases で配布します。
 ## 配布担当者（向井）の事前設定
 
 1. **GitHub OAuth App の作成**（Device Flow 用。1回だけ）
-   - github.com → Settings → Developer settings → OAuth Apps → New OAuth App
-   - Application name: 任意（例: NAGAYA-BASE Setup） / Homepage・Callback URL: リポジトリURLでよい
-   - 作成後、**「Enable Device Flow」にチェック**を入れて保存
-   - 表示される **Client ID** を `tools/setup-wizard/config.json` の `githubClientId` に記入
-     （Client ID は公開情報なのでコミットしてOK。**Client Secret は使わない・書かない**）
+   - ログインした状態で https://github.com/settings/developers を開く
+     （場所: 右上の**自分のアイコン** → Settings → 左サイドバー最下部の
+     Developer settings → OAuth Apps。トップページのナビには無いので注意）
+   - 「New OAuth App」→ Application name: 任意（例: NAGAYA-BASE Setup）/
+     Homepage URL・Authorization callback URL: どちらもリポジトリの URL でよい
+     （callback は Device Flow では使われないが必須項目のため）
+   - 作成後の画面で **「Enable Device Flow」にチェック → Update application**
+     （これを忘れると認証が失敗する）
+   - 表示される **Client ID** を `tools/setup-wizard/config.json` の `githubClientId` に記入し、
+     **exe を再ビルド**（Client ID は公開情報なのでコミットしてOK。
+     **Client Secret は生成も記入も不要**）
 2. リポジトリを Public にする（clone を認証なしで行うため）
 
 ## 開発・ビルド
