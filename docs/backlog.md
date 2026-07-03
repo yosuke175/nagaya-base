@@ -7,4 +7,5 @@
 | 1 | ADR-005 暗号化の本実装 | **実装済み（2026-07-03）**: `functions/api/credentials.ts` が AES-GCM 暗号化して `user_credentials` に保管（AI設定・BYOK とも、ログイン時はアカウント保存）。残タスク: 鍵ローテーション手順の文書化、localStorage フォールバック分の移行導線 | 残タスクのみ |
 | 3 | AIゲートウェイの実装（ADR-008） | **起草済み（2026-07-03、architecture.md ADR-008）**。残タスク: `gadget.ai` の裏側をクライアント直呼びから Workers 経由のゲートウェイ（サーバ側呼び出し・利用量記録 NFR-05・レート制限・モデル許可リスト）へ差し替える。ガジェット側の変更は不要 | Workers 導入時 |
 | 2 | ADR-007（GAS橋方式）の起草 | **完了（2026-07-03、architecture.md ADR-007 として起草）** | 完了 |
+| 5 | 開発フローの PR 全面移行（A案） | **建立会（メンバー初参加日）当日に実施**。それまでは Claude Code / 管理者の作業は main への直 push（B案）を継続する（admin バイパスの "Bypassed rule violations" 警告は既知・許容）。建立会をもって全作業を PR 経由に切り替え、直 push を停止する（決定日: 2026-07-03） | 建立会当日 |
 | 4 | AIキーの Function 代理実行（/api/ai） | セキュリティ検収（2026-07-03 journal）の指摘。gadget.ai の Anthropic 呼び出しを Pages Function に移し、**復号済み AI キーをクライアントに一切返さない**ようにする（XSS 耐性向上）。ADR-008 ゲートウェイの第一歩として #3 より先に実施可 | 次イテレーション候補 |
