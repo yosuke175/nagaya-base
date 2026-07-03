@@ -2,6 +2,21 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-03（追記: メンバー受け入れ準備）
+
+- **Public化の事前点検（全履歴秘密情報スキャン）: 問題なし**。trufflehog 不在のため
+  全ブランチの `git log --all -p`（約18,000行）への正規表現点検で代替。
+  sk-ant / JWT(eyJ…) / sb_secret / sb_publishable / AKIA / ghp_ / PRIVATE KEY /
+  AIzaSy / SHARED_TOKEN実値 / 汎用 secret・token・apikey 代入 — **全パターン0件**。
+  .env 系ファイルのコミット履歴もなし
+- ガバナンス文書の改訂（PR: docs/member-onboarding）:
+  - requirements.md FR-08 / §8: 勉強会フェーズは**事前審査なし・事後統治**
+    （CI機械チェック + インストール時ユーザー承認 + admin緊急停止）、
+    B2Bフェーズで署名制へ移行、に改訂
+  - gadget-spec.md v1.3: §6 を同方針で簡素化、§2 に `_template` のID規則例外を明文化
+  - CONTRIBUTING.md に「権利の早見表」を追加（CLA.md / ADR-006 / LICENSE から構成。
+    **元スライド（パワポ p.9）は未入手のため、一致確認はPRレビューで要確認**）
+
 ## 2026-07-03（追記: backlog #4 実施 — /api/ai 代理実行）
 
 - セキュリティ検収の指摘（平文AIキーがブラウザに返る）を解消:
