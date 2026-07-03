@@ -170,7 +170,12 @@ $('#setup-run').addEventListener('click', async () => {
   try {
     const fork = await window.wizard.fork()
     state.cloneUrl = fork.cloneUrl
-    const result = await window.wizard.clone({ parentDir: state.parentDir, cloneUrl: fork.cloneUrl })
+    state.isOwner = fork.isOwner
+    const result = await window.wizard.clone({
+      parentDir: state.parentDir,
+      cloneUrl: fork.cloneUrl,
+      isOwner: fork.isOwner,
+    })
     state.clonePath = result.clonePath
     const done = $('#setup-done')
     done.textContent = `✓ 準備完了: ${result.clonePath}`

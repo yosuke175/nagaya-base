@@ -154,20 +154,40 @@ ipcMain.handle('auth:poll', async () => {
 
 // --- Fork / clone / install -------------------------------------------------
 
+async function getRepo(owner, repo) {
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' },
+  })
+  return response.ok ? response.json() : null
+}
+
 ipcMain.handle('repo:fork', async () => {
   if (!accessToken) throw new Error('先に GitHub 連携（手順3）を完了してください')
   const { upstreamOwner, upstreamRepo } = config
   const me = await gh('GET', '/user')
+
+  // Owner path: no fork needed — clone upstream directly.
+  if (me.login.toLowerCase() === upstreamOwner.toLowerCase()) {
+    const repo = await getRepo(upstreamOwner, upstreamRepo)
+    if (!repo) throw new Error(`${upstreamOwner}/${upstreamRepo} が見つかりません`)
+    log(`リポジトリ所有者としてログイン中です。Fork は不要なので本家を直接使います: ${repo.full_name}`)
+    return { fullName: repo.full_name, cloneUrl: repo.clone_url, login: me.login, isOwner: true }
+  }
+
+  // Idempotent: if the fork already exists, reuse it instead of re-forking.
+  const existing = await getRepo(me.login, upstreamRepo)
+  if (existing && existing.fork) {
+    log(`既存の Fork を使います: ${existing.full_name}`)
+    return { fullName: existing.full_name, cloneUrl: existing.clone_url, login: me.login, isOwner: false }
+  }
+
   log(`Fork を作成しています: ${upstreamOwner}/${upstreamRepo} → ${me.login}/${upstreamRepo}`)
   await gh('POST', `/repos/${upstreamOwner}/${upstreamRepo}/forks`)
   for (let attempt = 0; attempt < 30; attempt++) {
-    const check = await fetch(`https://api.github.com/repos/${me.login}/${upstreamRepo}`, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' },
-    })
-    if (check.ok) {
-      const repo = await check.json()
+    const repo = await getRepo(me.login, upstreamRepo)
+    if (repo) {
       log(`Fork 完了: ${repo.full_name}`)
-      return { fullName: repo.full_name, cloneUrl: repo.clone_url, login: me.login }
+      return { fullName: repo.full_name, cloneUrl: repo.clone_url, login: me.login, isOwner: false }
     }
     await sleep(2000)
   }
@@ -183,20 +203,61 @@ ipcMain.handle('dir:choose', async () => {
   return result.canceled ? null : result.filePaths[0]
 })
 
-ipcMain.handle('setup:clone', async (_event, { parentDir, cloneUrl }) => {
-  const target = path.join(parentDir, config.upstreamRepo)
-  if (fs.existsSync(target)) {
-    throw new Error(
-      `フォルダが既に存在します: ${target}\n（clone 済みの場合は「clone 済みフォルダを指定」から続行できます）`,
+function isRepoClone(dir) {
+  return (
+    fs.existsSync(path.join(dir, '.git')) &&
+    fs.existsSync(path.join(dir, 'gadgets', '_template', 'manifest.json'))
+  )
+}
+
+async function ensureUpstreamRemote(target) {
+  // Idempotent: `git remote add` fails if it already exists, so check first.
+  const remotes = await new Promise((resolve) => {
+    exec('git remote', { cwd: target, windowsHide: true }, (error, stdout) =>
+      resolve(error ? '' : String(stdout)),
+    )
+  })
+  if (!/(^|\n)upstream(\r?\n|$)/.test(remotes)) {
+    log('$ git remote add upstream（本家の更新を取り込めるように）')
+    await spawnLogged(
+      `git remote add upstream "https://github.com/${config.upstreamOwner}/${config.upstreamRepo}.git"`,
+      target,
     )
   }
+}
+
+ipcMain.handle('setup:clone', async (_event, { parentDir, cloneUrl, isOwner }) => {
+  const target = path.join(parentDir, config.upstreamRepo)
+  // Owner clones upstream directly, so origin already points to it — no
+  // separate "upstream" remote is needed.
+  const setUpstream = async (dir) => {
+    if (!isOwner) await ensureUpstreamRemote(dir)
+  }
+
+  if (fs.existsSync(target)) {
+    // Idempotent re-run: reuse an existing valid clone; only reject a
+    // non-repo folder that happens to share the name.
+    if (!isRepoClone(target)) {
+      throw new Error(
+        `同名のフォルダが既にありますが、リポジトリではないようです: ${target}\n` +
+          '別の保存先を選ぶか、このフォルダを移動してから再実行してください。',
+      )
+    }
+    log(`既存の clone を再利用します: ${target}`)
+    await setUpstream(target)
+    if (fs.existsSync(path.join(target, 'node_modules'))) {
+      log('✅ 既に clone と npm install が済んでいます（スキップしました）')
+    } else {
+      log('$ npm install（数分かかります。そのままお待ちください）')
+      await spawnLogged('npm install', target)
+      log('✅ npm install が完了しました')
+    }
+    return { clonePath: target }
+  }
+
   log(`$ git clone ${cloneUrl}`)
   await spawnLogged(`git clone "${cloneUrl}" "${target}"`, parentDir)
-  log('$ git remote add upstream（本家の更新を取り込めるように）')
-  await spawnLogged(
-    `git remote add upstream "https://github.com/${config.upstreamOwner}/${config.upstreamRepo}.git"`,
-    target,
-  )
+  await setUpstream(target)
   log('$ npm install（数分かかります。そのままお待ちください）')
   await spawnLogged('npm install', target)
   log('✅ clone と npm install が完了しました')
