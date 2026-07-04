@@ -14,7 +14,8 @@
     "dev:gadget": "node scripts/dev-gadget.mjs",
     "build": "npm run build --workspace gadget-sdk && npm run build --workspace platform",
     "test": "vitest run",
-    "db:migrate": "supabase migration up"
+    "db:migrate": "supabase migration up",
+    "reindex": "node tools/reindex/reindex.mjs"
   },
   "devDependencies": {
     "sharp": "^0.33.0",

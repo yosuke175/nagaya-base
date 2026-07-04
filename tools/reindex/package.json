@@ -1,0 +1,7 @@
+{
+  "name": "reindex",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "案内AI(段1) RAG の .md 索引スクリプト（npm run reindex）"
+}

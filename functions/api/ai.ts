@@ -72,7 +72,9 @@ const PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
   'gemini-2.0-flash': { in: 0.1, out: 0.4 },
   'gemini-1.5-flash': { in: 0.075, out: 0.3 },
   'gemini-1.5-pro': { in: 1.25, out: 5 },
+  'text-embedding-3-small': { in: 0.02, out: 0 },
 }
+const EMBEDDING_MODEL = 'text-embedding-3-small'
 const DEFAULT_PRICE = { in: 1, out: 5 }
 // 文字数からの粗いトークン換算（日英混在の中間値）。あくまで「概算」。
 const CHARS_PER_TOKEN = 4
@@ -164,18 +166,68 @@ async function buildStateTicket(env: Env, userId: string): Promise<string> {
   ].join('\n')
 }
 
-async function buildGuideSystemPrompt(env: Env, userId: string): Promise<string> {
+// クエリ埋め込み（プラットフォーム保有キー・OpenAI）。未設定/失敗時は null（RAGスキップ）。
+async function embedQuery(env: Env, text: string): Promise<number[] | null> {
+  if (!env.PLATFORM_EMBEDDING_KEY) return null
+  try {
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${env.PLATFORM_EMBEDDING_KEY}`,
+      },
+      body: JSON.stringify({ model: EMBEDDING_MODEL, input: text.slice(0, 8000) }),
+    })
+    if (!response.ok) return null
+    const data = (await response.json()) as { data?: Array<{ embedding: number[] }> }
+    return data.data?.[0]?.embedding ?? null
+  } catch {
+    return null
+  }
+}
+
+// 近傍チャンク検索（match_doc_chunks RPC）。失敗時は空配列（RAGなしで続行）。
+async function retrieveChunks(
+  env: Env,
+  embedding: number[],
+): Promise<Array<{ source_path: string; content: string }>> {
+  try {
+    const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/match_doc_chunks`, {
+      method: 'POST',
+      headers: { ...serviceHeaders(env), prefer: 'return=representation' },
+      body: JSON.stringify({ query_embedding: `[${embedding.join(',')}]`, match_count: 6 }),
+    })
+    if (!response.ok) return []
+    return (await response.json()) as Array<{ source_path: string; content: string }>
+  } catch {
+    return []
+  }
+}
+
+async function buildGuideSystemPrompt(
+  env: Env,
+  userId: string,
+  chunks: Array<{ source_path: string; content: string }>,
+): Promise<string> {
   const state = await buildStateTicket(env, userId)
+  const docs = chunks.length
+    ? [
+        '# 長屋の資料（関連する箇所。まずここから答える。該当が無ければ「案内所」を案内する）',
+        ...chunks.map((c, i) => `【${i + 1}】(${c.source_path})\n${c.content}`),
+      ].join('\n')
+    : '# 長屋の資料\n（関連資料は見つかりませんでした。確信が無いことは断定せず、「案内所」を勧めてよい）'
   return [
     'あなたは「長屋（NAGAYA-BASE）」の案内AIです。入居者が道具（ガジェット）を活用するのを助ける、親切で簡潔な案内役。',
     '# 役割・態度',
     '- 長屋の使い方のQ&A、道具のインストール伴走（手順は各道具のSETUPに従って案内）。',
     '- やさしく短く。専門用語は避ける。分からないことは正直に「分かりません」と言う。',
     '- ガジェットの操作代行や自動実行はしない。詳しくは「案内所」の記事を見るよう促してよい。',
+    '- 下の「長屋の資料」に書かれていることを根拠に答える。資料に無い断定はしない。',
     '# 長屋の語彙',
     '- 自分の部屋=ログイン後の主画面 / 棚=部屋の中の道具置き場 / 道具市=道具のカタログ / 工房=道具をつくる人の作業場 / 入居者=メンバー / 回覧板・長屋暦・案内所=情報レイヤー。',
     '# 利用者の状態（システムが毎回渡す。あなたは会話を記憶しない＝このセッション内だけ覚えている）',
     state,
+    docs,
   ].join('\n')
 }
 
@@ -457,7 +509,17 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           MARKER,
         )
       }
-      const system = await buildGuideSystemPrompt(env, userId)
+      // RAG: 直近のユーザー発話を埋め込み、長屋の .md から近いチャンクを取り出す。
+      // 埋め込みキー未設定/失敗時は RAG なしで続行（案内AIは動く）。
+      const lastUser =
+        [...aiRequest.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+      const embedding = await embedQuery(env, lastUser)
+      const chunks = embedding ? await retrieveChunks(env, embedding) : []
+      if (embedding) {
+        // 埋め込みは運営分（プラットフォームキー）として記録
+        await logUsage(env, userId, 'openai', EMBEDDING_MODEL, lastUser.length, 0, 'embed', 'platform')
+      }
+      const system = await buildGuideSystemPrompt(env, userId, chunks)
       const maxTokens =
         typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
           ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)

@@ -6,6 +6,8 @@ export interface Env {
   SUPABASE_URL?: string
   SUPABASE_SERVICE_ROLE_KEY?: string
   CREDENTIALS_ENCRYPTION_KEY?: string
+  /** 案内AI RAG のクエリ埋め込み用（OpenAI）。未設定なら RAG はスキップ（案内AIは動く）。 */
+  PLATFORM_EMBEDDING_KEY?: string
 }
 
 export const PLATFORM_AI_CREDENTIAL_ID = 'platform-ai'
