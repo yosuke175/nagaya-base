@@ -17,6 +17,14 @@
   border-radius: 0.75rem;
   box-shadow: 0 2px 14px rgb(45 42 38 / 0.14);
 }
+/* 軽量Markdown表示（案内所・回覧板） */
+.help-article h2, .prose-sm h2 { font-size: 1.15rem; font-weight: 700; color: var(--nb-navy); margin: 0.5rem 0; }
+.help-article h3, .prose-sm h3 { font-size: 1rem; font-weight: 700; color: var(--nb-navy); margin: 0.75rem 0 0.25rem; }
+.help-article h4, .prose-sm h4 { font-weight: 700; margin: 0.5rem 0 0.25rem; }
+.help-article p, .prose-sm p { margin: 0.4rem 0; }
+.help-article ul, .prose-sm ul { list-style: disc; padding-left: 1.25rem; margin: 0.4rem 0; }
+.help-article code, .prose-sm code { background: #e7e5e4; padding: 0 4px; border-radius: 4px; font-size: 0.85em; }
+
 /* 和紙の地紋 */
 .nb-washi {
   background-color: var(--nb-cream);
