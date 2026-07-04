@@ -155,10 +155,13 @@ function ApprovalCard({
   const services = manifest.externalServices ?? []
   return (
     <section
-      className={`flex flex-col overflow-hidden rounded-xl border border-amber-200 bg-amber-50 shadow-sm ${SIZE_CLASSES[manifest.size.default]}`}
+      className={`nb-panel flex flex-col overflow-hidden border ${SIZE_CLASSES[manifest.size.default]}`}
+      style={{ borderColor: 'var(--nb-gold)' }}
     >
-      <header className="border-b border-amber-100 px-3 py-2">
-        <h2 className="text-sm font-semibold">「{manifest.name}」を表示する前に</h2>
+      <header className="border-b px-3 py-2" style={{ borderColor: 'var(--nb-gold)' }}>
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--nb-navy)' }}>
+          「{manifest.name}」を棚に並べる前に
+        </h2>
       </header>
       <div className="flex-1 overflow-y-auto px-3 py-2 text-xs leading-relaxed text-stone-700">
         <p>{manifest.description}</p>
@@ -185,7 +188,7 @@ function ApprovalCard({
           </>
         )}
       </div>
-      <footer className="border-t border-amber-100 px-3 py-2">
+      <footer className="border-t px-3 py-2" style={{ borderColor: 'var(--nb-gold)' }}>
         <button
           type="button"
           onClick={onApprove}

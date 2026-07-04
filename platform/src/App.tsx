@@ -9,7 +9,9 @@ import { GadgetFrame } from './components/GadgetFrame'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
+import { InfoSlot } from './components/InfoSlot'
 import { TutorialOverlay } from './components/TutorialOverlay'
+import { IMG } from './assets'
 import { loadUserSettings, saveUserSettings, type UserSettings } from './host/userSettings'
 
 type View = 'dashboard' | 'catalog'
@@ -89,11 +91,14 @@ export default function App() {
     (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))
 
   return (
-    <div className="min-h-screen bg-stone-100 text-stone-900">
-      <header className="accent-topbar border-b border-stone-200 bg-white px-4 py-3 shadow-sm">
+    <div className="nb-washi min-h-screen" style={{ color: 'var(--nb-ink)' }}>
+      <header
+        className="accent-topbar border-b border-stone-200 px-4 py-3 shadow-sm"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 80%, white)' }}
+      >
         <div className="mx-auto flex max-w-5xl items-end justify-between gap-4">
           <div>
-            <h1 className="text-lg font-bold">
+            <h1 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
               {appConfig.appName}
               <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-xs font-normal text-amber-800">
                 仮称
@@ -123,13 +128,14 @@ export default function App() {
                 </button>
               </span>
             )}
+            {/* ナビは項目が後から増える（指示書⑦で 回覧板/長屋暦/案内所/歩み を追加） */}
             {(auth.status === 'signed-in' || auth.status === 'disabled') && (
               <nav className="flex gap-1 text-sm">
                 <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
-                  ダッシュボード
+                  棚
                 </TabButton>
                 <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
-                  カタログ
+                  道具市
                 </TabButton>
               </nav>
             )}
@@ -285,24 +291,36 @@ function Dashboard({
 
   if (installed.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-500">
-        <p>まだガジェットがインストールされていません。</p>
-        <button
-          type="button"
-          onClick={onOpenCatalog}
-          className="btn-primary mt-3 rounded-lg px-4 py-2 text-xs font-medium"
-        >
-          カタログからさがす
-        </button>
-      </div>
+      <>
+        <InfoSlot />
+        <div className="nb-panel p-10 text-center text-sm">
+          <img src={IMG.objects.well} alt="" className="mx-auto h-24 w-24 object-contain" />
+          <p className="mt-3" style={{ color: 'var(--nb-ink)' }}>
+            あなたの棚には、まだ道具が並んでいません。
+          </p>
+          <p className="mt-1 text-xs text-stone-500">
+            道具市から選んで、自分の棚を組みましょう。
+          </p>
+          <button
+            type="button"
+            onClick={onOpenCatalog}
+            className="btn-primary mt-4 rounded-lg px-4 py-2 text-xs font-medium"
+          >
+            道具市へ
+          </button>
+        </div>
+      </>
     )
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {installed.map((dir) => (
-        <GadgetFrame key={dir} gadgetDir={dir} />
-      ))}
-    </div>
+    <>
+      <InfoSlot />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {installed.map((dir) => (
+          <GadgetFrame key={dir} gadgetDir={dir} />
+        ))}
+      </div>
+    </>
   )
 }

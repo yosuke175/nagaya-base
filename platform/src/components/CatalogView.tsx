@@ -41,7 +41,11 @@ export function CatalogView({ installed, canInstall, onInstall, onUninstall }: C
     return <p className="p-4 text-sm text-stone-400">読み込み中…</p>
   }
   if (entries.length === 0) {
-    return <p className="p-4 text-sm text-stone-500">公開中のガジェットはまだありません。</p>
+    return (
+      <p className="p-4 text-sm text-stone-500">
+        道具市に並んでいる道具は、まだありません。
+      </p>
+    )
   }
 
   return (
@@ -76,10 +80,14 @@ function CatalogCard({
   const { manifest } = entry
   const services = manifest.externalServices ?? []
 
+  // 将来「職人別の棚（この職人の道具一覧）」に拡張しやすいよう、
+  // カード単位のコンポーネントを維持する（author 起点の絞り込みは未実装）
   return (
-    <section className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+    <section className="nb-panel flex flex-col p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">{manifest.name}</h2>
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--nb-navy)' }}>
+          {manifest.name}
+        </h2>
         <span className="text-xs text-stone-400">v{manifest.version}</span>
       </div>
       <p className="mt-1 text-xs text-stone-500">作者: {manifest.author.name}</p>
