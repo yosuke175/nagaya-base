@@ -2,6 +2,43 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（案内AI 段1 — STEP 0 差分計画・調査報告）
+
+指示書「08_案内AI_Code指示書.md」の STEP 0。既存を調査し、差分計画を記録（実装は承認後）。
+
+### 調査で確認した既存資産（作り直さない）
+- `functions/api/ai.ts`: BYOK プロキシ（anthropic/openai/google の complete/status/set/delete）。
+  キーはサーバー側でのみ復号。→ 案内AIの**生成**はこれを再利用（新しいAI口は作らない）
+- `ai_usage`（20260704090000）: user_id/provider/model/input_chars/output_chars/created_at
+  ＋レート制限。→ 使用量可視化は**列追加で拡張**（新テーブル禁止）
+- 情報系 View（AnnouncementsView/CalendarView/HelpView/ProgressView/InfoSlot）: 触らない
+- `HelpView` は `platform/src/content/help/*.md`（01〜05）を表示。→ **RAG最重要対象**
+- `FloatingWindow`: 棚の複数窓。→ 案内AI窓は別物（下部常駐の単一窓）として整合
+- `AiSettingsPanel`（旧 AiSettingsDialog を分離済み・工房に inline）: 有効化導線はここと整合
+- pgvector/embeddings/reindex は**未存在**（新規）。npm scripts は dev/build/test/db:migrate のみ
+
+### 差分計画（新規=NEW / 拡張=EXT / 不可侵=KEEP）
+1. RAG基盤【NEW】: migration で `vector` 拡張 + `doc_chunks`(source_path, chunk_index,
+   content, embedding vector, key_owner, gadget_id?, updated_at) + `match_doc_chunks` RPC。
+   RAG対象は .md のみ（help/*.md 最重要、docs・README・各 gadgets/*/SETUP.md）
+2. reindex【NEW】: `npm run reindex`（Node）で .md をチャンク化→埋め込み→upsert。手動運用
+3. 状態票【NEW/EXT】: profiles に last_visit_at/visit_count（最小）。対話時に installations/
+   role/来訪/AI設定有無/公開有無 をサーバーで集めシステムプロンプトへ（AIは覚えない）
+4. 案内AI本体【NEW】: 下部常駐の単一AI窓（スマホ最優先）＋ Function（RAG検索→状態票→
+   既存 complete で生成）。**AIは任意**：未設定なら入口のみ表示、長屋は完全機能
+5. 使用量可視化【EXT】: ai_usage に purpose/key_owner/est_cost 追加。ユーザー=今月概算費用、
+   admin=運営分（共通埋め込み＋キーなし職人代行）集計ビュー
+6. ADR-010【NEW】＋ backlog（段2/段3・CI自動reindex・共通キーの協会引き取り）
+
+### 実装前に判断が要る点（報告）
+- **クエリ埋め込みキー問題（最重要）**: RAG検索前にユーザーの質問文を埋め込む必要があるが、
+  Anthropic(Claude) には埋め込みAPIが無い。→ 生成BYOKとは別に、**プラットフォーム保有の
+  埋め込みキー（OpenAI text-embedding-3-small 等）を1本**用意し、索引・クエリ両方で使うのが現実解。
+  新シークレット＋わずかなコスト（ai_usage で key_owner='platform', purpose='embed' 記録）
+- pgvector: Supabase で `create extension vector` を有効化する必要（手動適用時に実行）
+- 規模が大きいため段1を5サブステップに分割して順次PR/確認を推奨（上記1〜6の順）
+- KEEP: /api/ai・ai_usage の破壊変更なし、情報系/棚UI不変、CLAUDE.md DO NOT厳守、ハードコード禁止
+
 ## 2026-07-04（ナビゲーションボタンの配置を修正）
 
 - 向井の指摘（左→右へ進むのに「次へ」が左下で違和感）を反映:
