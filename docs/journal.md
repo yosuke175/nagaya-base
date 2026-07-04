@@ -2,6 +2,20 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（案内AI 段1 — サブステップ5 実装。RAG稼働は索引作成待ち）
+
+- migration 20260705030000: pgvector `doc_chunks`（vector(1536)・hnsw cosine）＋
+  `match_doc_chunks(query_embedding, match_count)` security definer RPC
+- `/api/ai` guide: 直近ユーザー発話をプラットフォームキー（`PLATFORM_EMBEDDING_KEY`・OpenAI）で
+  埋め込み→ `match_doc_chunks` で近傍チャンク取得→ system に添えて根拠づけ生成。埋め込みは
+  `ai_usage`(key_owner=platform, purpose=embed) 記録。**RAGは任意**: キー無/該当無なら RAGなしで回答
+- `npm run reindex`（tools/reindex）: .md をチャンク化→埋め込み→ doc_chunks へ upsert
+  （help/docs/README/各ガジェットSETUP+README。dev内部ログは除外）
+- 決定: 埋め込みは段1では**プラットフォーム1本のキーで全部**（職人別按分は段2/backlog#15）
+- 検証: pgvector/pgvector:pg16 で 18 migrations 適用＋match RPC 動作、build+test 47 緑
+- 稼働までの残: (1) migration 適用 (2) .env に SUPABASE_URL/service key 追加 (3) `npm run reindex`
+  (4) Cloudflare の `PLATFORM_EMBEDDING_KEY` で本番 guide が埋め込み可能に
+
 ## 2026-07-05（案内AI 段1 — サブステップ1〜4 実装。5=RAGはキー準備待ち）
 
 向井の指示「1〜4を止まらず完了、判断は推奨案で、後で報告」に基づき自律実装。5（RAG）は
