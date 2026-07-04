@@ -1,0 +1,38 @@
+# 案内AI(段1) RAG の自動再索引（backlog #14）。
+# main に .md の変更が push されたら、GitHub のサーバー上で reindex を走らせる。
+# → 誰もローカルで `npm run reindex` しなくても、案内AIが常に最新の .md を答えられる。
+#
+# 必要な GitHub リポジトリ Secrets（Settings → Secrets and variables → Actions）:
+#   PLATFORM_EMBEDDING_KEY      OpenAI 埋め込みキー（sk-...）
+#   SUPABASE_URL                https://aeohesdqhwctveiiyjlv.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY   Supabase の Secret key（sb_secret_...）
+name: reindex-docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.md'
+      - '!docs/journal.md' # 開発ログ（索引対象外なので発火も不要）
+      - '!docs/backlog.md'
+      - '!platform/dist/**'
+  workflow_dispatch: {} # 手動実行も可
+
+concurrency:
+  group: reindex
+  cancel-in-progress: true
+
+jobs:
+  reindex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Reindex RAG (.md → doc_chunks)
+        env:
+          PLATFORM_EMBEDDING_KEY: ${{ secrets.PLATFORM_EMBEDDING_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node tools/reindex/reindex.mjs
