@@ -36,6 +36,15 @@ async function callerRole(env: Env, userId: string): Promise<string | null> {
   return rows[0]?.role ?? null
 }
 
+async function adminCount(env: Env): Promise<number> {
+  const response = await fetch(rest(env, 'profiles?role=eq.admin&select=id'), {
+    headers: restHeaders(env),
+  })
+  if (!response.ok) return 0
+  const rows = (await response.json()) as Array<{ id: string }>
+  return rows.length
+}
+
 export const onRequest = async (context: { request: Request; env: Env }): Promise<Response> => {
   const { request, env } = context
 
@@ -53,7 +62,14 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     return json(403, { error: '大家（管理者）のみが利用できます' }, MARKER)
   }
 
-  let body: { action?: string; targetUserId?: string; role?: string; gadgetId?: string; status?: string }
+  let body: {
+    action?: string
+    targetUserId?: string
+    role?: string
+    gadgetId?: string
+    status?: string
+    gadgets?: string
+  }
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -168,6 +184,57 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           detail: { status },
         }),
       })
+      return json(200, { ok: true }, MARKER)
+    }
+
+    if (body.action === 'delete-user') {
+      // 大家によるアカウント削除（誤登録・死にアカウントの掃除など）。
+      // 個人データは profiles への cascade で消え、作った道具は既定で長屋に残る
+      // （FK の on delete set null → owner は大家預かり）。gadgets='suspend' で下げる。
+      const { targetUserId } = body
+      if (typeof targetUserId !== 'string') {
+        return json(400, { error: 'invalid target' }, MARKER)
+      }
+      if (targetUserId === callerId) {
+        return json(
+          400,
+          { error: '自分自身はここでは削除できません（退去機能を使ってください）' },
+          MARKER,
+        )
+      }
+      // 最後の大家を消してしまう事故を防ぐ
+      if ((await callerRole(env, targetUserId)) === 'admin' && (await adminCount(env)) <= 1) {
+        return json(409, { error: '最後の大家は削除できません。' }, MARKER)
+      }
+      // 「道具も下げる」場合は owner が外れる前に停止
+      if (body.gadgets === 'suspend') {
+        await fetch(rest(env, `gadgets?owner_id=eq.${targetUserId}`), {
+          method: 'PATCH',
+          headers: { ...restHeaders(env), prefer: 'return=minimal' },
+          body: JSON.stringify({ status: 'suspended' }),
+        })
+      }
+      await fetch(rest(env, 'audit_logs'), {
+        method: 'POST',
+        headers: { ...restHeaders(env), prefer: 'return=minimal' },
+        body: JSON.stringify({
+          actor_id: callerId,
+          action: 'delete_user',
+          target: targetUserId,
+          detail: { gadgets: body.gadgets === 'suspend' ? 'suspend' : 'keep' },
+        }),
+      })
+      const deleteRes = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${targetUserId}`, {
+        method: 'DELETE',
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY as string,
+          authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      })
+      if (!deleteRes.ok) {
+        const detail = await deleteRes.text().catch(() => '')
+        return json(502, { error: `削除に失敗しました: ${detail || `HTTP ${deleteRes.status}`}` }, MARKER)
+      }
       return json(200, { ok: true }, MARKER)
     }
   } catch {

@@ -52,6 +52,7 @@ export function AdminView() {
   const [gadgets, setGadgets] = useState<AdminGadget[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<AdminUser | null>(null)
 
   const reload = () => {
     adminApi<{ users: AdminUser[] }>({ action: 'list' })
@@ -69,6 +70,19 @@ export function AdminView() {
     try {
       await adminApi({ action: 'set-role', targetUserId: user.id, role })
       setNotice(`${user.displayName} を ${ROLE_LABEL[role]} にしました`)
+      reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const deleteUser = async (user: AdminUser) => {
+    setError(null)
+    setNotice(null)
+    try {
+      await adminApi({ action: 'delete-user', targetUserId: user.id })
+      setNotice(`「${user.displayName}」のアカウントを削除しました`)
+      setDeleting(null)
       reload()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -124,9 +138,25 @@ export function AdminView() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => setDeleting(user)}
+              className="shrink-0 rounded-lg border border-red-300 px-2 py-1.5 text-xs text-red-700 hover:bg-red-50"
+              title="このアカウントを削除する"
+            >
+              削除
+            </button>
           </div>
         ))}
       </div>
+
+      {deleting && (
+        <DeleteUserDialog
+          user={deleting}
+          onConfirm={() => void deleteUser(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
 
       <h3 className="mb-1 mt-8 text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
         道具の緊急停止（FR-09）
@@ -172,6 +202,69 @@ export function AdminView() {
             )}
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * アカウント削除の多段確認ダイアログ。誤操作防止のため、対象の識別子
+ * （メール、無ければ表示名）を正確に打ち込まないと実行できない。
+ */
+function DeleteUserDialog({
+  user,
+  onConfirm,
+  onCancel,
+}: {
+  user: AdminUser
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const [confirmText, setConfirmText] = useState('')
+  const target = user.email ?? user.displayName
+  const canDelete = confirmText.trim() === target
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl bg-white p-5 text-sm shadow-xl">
+        <h3 className="text-base font-bold text-red-800">アカウントを削除</h3>
+        <p className="mt-2 text-xs leading-relaxed text-stone-700">
+          <span className="font-medium">{user.displayName}</span>
+          （{user.email ?? 'メールなし'}
+          {user.roomNo != null ? ` ・ ${user.roomNo}号` : ''}）を削除します。
+          <br />
+          このアカウントの個人データ（プロフィール・設定・保存データ・連携キー）は
+          すべて消え、<span className="font-medium">元に戻せません</span>。
+          作った道具があれば長屋に残ります（大家預かり）。
+        </p>
+        <p className="mt-3 text-xs text-stone-600">
+          確認のため <code className="rounded bg-stone-100 px-1 py-0.5 font-mono">{target}</code>{' '}
+          を入力してください：
+        </p>
+        <input
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          autoFocus
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+          placeholder={target}
+        />
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-stone-300 px-3 py-2 text-xs"
+          >
+            やめる
+          </button>
+          <button
+            type="button"
+            disabled={!canDelete}
+            onClick={onConfirm}
+            className="rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            削除する
+          </button>
+        </div>
       </div>
     </div>
   )
