@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { roleAtLeast } from './auth/roles'
 import { useAuth } from './auth/useAuth'
 import { CatalogView } from './components/CatalogView'
 import { CraftsmanGuide, EntranceScreen, type EntranceChoice } from './components/EntranceScreen'
+import { FloatingWindow } from './components/FloatingWindow'
 import { GadgetFrame } from './components/GadgetFrame'
+import { clearLayouts, loadLayouts, saveLayout, type WinRect } from './host/gadgetLayout'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
@@ -344,11 +346,100 @@ function Dashboard({
   return (
     <>
       <InfoSlot />
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {installed.map((dir) => (
-          <GadgetFrame key={dir} gadgetDir={dir} onUninstall={onUninstall} />
-        ))}
-      </div>
+      <FloatingDesk installed={installed} onUninstall={onUninstall} />
     </>
   )
+}
+
+/** 棚のフローティング配置（自由に移動・リサイズ）。配置は端末ごとに保存。 */
+function FloatingDesk({
+  installed,
+  onUninstall,
+}: {
+  installed: string[]
+  onUninstall: (dir: string) => void
+}) {
+  const deskRef = useRef<HTMLDivElement>(null)
+  const [deskWidth, setDeskWidth] = useState(0)
+  const [layouts, setLayouts] = useState<Record<string, WinRect>>(() => loadLayouts())
+  const [order, setOrder] = useState<string[]>(installed)
+
+  // インストール一覧に合わせて重なり順（order）を同期。新規は末尾＝前面
+  useEffect(() => {
+    setOrder((prev) => {
+      const kept = prev.filter((id) => installed.includes(id))
+      const added = installed.filter((id) => !kept.includes(id))
+      return [...kept, ...added]
+    })
+  }, [installed])
+
+  // 棚の幅を測る（既定配置の列数・幅に使う）
+  useEffect(() => {
+    const el = deskRef.current
+    if (!el) return
+    const update = () => setDeskWidth(el.clientWidth)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const rectFor = (id: string, index: number): WinRect =>
+    layouts[id] ?? defaultRect(index, deskWidth || 1000)
+
+  const commit = (id: string, rect: WinRect) => {
+    setLayouts((prev) => ({ ...prev, [id]: rect }))
+    saveLayout(id, rect)
+  }
+  const bringToFront = (id: string) => setOrder((prev) => [...prev.filter((x) => x !== id), id])
+  const tidy = () => {
+    clearLayouts()
+    setLayouts({})
+  }
+
+  const deskHeight = Math.max(
+    440,
+    ...installed.map((id, index) => {
+      const r = rectFor(id, index)
+      return r.y + r.h + 24
+    }),
+  )
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-end gap-2 text-xs text-stone-500">
+        <span>道具の枠は自由に動かせます（見出しをドラッグ／右下でサイズ変更）</span>
+        <button
+          type="button"
+          onClick={tidy}
+          className="rounded-lg border border-stone-300 px-3 py-1 text-stone-600 hover:bg-stone-50"
+        >
+          整列する
+        </button>
+      </div>
+      <div ref={deskRef} className="relative" style={{ height: deskHeight }}>
+        {installed.map((id, index) => (
+          <FloatingWindow
+            key={id}
+            gadgetDir={id}
+            rect={rectFor(id, index)}
+            zIndex={order.indexOf(id) + 1}
+            onFocus={() => bringToFront(id)}
+            onCommit={(rect) => commit(id, rect)}
+            onUninstall={onUninstall}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 保存された配置が無い窓の既定位置・サイズ（棚幅に応じてゆるくグリッド配置） */
+function defaultRect(index: number, deskWidth: number): WinRect {
+  const w = Math.min(400, Math.max(260, deskWidth - 24))
+  const h = 340
+  const cols = Math.max(1, Math.floor(deskWidth / (w + 16)))
+  const col = index % cols
+  const row = Math.floor(index / cols)
+  return { x: col * (w + 16), y: row * (h + 16), w, h }
 }

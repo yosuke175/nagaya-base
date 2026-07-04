@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   externalServiceBaseUrls,
   type GadgetExternalService,
@@ -26,9 +26,17 @@ interface GadgetFrameProps {
   gadgetDir: string
   /** 棚での「アンインストール」ボタン用（渡されたときだけ表示） */
   onUninstall?: (dir: string) => void
+  /** 棚のフローティング窓の中で使うとき: 枠いっぱいに広げ、ヘッダーをドラッグ用にする */
+  floating?: boolean
+  onHeaderPointerDown?: (event: ReactPointerEvent) => void
 }
 
-export function GadgetFrame({ gadgetDir, onUninstall }: GadgetFrameProps) {
+export function GadgetFrame({
+  gadgetDir,
+  onUninstall,
+  floating,
+  onHeaderPointerDown,
+}: GadgetFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [manifest, setManifest] = useState<GadgetManifest | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +73,9 @@ export function GadgetFrame({ gadgetDir, onUninstall }: GadgetFrameProps) {
 
   if (error) {
     return (
-      <section className="col-span-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      <section
+        className={`${floating ? 'h-full w-full' : 'col-span-2'} rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700`}
+      >
         ガジェット「{gadgetDir}」を読み込めませんでした: {error}
       </section>
     )
@@ -73,7 +83,9 @@ export function GadgetFrame({ gadgetDir, onUninstall }: GadgetFrameProps) {
 
   if (!manifest) {
     return (
-      <section className="col-span-2 min-h-48 animate-pulse rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-400">
+      <section
+        className={`${floating ? 'h-full w-full' : 'col-span-2 min-h-48'} animate-pulse rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-400`}
+      >
         読み込み中…
       </section>
     )
@@ -83,6 +95,7 @@ export function GadgetFrame({ gadgetDir, onUninstall }: GadgetFrameProps) {
     return (
       <ApprovalCard
         manifest={manifest}
+        floating={floating}
         onApprove={() => {
           saveApproval(manifest)
           setApproved(true)
@@ -95,9 +108,14 @@ export function GadgetFrame({ gadgetDir, onUninstall }: GadgetFrameProps) {
 
   return (
     <section
-      className={`relative flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm ${SIZE_CLASSES[manifest.size.default]}`}
+      className={`relative flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm ${floating ? 'h-full w-full' : SIZE_CLASSES[manifest.size.default]}`}
     >
-      <header className="flex items-baseline justify-between gap-2 border-b border-stone-100 px-3 py-2">
+      <header
+        onPointerDown={onHeaderPointerDown}
+        className={`flex items-baseline justify-between gap-2 border-b border-stone-100 px-3 py-2 ${
+          floating ? 'cursor-move select-none' : ''
+        }`}
+      >
         <h2 className="text-sm font-semibold">{manifest.name}</h2>
         <span className="flex items-baseline gap-2">
           <span className="text-xs text-stone-400">v{manifest.version}</span>
@@ -161,14 +179,16 @@ export function GadgetFrame({ gadgetDir, onUninstall }: GadgetFrameProps) {
 function ApprovalCard({
   manifest,
   onApprove,
+  floating,
 }: {
   manifest: GadgetManifest
   onApprove: () => void
+  floating?: boolean
 }) {
   const services = manifest.externalServices ?? []
   return (
     <section
-      className={`nb-panel flex flex-col overflow-hidden border ${SIZE_CLASSES[manifest.size.default]}`}
+      className={`nb-panel flex flex-col overflow-hidden border ${floating ? 'h-full w-full' : SIZE_CLASSES[manifest.size.default]}`}
       style={{ borderColor: 'var(--nb-gold)' }}
     >
       <header className="border-b px-3 py-2" style={{ borderColor: 'var(--nb-gold)' }}>
