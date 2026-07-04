@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { THEME_PRESETS, loadAccent, saveAccent } from '../theme'
+import { useClickOutside } from '../lib/useClickOutside'
 
 /** Accent-color picker: presets plus a free color input. */
 export function ThemePicker() {
   const [open, setOpen] = useState(false)
   const [accent, setAccent] = useState(() => loadAccent())
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, () => setOpen(false), open)
 
   const select = (value: string) => {
     setAccent(value)
@@ -12,7 +15,7 @@ export function ThemePicker() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen(!open)}

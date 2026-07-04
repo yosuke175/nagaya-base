@@ -124,19 +124,40 @@ export async function listFeed(limit = 50): Promise<FeedItem[]> {
   return (data ?? []) as FeedItem[]
 }
 
-/** 長屋の歩み用: 公開済みの道具一覧（職人名つき） */
+/**
+ * 長屋の歩み用: 公開済みの道具一覧（職人名つき）。
+ * gadgets↔profiles は owner_id 以外に installations/gadget_storage 経由の関係も
+ * あり PostgREST の自動 embed が曖昧になるため、職人名は別クエリで引く。
+ */
 export async function listPublishedGadgets(): Promise<PublishedGadget[]> {
-  const { data, error } = await required()
+  const client = required()
+  const { data, error } = await client
     .from('gadgets')
-    .select('id, name, created_at, profiles(display_name)')
+    .select('id, name, created_at, owner_id')
     .eq('status', 'published')
     .order('created_at', { ascending: true })
   if (error) throw new Error(`公開一覧の取得に失敗しました: ${error.message}`)
-  return (data ?? []).map((row) => {
-    const profile = row.profiles as { display_name?: string } | { display_name?: string }[] | null
-    const ownerName = Array.isArray(profile)
-      ? (profile[0]?.display_name ?? null)
-      : (profile?.display_name ?? null)
-    return { id: row.id, name: row.name, created_at: row.created_at, ownerName }
-  })
+  const rows = (data ?? []) as Array<{
+    id: string
+    name: string | null
+    created_at: string
+    owner_id: string | null
+  }>
+
+  const ownerIds = [...new Set(rows.map((row) => row.owner_id).filter((id): id is string => !!id))]
+  const names = new Map<string, string>()
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await client
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', ownerIds)
+    for (const profile of profiles ?? []) names.set(profile.id, profile.display_name)
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    created_at: row.created_at,
+    ownerName: row.owner_id ? (names.get(row.owner_id) ?? null) : null,
+  }))
 }

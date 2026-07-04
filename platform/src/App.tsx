@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { roleAtLeast } from './auth/roles'
+import { useClickOutside } from './lib/useClickOutside'
 import { useAuth } from './auth/useAuth'
 import { AiSettingsDialog } from './components/AiSettingsDialog'
 import { CatalogView } from './components/CatalogView'
@@ -231,12 +232,14 @@ function GuideMenu({
   onOpen: (overlay: Overlay) => void
 }) {
   const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, () => setOpen(false), open)
   const pick = (next: Overlay) => {
     setOpen(false)
     onOpen(next)
   }
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
