@@ -8,7 +8,7 @@ import type { Auth } from '../auth/useAuth'
 //  ロールはサインアップ時のトリガーがサーバー側で付与する（クライアントは書かない）。
 
 type Mode = 'choose' | 'user'
-type UserTab = 'password' | 'magiclink'
+type AuthMode = 'login' | 'register' | 'magiclink'
 
 export function LoginView({ auth }: { auth: Auth }) {
   const [mode, setMode] = useState<Mode>('choose')
@@ -61,13 +61,19 @@ export function LoginView({ auth }: { auth: Auth }) {
 }
 
 function UserAuthForm({ auth, onBack }: { auth: Auth; onBack: () => void }) {
-  const [tab, setTab] = useState<UserTab>('password')
-  const [isRegister, setIsRegister] = useState(false)
+  // パスワードを主（デフォルト）に。メールのリンクは副の選択肢。
+  const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+
+  const switchMode = (next: AuthMode) => {
+    setMode(next)
+    setError(null)
+    setNotice(null)
+  }
 
   const run = async (submitEvent: FormEvent, action: () => Promise<{ error: string | null }>) => {
     submitEvent.preventDefault()
@@ -78,8 +84,9 @@ function UserAuthForm({ auth, onBack }: { auth: Auth; onBack: () => void }) {
     const result = await action()
     setBusy(false)
     if (result.error) setError(result.error)
-    else if (tab === 'magiclink') setNotice(`${email} 宛にログイン用リンクを送信しました。メールを開いてください。`)
-    else if (isRegister)
+    else if (mode === 'magiclink')
+      setNotice(`${email} 宛にログイン用リンクを送信しました。メールを開いてください。`)
+    else if (mode === 'register')
       setNotice(`${email} 宛に確認メールを送信しました。リンクをクリックすると登録が完了します。`)
   }
 
@@ -89,28 +96,56 @@ function UserAuthForm({ auth, onBack }: { auth: Auth; onBack: () => void }) {
         ← 戻る
       </button>
 
-      <div className="mb-4 flex gap-1 text-xs">
-        <button
-          type="button"
-          onClick={() => setTab('password')}
-          className={`flex-1 rounded-lg px-3 py-1.5 font-medium ${tab === 'password' ? 'btn-primary' : 'border border-stone-300'}`}
-        >
-          パスワード
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('magiclink')}
-          className={`flex-1 rounded-lg px-3 py-1.5 font-medium ${tab === 'magiclink' ? 'btn-primary' : 'border border-stone-300'}`}
-        >
-          メールのリンク
-        </button>
-      </div>
+      {mode !== 'magiclink' && (
+        <div className="mb-4 flex gap-1 text-xs">
+          <button
+            type="button"
+            onClick={() => switchMode('login')}
+            className={`flex-1 rounded-lg px-3 py-1.5 font-medium ${mode === 'login' ? 'btn-primary' : 'border border-stone-300'}`}
+          >
+            ログイン
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode('register')}
+            className={`flex-1 rounded-lg px-3 py-1.5 font-medium ${mode === 'register' ? 'btn-primary' : 'border border-stone-300'}`}
+          >
+            新規登録
+          </button>
+        </div>
+      )}
 
-      {tab === 'password' ? (
+      {mode === 'magiclink' ? (
+        <form onSubmit={(e) => run(e, () => auth.signInWithMagicLink(email.trim()))} className="grid gap-3">
+          <p className="text-xs font-semibold text-stone-600">メールのリンクで入る（パスワード不要）</p>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="メールアドレス"
+            className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn-primary rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {busy ? '送信中…' : 'ログインリンクを送る'}
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode('login')}
+            className="text-xs text-stone-500 underline"
+          >
+            ← パスワードで入る
+          </button>
+        </form>
+      ) : (
         <form
           onSubmit={(e) =>
             run(e, () =>
-              isRegister
+              mode === 'register'
                 ? auth.signUpWithPassword(email.trim(), password)
                 : auth.signInWithPassword(email.trim(), password),
             )
@@ -139,40 +174,15 @@ function UserAuthForm({ auth, onBack }: { auth: Auth; onBack: () => void }) {
             disabled={busy}
             className="btn-primary rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {busy ? '処理中…' : isRegister ? '新規登録する' : 'ログイン'}
+            {busy ? '処理中…' : mode === 'register' ? '新規登録する' : 'ログイン'}
           </button>
           <button
             type="button"
-            onClick={() => {
-              setIsRegister(!isRegister)
-              setError(null)
-              setNotice(null)
-            }}
-            className="text-xs text-stone-500 underline"
+            onClick={() => switchMode('magiclink')}
+            className="text-xs text-stone-400 underline"
           >
-            {isRegister ? 'すでに登録済みの方はこちら（ログイン）' : 'はじめての方はこちら（新規登録）'}
+            パスワードを使わず、メールのリンクで入る
           </button>
-        </form>
-      ) : (
-        <form onSubmit={(e) => run(e, () => auth.signInWithMagicLink(email.trim()))} className="grid gap-3">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="メールアドレス"
-            className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={busy}
-            className="btn-primary rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
-          >
-            {busy ? '送信中…' : 'ログインリンクを送る'}
-          </button>
-          <p className="text-xs text-stone-400">
-            パスワード不要。メールに届くリンクをクリックするだけで入れます。
-          </p>
         </form>
       )}
 
