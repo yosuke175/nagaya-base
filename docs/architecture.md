@@ -102,8 +102,19 @@ create table audit_logs (
 
 **RLS方針の要点**:
 - `gadget_storage` は (user_id = auth.uid()) かつ「該当ガジェットをインストール済み」の行のみ読み書き可
-- `gadget_versions` の insert/update は owner（developer以上）、`published_at` の設定はadminのみ
+- `gadget_versions` の insert/update は owner（user以上）、`published_at` の設定はadminのみ
 - guest はすべての書き込み不可
+
+**追記（2026-07-04）: ロールモデルの更新**
+- **入場・自己登録**: 匿名サインイン＝`guest`（閲覧のみ・即入場）、メール登録＝`user` を
+  サインアップ時のトリガー（security definer）がサーバー側で付与する。クライアントは
+  ロールを書かない（自己昇格の穴を作らない）。当初の「ロール付与はadminのみ」は、
+  guest→user の自己登録を許可する方向に更新（Honmono内前提）。developer/admin への
+  昇格は引き続き admin のみ
+- **developer を user に統合**: 「何をもって職人か」の線引きができないため、入居者の
+  ロールは `user` 1つとし、道具の登録・更新・公開も `user` に許可
+  （`role_at_least('developer')` だったRLSを `'user'` に緩和）。`developer` は enum に
+  残すが今後付与しない。「職人／店子」は自己申告の呼称で権限差はない
 
 ## ADR-004: ホスティング = Cloudflare Pages / Workers、DB = Supabase
 

@@ -157,7 +157,7 @@ function CatalogCard({
               インストール
             </button>
             <p className="mt-1 text-xs text-stone-400">
-              インストールには user ロール以上が必要です（管理者がロールを付与します）
+              軒先（ゲスト）では棚に並べられません。入居（一般ユーザー登録）すると使えます。
             </p>
           </div>
         )}

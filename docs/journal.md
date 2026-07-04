@@ -2,6 +2,24 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-04（入場・ロールモデルの刷新 — フェーズ1＋ロール統合）
+
+- **入場モデル**（決定: ゲスト即入場／一般ユーザー、パスワード＋マジックリンク両対応）:
+  - `20260704020000_auth_roles.sql`: サインアップ時のトリガーが匿名→`guest` / メール→`user`
+    をサーバー側で付与（自己昇格の穴なし）。developer/admin は admin のみ
+  - LoginView 刷新: 軒先（匿名で即入場・閲覧のみ）/ 入居（メール: パスワード or リンク、登録/ログイン切替）。
+    useAuth に signInAsGuest / signInWithPassword / signUpWithPassword を追加。
+    ゲストは入口の職人/店子分岐をスキップ
+  - Docker でトリガー実測（匿名→guest / メール→user）
+- **store子(user)と職人(developer)のロール統合**（決定）:
+  - `20260704030000_merge_developer_into_user.sql`: 道具の登録・提出を `developer` →
+    `user` に緩和。入居者は user 1ロールで利用も作成・公開も可能。developer は enum に残すが
+    今後付与しない。requirements §3 / CLAUDE.md / ADR-003 / frontend-design.md を更新
+  - カタログのゲスト向け文言を「入居（一般ユーザー登録）で使えます」に変更
+- 全8マイグレーションを Docker で通し検証。全47テスト green
+- **向井: Supabase 設定（Anonymous sign-ins 有効化）と auth_roles マイグレーション適用済み。
+  merge マイグレーションは要適用**
+
 ## 2026-07-04（本番テストのフィードバック反映）
 
 向井の本番テストでの指摘を反映:
