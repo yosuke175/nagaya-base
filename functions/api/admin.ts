@@ -108,7 +108,11 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
         headers: { ...restHeaders(env), prefer: 'return=minimal' },
         body: JSON.stringify({ role }),
       })
-      if (!updateRes.ok) return json(502, { error: 'update failed' }, MARKER)
+      if (!updateRes.ok) {
+        // 本当の原因を返す（例: permission denied for sequence …）
+        const detail = await updateRes.text().catch(() => '')
+        return json(502, { error: `ロール変更に失敗しました: ${detail || `HTTP ${updateRes.status}`}` }, MARKER)
+      }
       await fetch(rest(env, 'audit_logs'), {
         method: 'POST',
         headers: { ...restHeaders(env), prefer: 'return=minimal' },
