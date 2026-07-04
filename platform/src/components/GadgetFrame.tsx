@@ -24,9 +24,11 @@ const SIZE_CLASSES: Record<GadgetSize, string> = {
 interface GadgetFrameProps {
   /** Directory name under gadgets/ */
   gadgetDir: string
+  /** 棚での「アンインストール」ボタン用（渡されたときだけ表示） */
+  onUninstall?: (dir: string) => void
 }
 
-export function GadgetFrame({ gadgetDir }: GadgetFrameProps) {
+export function GadgetFrame({ gadgetDir, onUninstall }: GadgetFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [manifest, setManifest] = useState<GadgetManifest | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -95,9 +97,20 @@ export function GadgetFrame({ gadgetDir }: GadgetFrameProps) {
     <section
       className={`relative flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm ${SIZE_CLASSES[manifest.size.default]}`}
     >
-      <header className="flex items-baseline justify-between border-b border-stone-100 px-3 py-2">
+      <header className="flex items-baseline justify-between gap-2 border-b border-stone-100 px-3 py-2">
         <h2 className="text-sm font-semibold">{manifest.name}</h2>
-        <span className="text-xs text-stone-400">v{manifest.version}</span>
+        <span className="flex items-baseline gap-2">
+          <span className="text-xs text-stone-400">v{manifest.version}</span>
+          {onUninstall && (
+            <button
+              type="button"
+              onClick={() => onUninstall(gadgetDir)}
+              className="rounded border border-red-200 px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
+            >
+              アンインストール
+            </button>
+          )}
+        </span>
       </header>
       {/*
         ADR-001: gadgets are isolated with sandbox="allow-scripts" ONLY.

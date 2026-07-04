@@ -3,15 +3,17 @@ import { externalServiceBaseUrls } from 'gadget-sdk'
 import { fetchCatalog, type CatalogEntry } from '../host/catalog'
 import { PERMISSION_LABELS } from '../host/permissionLabels'
 import { compressImageToDataUrl } from '../lib/imageCompress'
-import {
-  listGadgetOwners,
-  listPresentations,
-  savePresentation,
-  type GadgetPresentation,
-} from '../host/gadgetPresentation'
+import { listPresentations, savePresentation, type GadgetPresentation } from '../host/gadgetPresentation'
+import { listGadgetVisibility, type GadgetRecord } from '../host/workshop'
 
 const COVER_MAX_DIM = 800
 const COVER_MAX_BYTES = 150 * 1024
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: '構築中',
+  in_review: '審査中',
+  suspended: '停止中',
+}
 
 interface CatalogViewProps {
   installed: string[]
@@ -36,11 +38,11 @@ export function CatalogView({
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [presentations, setPresentations] = useState<Map<string, GadgetPresentation>>(new Map())
-  const [owners, setOwners] = useState<Map<string, string | null>>(new Map())
+  const [records, setRecords] = useState<Map<string, GadgetRecord>>(new Map())
 
   const reloadOverrides = () => {
     void listPresentations().then(setPresentations)
-    void listGadgetOwners().then(setOwners)
+    void listGadgetVisibility().then(setRecords)
   }
 
   useEffect(() => {
@@ -68,28 +70,59 @@ export function CatalogView({
   if (!entries) {
     return <p className="p-4 text-sm text-stone-400">読み込み中…</p>
   }
-  if (entries.length === 0) {
-    return (
-      <p className="p-4 text-sm text-stone-500">
-        道具市に並んでいる道具は、まだありません。
-      </p>
-    )
+
+  const canManage = (dir: string) => {
+    const rec = records.get(dir)
+    return isAdmin || (!!currentUserId && !!rec && rec.owner_id === currentUserId)
+  }
+  // 構築中（未公開）は道具市に出さない。ただし owner と admin には見える。
+  const isVisible = (dir: string) => {
+    const rec = records.get(dir)
+    if (!rec || rec.status === 'published') return true
+    return canManage(dir)
+  }
+
+  // 職人（作者）別にグループ化して表示
+  const visible = entries.filter((e) => isVisible(e.dir))
+  const byAuthor = new Map<string, CatalogEntry[]>()
+  for (const entry of visible) {
+    const author = entry.manifest.author?.name || '（作者未設定）'
+    byAuthor.set(author, [...(byAuthor.get(author) ?? []), entry])
+  }
+
+  if (visible.length === 0) {
+    return <p className="p-4 text-sm text-stone-500">道具市に並んでいる道具は、まだありません。</p>
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {entries.map((entry) => (
-        <CatalogCard
-          key={entry.dir}
-          entry={entry}
-          installed={installed.includes(entry.dir)}
-          canInstall={canInstall}
-          presentation={presentations.get(entry.dir)}
-          canEdit={isAdmin || (!!currentUserId && owners.get(entry.dir) === currentUserId)}
-          onEdited={reloadOverrides}
-          onInstall={onInstall}
-          onUninstall={onUninstall}
-        />
+    <div className="grid gap-6">
+      {[...byAuthor.entries()].map(([author, group]) => (
+        <section key={author}>
+          <h2 className="mb-2 text-sm font-bold" style={{ color: 'var(--nb-terra)' }}>
+            職人: {author}
+            <span className="ml-2 text-xs font-normal text-stone-400">{group.length}点</span>
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {group.map((entry) => (
+              <CatalogCard
+                key={entry.dir}
+                entry={entry}
+                installed={installed.includes(entry.dir)}
+                canInstall={canInstall}
+                presentation={presentations.get(entry.dir)}
+                statusLabel={
+                  records.get(entry.dir) && records.get(entry.dir)!.status !== 'published'
+                    ? (STATUS_LABEL[records.get(entry.dir)!.status] ?? records.get(entry.dir)!.status)
+                    : null
+                }
+                canEdit={canManage(entry.dir)}
+                onEdited={reloadOverrides}
+                onInstall={onInstall}
+                onUninstall={onUninstall}
+              />
+            ))}
+          </div>
+        </section>
       ))}
     </div>
   )
@@ -100,6 +133,7 @@ function CatalogCard({
   installed,
   canInstall,
   presentation,
+  statusLabel,
   canEdit,
   onEdited,
   onInstall,
@@ -109,6 +143,7 @@ function CatalogCard({
   installed: boolean
   canInstall: boolean
   presentation?: GadgetPresentation
+  statusLabel: string | null
   canEdit: boolean
   onEdited: () => void
   onInstall: (dir: string) => void
@@ -160,6 +195,11 @@ function CatalogCard({
       <div className="flex flex-col p-4">
         <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold" style={{ color: 'var(--nb-navy)' }}>
+          {statusLabel && (
+            <span className="mr-1 rounded bg-stone-200 px-1.5 py-0.5 text-xs font-normal text-stone-600">
+              {statusLabel}
+            </span>
+          )}
           {displayName}
         </h2>
         <span className="text-xs text-stone-400">v{manifest.version}</span>

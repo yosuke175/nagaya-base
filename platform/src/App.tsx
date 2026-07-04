@@ -18,6 +18,7 @@ import { InfoSlot } from './components/InfoSlot'
 import { ProfileView } from './components/ProfileView'
 import { ProgressView } from './components/ProgressView'
 import { ResidentsView } from './components/ResidentsView'
+import { WorkshopView } from './components/WorkshopView'
 import { TutorialOverlay } from './components/TutorialOverlay'
 import { IMG } from './assets'
 import { loadUserSettings, saveUserSettings, type UserSettings } from './host/userSettings'
@@ -30,6 +31,7 @@ type View =
   | 'help'
   | 'progress'
   | 'residents'
+  | 'workshop'
   | 'profile'
   | 'admin'
 /** Full-screen guidance overlays (entrance branch is behavioral only) */
@@ -179,6 +181,13 @@ export default function App() {
                 <TabButton active={view === 'progress'} onClick={() => setView('progress')}>
                   歩み
                 </TabButton>
+                {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
+                {(auth.status === 'disabled' ||
+                  (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))) && (
+                  <TabButton active={view === 'workshop'} onClick={() => setView('workshop')}>
+                    工房
+                  </TabButton>
+                )}
                 {auth.profile?.role === 'admin' && (
                   <TabButton active={view === 'admin'} onClick={() => setView('admin')}>
                     大家の間
@@ -217,6 +226,7 @@ export default function App() {
                 installed={installed}
                 onOpenCatalog={() => setView('catalog')}
                 onNavigate={setView}
+                onUninstall={handleUninstall}
               />
             )}
             {view === 'catalog' && (
@@ -236,6 +246,7 @@ export default function App() {
             {view === 'help' && <HelpView key={helpArticle ?? 'default'} initialArticle={helpArticle} />}
             {view === 'progress' && <ProgressView />}
             {view === 'residents' && <ResidentsView />}
+            {view === 'workshop' && <WorkshopView userId={auth.userId} />}
             {view === 'profile' && <ProfileView />}
             {view === 'admin' && auth.profile?.role === 'admin' && <AdminView />}
           </>
@@ -349,10 +360,12 @@ function Dashboard({
   installed,
   onOpenCatalog,
   onNavigate,
+  onUninstall,
 }: {
   installed: string[]
   onOpenCatalog: () => void
   onNavigate: (view: View) => void
+  onUninstall: (dir: string) => void
 }) {
   // `npm run dev:gadget <dir>` pins the dashboard to one gadget for development
   if (appConfig.devGadgetDir) {
@@ -397,7 +410,7 @@ function Dashboard({
       <InfoSlot />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {installed.map((dir) => (
-          <GadgetFrame key={dir} gadgetDir={dir} />
+          <GadgetFrame key={dir} gadgetDir={dir} onUninstall={onUninstall} />
         ))}
       </div>
     </>
