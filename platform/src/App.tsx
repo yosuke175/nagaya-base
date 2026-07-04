@@ -117,7 +117,8 @@ export default function App() {
         className="accent-topbar border-b border-stone-200 px-4 py-3 shadow-sm"
         style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 80%, white)' }}
       >
-        <div className="mx-auto flex max-w-5xl items-end justify-between gap-4">
+        <div className="mx-auto max-w-5xl">
+          <div className="flex items-end justify-between gap-4">
           <div>
             <h1 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
               {appConfig.appName}
@@ -154,47 +155,6 @@ export default function App() {
                 </button>
               </span>
             )}
-            {/* ナビは項目が後から増える（指示書⑦で 回覧板/長屋暦/案内所/歩み を追加） */}
-            {(auth.status === 'signed-in' || auth.status === 'disabled') && (
-              <nav className="flex flex-wrap gap-1 text-sm">
-                <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
-                  棚
-                </TabButton>
-                <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
-                  道具市
-                </TabButton>
-                <TabButton
-                  active={view === 'announcements'}
-                  onClick={() => setView('announcements')}
-                >
-                  回覧板
-                </TabButton>
-                <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
-                  長屋暦
-                </TabButton>
-                <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
-                  入居者
-                </TabButton>
-                <TabButton active={view === 'help'} onClick={() => setView('help')}>
-                  案内所
-                </TabButton>
-                <TabButton active={view === 'progress'} onClick={() => setView('progress')}>
-                  歩み
-                </TabButton>
-                {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
-                {(auth.status === 'disabled' ||
-                  (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))) && (
-                  <TabButton active={view === 'workshop'} onClick={() => setView('workshop')}>
-                    工房
-                  </TabButton>
-                )}
-                {auth.profile?.role === 'admin' && (
-                  <TabButton active={view === 'admin'} onClick={() => setView('admin')}>
-                    大家の間
-                  </TabButton>
-                )}
-              </nav>
-            )}
             {(auth.status === 'signed-in' || auth.status === 'disabled') && (
               <GuideMenu entrance={settings?.entrance} onOpen={(next) => setOverlay(next)} />
             )}
@@ -207,6 +167,45 @@ export default function App() {
             </button>
             <ThemePicker />
           </div>
+          </div>
+          {/* ナビは項目が増えるので独立した2段目に置く（1段目に詰め込むと折り返して崩れる） */}
+          {(auth.status === 'signed-in' || auth.status === 'disabled') && (
+            <nav className="mt-2 flex flex-wrap gap-1 text-sm">
+              <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
+                棚
+              </TabButton>
+              <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
+                道具市
+              </TabButton>
+              <TabButton active={view === 'announcements'} onClick={() => setView('announcements')}>
+                回覧板
+              </TabButton>
+              <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
+                長屋暦
+              </TabButton>
+              <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
+                入居者
+              </TabButton>
+              <TabButton active={view === 'help'} onClick={() => setView('help')}>
+                案内所
+              </TabButton>
+              <TabButton active={view === 'progress'} onClick={() => setView('progress')}>
+                歩み
+              </TabButton>
+              {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
+              {(auth.status === 'disabled' ||
+                (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))) && (
+                <TabButton active={view === 'workshop'} onClick={() => setView('workshop')}>
+                  工房
+                </TabButton>
+              )}
+              {auth.profile?.role === 'admin' && (
+                <TabButton active={view === 'admin'} onClick={() => setView('admin')}>
+                  大家の間
+                </TabButton>
+              )}
+            </nav>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-5xl p-4">
