@@ -29,6 +29,14 @@ export interface GadgetExternalService {
   /** Legacy single-URL form (spec v1.0) — still accepted. */
   baseUrl?: string;
   purpose: string;
+  /**
+   * What to paste into the credential field, in one short line (spec v1.5+).
+   * Shown verbatim in the platform's credential dialog so the user knows the
+   * exact format. Example: "WebAppのURL␣合言葉（半角スペース区切り）".
+   */
+  setupHint?: string;
+  /** Link to full setup instructions (spec v1.5+). Shown as a dialog link. */
+  setupUrl?: string;
 }
 
 /** Normalizes baseUrls / legacy baseUrl into one list. */

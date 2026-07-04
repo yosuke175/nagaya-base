@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "schedule-secretary",
   "name": "スケジュール秘書",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Google カレンダーの今後30日の予定を表示・追加・移動・削除できるスケジュール秘書。「AIに相談」で空き時間への挿入案を提案（登録はあなたの承認後）。案件名・メモ・相談は音声入力対応。連携にはユーザー自身がデプロイする GAS WebApp を使います（セットアップ手順は gas/SETUP.md）。",
   "author": { "name": "向井庸祐", "contact": "yosuke175@gmail.com" },
   "entry": "index.html",
@@ -15,7 +15,9 @@
       "name": "Google Apps Script WebApp（自分のカレンダー連携）",
       "auth": "byok",
       "baseUrls": ["https://script.google.com", "https://script.googleusercontent.com"],
-      "purpose": "ユーザー自身が自分の Google アカウントにデプロイした GAS WebApp を呼び出し、本人のデフォルトカレンダーの予定を取得・作成・移動・削除するため。プラットフォームは Google の権限を一切仲介しない（BYOK）"
+      "purpose": "ユーザー自身が自分の Google アカウントにデプロイした GAS WebApp を呼び出し、本人のデフォルトカレンダーの予定を取得・作成・移動・削除するため。プラットフォームは Google の権限を一切仲介しない（BYOK）",
+      "setupHint": "「WebAppのURL␣合言葉」の形式で、URLと合言葉を半角スペース1つで区切って貼り付け（例: https://script.google.com/macros/s/XXXX/exec a8Kx2mP9qL4wN7vB）",
+      "setupUrl": "https://github.com/yosuke175/nagaya-base/blob/main/gadgets/schedule-secretary/gas/SETUP.md"
     }
   ]
 }

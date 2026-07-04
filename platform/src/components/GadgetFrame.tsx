@@ -275,10 +275,25 @@ function CredentialDialog({
       </div>
       <p className="text-stone-600">{service.purpose}</p>
       <p className="text-stone-400">通信先: {externalServiceBaseUrls(service).join(' , ')}</p>
+      {service.setupUrl && (
+        <a
+          href={service.setupUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium underline"
+          style={{ color: 'var(--nb-terra)' }}
+        >
+          設定手順を開く（別タブ）
+        </a>
+      )}
       <label className="grid gap-1">
         <span className="text-stone-600">
-          クレデンシャル（入力する内容・形式はガジェットの説明に従ってください）
+          クレデンシャル
+          {service.setupHint ? '（下の形式で入力）' : '（入力する内容・形式はガジェットの説明に従ってください）'}
         </span>
+        {service.setupHint && (
+          <p className="rounded-lg bg-stone-100 p-2 text-stone-600">{service.setupHint}</p>
+        )}
         <textarea
           value={value}
           onChange={(changeEvent) => {
@@ -286,6 +301,7 @@ function CredentialDialog({
             setSaved(false)
           }}
           rows={3}
+          placeholder={service.setupHint ?? undefined}
           className="rounded-lg border border-stone-300 p-2 font-mono"
         />
       </label>
