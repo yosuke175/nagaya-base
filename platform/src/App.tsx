@@ -168,30 +168,30 @@ export default function App() {
             <ThemePicker />
           </div>
           </div>
-          {/* ナビは項目が増えるので独立した2段目に置く（1段目に詰め込むと折り返して崩れる） */}
+          {/* ナビは2段目に独立配置。情報系（回覧板/長屋暦/案内所/歩み）は
+              「長屋だより」ドロップダウンにまとめ、常時表示するタブ数を絞る */}
           {(auth.status === 'signed-in' || auth.status === 'disabled') && (
-            <nav className="mt-2 flex flex-wrap gap-1 text-sm">
+            <nav className="mt-2 flex flex-wrap items-center gap-1 text-sm">
               <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
                 棚
               </TabButton>
               <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
                 道具市
               </TabButton>
-              <TabButton active={view === 'announcements'} onClick={() => setView('announcements')}>
-                回覧板
-              </TabButton>
-              <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
-                長屋暦
-              </TabButton>
               <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
                 入居者
               </TabButton>
-              <TabButton active={view === 'help'} onClick={() => setView('help')}>
-                案内所
-              </TabButton>
-              <TabButton active={view === 'progress'} onClick={() => setView('progress')}>
-                歩み
-              </TabButton>
+              <NavDropdown
+                label="長屋だより"
+                current={view}
+                onSelect={setView}
+                items={[
+                  { view: 'announcements', label: '回覧板' },
+                  { view: 'calendar', label: '長屋暦' },
+                  { view: 'help', label: '案内所' },
+                  { view: 'progress', label: '歩み' },
+                ]}
+              />
               {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
               {(auth.status === 'disabled' ||
                 (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))) && (
@@ -326,6 +326,58 @@ function GuideMenu({
           >
             店子のはじめ方（チュートリアル）
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 複数のビューを1つのボタンにまとめるナビ用ドロップダウン（ヘッダーの項目数を絞る） */
+function NavDropdown({
+  label,
+  items,
+  current,
+  onSelect,
+}: {
+  label: string
+  items: { view: View; label: string }[]
+  current: View
+  onSelect: (view: View) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, () => setOpen(false), open)
+  const active = items.some((item) => item.view === current)
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+          active ? 'btn-primary' : 'text-stone-600 hover:bg-stone-100'
+        }`}
+      >
+        {label} ▾
+      </button>
+      {open && (
+        <div className="absolute left-0 z-20 mt-1 w-36 rounded-xl border border-stone-200 bg-white p-1 shadow-lg">
+          {items.map((item) => (
+            <button
+              key={item.view}
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                onSelect(item.view)
+              }}
+              className={`block w-full rounded-lg px-3 py-2 text-left text-xs ${
+                current === item.view
+                  ? 'font-semibold text-[color:var(--nb-terra)]'
+                  : 'text-stone-600 hover:bg-stone-50'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       )}
     </div>

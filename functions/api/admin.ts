@@ -69,6 +69,7 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     gadgetId?: string
     status?: string
     gadgets?: string
+    roomNo?: number | null
   }
   try {
     body = (await request.json()) as typeof body
@@ -182,6 +183,41 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           action: 'set_gadget_status',
           target: gadgetId,
           detail: { status },
+        }),
+      })
+      return json(200, { ok: true }, MARKER)
+    }
+
+    if (body.action === 'set-room-no') {
+      // 部屋番号（号室）の変更。room_no は unique・サーバー側のみ更新可（RLSで本人不可）。
+      const { targetUserId, roomNo } = body
+      if (typeof targetUserId !== 'string') {
+        return json(400, { error: 'invalid target' }, MARKER)
+      }
+      if (roomNo !== null && (typeof roomNo !== 'number' || !Number.isInteger(roomNo) || roomNo < 1)) {
+        return json(400, { error: '号室は1以上の整数で指定してください' }, MARKER)
+      }
+      const updateRes = await fetch(rest(env, `profiles?id=eq.${targetUserId}`), {
+        method: 'PATCH',
+        headers: { ...restHeaders(env), prefer: 'return=minimal' },
+        body: JSON.stringify({ room_no: roomNo }),
+      })
+      if (!updateRes.ok) {
+        const detail = await updateRes.text().catch(() => '')
+        // unique 制約違反はわかりやすく
+        if (detail.includes('23505') || detail.toLowerCase().includes('duplicate')) {
+          return json(409, { error: `${roomNo}号室は既に他の入居者が使っています` }, MARKER)
+        }
+        return json(502, { error: `号室の変更に失敗しました: ${detail || `HTTP ${updateRes.status}`}` }, MARKER)
+      }
+      await fetch(rest(env, 'audit_logs'), {
+        method: 'POST',
+        headers: { ...restHeaders(env), prefer: 'return=minimal' },
+        body: JSON.stringify({
+          actor_id: callerId,
+          action: 'set_room_no',
+          target: targetUserId,
+          detail: { roomNo },
         }),
       })
       return json(200, { ok: true }, MARKER)

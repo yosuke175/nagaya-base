@@ -76,6 +76,20 @@ export function AdminView() {
     }
   }
 
+  const setRoomNo = async (user: AdminUser, roomNo: number | null) => {
+    setError(null)
+    setNotice(null)
+    try {
+      await adminApi({ action: 'set-room-no', targetUserId: user.id, roomNo })
+      setNotice(
+        `${user.displayName} を ${roomNo != null ? `${roomNo}号室` : '（号室なし）'} にしました`,
+      )
+      reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
   const deleteUser = async (user: AdminUser) => {
     setError(null)
     setNotice(null)
@@ -118,9 +132,11 @@ export function AdminView() {
       <div className="grid gap-2">
         {users?.map((user) => (
           <div key={user.id} className="nb-panel flex items-center gap-3 p-3 text-sm">
-            <span className="w-12 shrink-0 text-xs text-stone-400">
-              {user.roomNo != null ? `${user.roomNo}号` : '—'}
-            </span>
+            {user.role === 'guest' ? (
+              <span className="w-24 shrink-0 text-xs text-stone-400">軒先（ゲスト）</span>
+            ) : (
+              <RoomNoEditor user={user} onSave={(n) => void setRoomNo(user, n)} />
+            )}
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium" style={{ color: 'var(--nb-navy)' }}>
                 {user.displayName}
@@ -203,6 +219,43 @@ export function AdminView() {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** 部屋番号（号室）のインライン編集。変更があるときだけ「変更」が出る。 */
+function RoomNoEditor({
+  user,
+  onSave,
+}: {
+  user: AdminUser
+  onSave: (roomNo: number | null) => void
+}) {
+  const [value, setValue] = useState(user.roomNo?.toString() ?? '')
+  const parsed = value.trim() === '' ? null : Number(value)
+  const valid = parsed === null || (Number.isInteger(parsed) && parsed >= 1)
+  const changed = parsed !== user.roomNo
+  return (
+    <div className="flex w-24 shrink-0 items-center gap-1 text-xs text-stone-500">
+      <input
+        type="number"
+        min={1}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="w-11 rounded border border-stone-300 px-1 py-0.5"
+        title="部屋番号（号室）"
+      />
+      <span>号室</span>
+      {changed && valid && (
+        <button
+          type="button"
+          onClick={() => onSave(parsed)}
+          className="underline"
+          style={{ color: 'var(--nb-terra)' }}
+        >
+          変更
+        </button>
+      )}
     </div>
   )
 }
