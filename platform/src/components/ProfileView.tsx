@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { compressImageToDataUrl } from '../lib/imageCompress'
 import { loadMyProfile, residentsAvailable, saveMyProfile, setMyPassword } from '../host/residents'
 import { leaveNagaya, offboardingAvailable, type GadgetDisposition } from '../host/offboarding'
+import { ThemeEditor } from './ThemeEditor'
+
+/** 「あなたの部屋」から使える、ヘッダーから移設したアカウント操作・案内 */
+export interface ProfileViewProps {
+  onSignOut: () => void
+  onOpenAiSettings: () => void
+  onOpenHelp: () => void
+  onOpenGuide: (guide: 'entrance' | 'craftsman-guide' | 'tutorial') => void
+}
 
 // 自分の入居者情報の編集（フェーズ2）。各項目に「他の入居者に見せる」トグル。
 // アイコンはクライアント圧縮した小さな data-URL（Storage 不使用）。
@@ -21,7 +30,12 @@ const FIELDS: Field[] = [
   { key: 'links', label: 'リンク', defaultVisible: false },
 ]
 
-export function ProfileView() {
+export function ProfileView({
+  onSignOut,
+  onOpenAiSettings,
+  onOpenHelp,
+  onOpenGuide,
+}: ProfileViewProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -288,7 +302,76 @@ export function ProfileView() {
         </div>
       )}
 
+      <AccountActions
+        onSignOut={onSignOut}
+        onOpenAiSettings={onOpenAiSettings}
+        onOpenHelp={onOpenHelp}
+        onOpenGuide={onOpenGuide}
+      />
+
+      <ThemeEditor />
+
       <LeaveSection />
+    </div>
+  )
+}
+
+/** ヘッダーから移設した操作（AI設定・案内・はじめ方・ログアウト） */
+function AccountActions({
+  onSignOut,
+  onOpenAiSettings,
+  onOpenHelp,
+  onOpenGuide,
+}: ProfileViewProps) {
+  return (
+    <div className="nb-panel mt-4 grid gap-3 p-5 text-sm">
+      <p className="text-xs font-semibold text-stone-500">アカウント・案内</p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onOpenAiSettings}
+          className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50"
+        >
+          AI設定
+        </button>
+        <button
+          type="button"
+          onClick={onOpenHelp}
+          className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50"
+        >
+          案内所を開く
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenGuide('entrance')}
+          className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50"
+        >
+          入口をやり直す（職人/店子）
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenGuide('craftsman-guide')}
+          className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50"
+        >
+          職人のはじめ方
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenGuide('tutorial')}
+          className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50"
+        >
+          店子のはじめ方
+        </button>
+      </div>
+      <div>
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50"
+        >
+          ログアウト
+        </button>
+      </div>
     </div>
   )
 }

@@ -29,11 +29,12 @@
 .help-article td, .prose-sm td { border: 1px solid #d6d3d1; padding: 6px 10px; vertical-align: top; }
 .help-article tbody tr:nth-child(even), .prose-sm tbody tr:nth-child(even) { background: color-mix(in srgb, var(--nb-cream) 60%, white); }
 
-/* 和紙の地紋 */
+/* 和紙の地紋。テクスチャ画像とサイズはテーマ設定で上書き可能
+   （未設定なら既定の washi.webp / 520px にフォールバック） */
 .nb-washi {
   background-color: var(--nb-cream);
-  background-image: url('/img/textures/washi.webp');
-  background-size: 520px;
+  background-image: var(--nb-texture, url('/img/textures/washi.webp'));
+  background-size: var(--nb-texture-size, 520px);
 }
 
 /* User-selectable accent color (src/theme.ts). Keep primary actions on this

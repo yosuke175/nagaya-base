@@ -5,7 +5,6 @@ import { useAuth } from './auth/useAuth'
 import { AiSettingsDialog } from './components/AiSettingsDialog'
 import { CatalogView } from './components/CatalogView'
 import { CraftsmanGuide, EntranceScreen, type EntranceChoice } from './components/EntranceScreen'
-import { ThemePicker } from './components/ThemePicker'
 import { GadgetFrame } from './components/GadgetFrame'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
@@ -44,7 +43,9 @@ export default function App() {
   const [storeError, setStoreError] = useState<string | null>(null)
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
   const [helpArticle, setHelpArticle] = useState<string | undefined>(undefined)
-  const [settings, setSettings] = useState<UserSettings | null>(null)
+  // settings 値自体は現在ヘッダーから参照しない（案内は「あなたの部屋」へ移設）。
+  // 保存の副作用のため setter だけ使う。
+  const [, setSettings] = useState<UserSettings | null>(null)
   const [overlay, setOverlay] = useState<Overlay>(null)
 
   const refreshInstalled = async () => {
@@ -133,39 +134,25 @@ export default function App() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {auth.status === 'signed-in' && (
-              <span className="flex items-center gap-2 text-xs text-stone-600">
-                <button
-                  type="button"
-                  onClick={() => setView('profile')}
-                  className="hover:underline"
-                  title="入居者情報（あなたの部屋）"
-                >
-                  {auth.profile?.displayName ?? auth.email ?? '軒先の方'}
-                  <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
+            {/* 右上は「あなたの部屋」への入口だけ。ログアウト/案内/AI設定/テーマは
+                そのページ（ProfileView）に集約してヘッダーを軽くする */}
+            {(auth.status === 'signed-in' || auth.status === 'disabled') && (
+              <button
+                type="button"
+                onClick={() => setView('profile')}
+                className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
+                title="あなたの部屋（設定・ログアウト・見た目）"
+              >
+                {auth.status === 'signed-in'
+                  ? (auth.profile?.displayName ?? auth.email ?? '軒先の方')
+                  : 'あなたの部屋'}
+                {auth.status === 'signed-in' && (
+                  <span className="rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
                     {auth.profile?.role ?? '…'}
                   </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void auth.signOut()}
-                  className="rounded border border-stone-200 px-2 py-1 text-stone-500 hover:bg-stone-50"
-                >
-                  ログアウト
-                </button>
-              </span>
+                )}
+              </button>
             )}
-            {(auth.status === 'signed-in' || auth.status === 'disabled') && (
-              <GuideMenu entrance={settings?.entrance} onOpen={(next) => setOverlay(next)} />
-            )}
-            <button
-              type="button"
-              onClick={() => setAiSettingsOpen(true)}
-              className="rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
-            >
-              AI設定
-            </button>
-            <ThemePicker />
           </div>
           </div>
           {/* ナビは2段目に独立配置。情報系（回覧板/長屋暦/案内所/歩み）は
@@ -246,7 +233,17 @@ export default function App() {
             {view === 'progress' && <ProgressView />}
             {view === 'residents' && <ResidentsView />}
             {view === 'workshop' && <WorkshopView userId={auth.userId} />}
-            {view === 'profile' && <ProfileView />}
+            {view === 'profile' && (
+              <ProfileView
+                onSignOut={() => void auth.signOut()}
+                onOpenAiSettings={() => setAiSettingsOpen(true)}
+                onOpenHelp={() => {
+                  setHelpArticle(undefined)
+                  setView('help')
+                }}
+                onOpenGuide={(guide) => setOverlay(guide)}
+              />
+            )}
             {view === 'admin' && auth.profile?.role === 'admin' && <AdminView />}
           </>
         )}
@@ -269,64 +266,6 @@ export default function App() {
           onOpenCatalog={() => setView('catalog')}
           onOpenDashboard={() => setView('dashboard')}
         />
-      )}
-    </div>
-  )
-}
-
-/** メニュー「案内」— 入口・各はじめ方をいつでもやり直せる入口 */
-function GuideMenu({
-  entrance,
-  onOpen,
-}: {
-  entrance: UserSettings['entrance']
-  onOpen: (overlay: Overlay) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, () => setOpen(false), open)
-  const pick = (next: Overlay) => {
-    setOpen(false)
-    onOpen(next)
-  }
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
-      >
-        案内
-      </button>
-      {open && (
-        <div className="absolute right-0 z-20 mt-1 w-56 rounded-xl border border-stone-200 bg-white p-2 text-xs shadow-lg">
-          <button
-            type="button"
-            onClick={() => pick('entrance')}
-            className="block w-full rounded-lg px-3 py-2 text-left hover:bg-stone-50"
-          >
-            入口からやり直す（職人/店子）
-            {entrance && (
-              <span className="ml-1 text-stone-400">
-                現在: {entrance === 'craftsman' ? '職人' : '店子'}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => pick('craftsman-guide')}
-            className="block w-full rounded-lg px-3 py-2 text-left hover:bg-stone-50"
-          >
-            職人のはじめ方（ウィザード案内）
-          </button>
-          <button
-            type="button"
-            onClick={() => pick('tutorial')}
-            className="block w-full rounded-lg px-3 py-2 text-left hover:bg-stone-50"
-          >
-            店子のはじめ方（チュートリアル）
-          </button>
-        </div>
       )}
     </div>
   )
