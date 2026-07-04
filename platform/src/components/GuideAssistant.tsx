@@ -1,7 +1,26 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { askGuide, type GuideError, type GuideMessage } from '../host/guide'
+import { askGuide, type GuideError } from '../host/guide'
 import { fetchAiStatus } from '../host/aiSettings'
 import { loadLayouts, saveLayout, type WinRect } from '../host/gadgetLayout'
+import { actionLabel, parseGuideReply, type GuideAction, type GuideView } from '../host/guideActions'
+
+interface GuideAssistantProps {
+  onOpenAiSettings: () => void
+  /** 段2 文脈追従: 今見ている画面の表示名 */
+  viewLabel: string
+  /** 段2 操作補助: 導入済み判定・実行コールバック（すべてユーザー承認後に実行） */
+  installed: string[]
+  onInstall: (gadgetId: string) => void
+  onNavigate: (view: GuideView) => void
+  onOpenHelp: (article: string) => void
+}
+
+interface Msg {
+  role: 'user' | 'assistant'
+  content: string
+  action?: GuideAction | null
+  done?: boolean
+}
 
 // 案内AI（段1・ステートレス）: 下部常駐の単一窓。
 //  - PC（広い画面）: ガジェットと同じく見出しドラッグで移動・右下でリサイズ（配置は端末保存）
@@ -25,12 +44,19 @@ function defaultRect(): WinRect {
   }
 }
 
-export function GuideAssistant({ onOpenAiSettings }: { onOpenAiSettings: () => void }) {
+export function GuideAssistant({
+  onOpenAiSettings,
+  viewLabel,
+  installed,
+  onInstall,
+  onNavigate,
+  onOpenHelp,
+}: GuideAssistantProps) {
   const [open, setOpen] = useState(false)
   const [narrow, setNarrow] = useState(false)
   const [rect, setRect] = useState<WinRect | null>(null)
   const [configured, setConfigured] = useState<boolean | null>(null)
-  const [messages, setMessages] = useState<GuideMessage[]>([])
+  const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,18 +123,40 @@ export function GuideAssistant({ onOpenAiSettings }: { onOpenAiSettings: () => v
     if (rect) saveLayout(GUIDE_ID, rect)
   }
 
+  const runAction = (index: number, action: GuideAction) => {
+    switch (action.type) {
+      case 'install':
+        if (!installed.includes(action.gadgetId)) onInstall(action.gadgetId)
+        break
+      case 'open':
+        onNavigate(action.view)
+        break
+      case 'help':
+        onOpenHelp(action.article)
+        break
+      case 'ai-settings':
+        onOpenAiSettings()
+        break
+    }
+    setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, done: true } : m)))
+  }
+
   const send = async () => {
     const text = input.trim()
     if (!text || busy) return
     setError(null)
-    const next = [...messages, { role: 'user' as const, content: text }]
+    const next: Msg[] = [...messages, { role: 'user', content: text }]
     setMessages(next)
     setInput('')
     setBusy(true)
     try {
-      const reply = await askGuide(next.slice(-MAX_TURNS_SENT))
+      const reply = await askGuide(
+        next.slice(-MAX_TURNS_SENT).map((m) => ({ role: m.role, content: m.content })),
+        { viewLabel },
+      )
       setConfigured(true)
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+      const { text: replyText, action } = parseGuideReply(reply)
+      setMessages((prev) => [...prev, { role: 'assistant', content: replyText, action }])
     } catch (cause) {
       const code = (cause as GuideError).code
       if (code === 'ai_not_configured') setConfigured(false)
@@ -194,7 +242,7 @@ export function GuideAssistant({ onOpenAiSettings }: { onOpenAiSettings: () => v
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
               >
                 <div
                   className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 ${
@@ -205,6 +253,24 @@ export function GuideAssistant({ onOpenAiSettings }: { onOpenAiSettings: () => v
                 >
                   {message.content}
                 </div>
+                {message.role === 'assistant' && message.action && (
+                  <div className="mt-1">
+                    {message.action.type === 'install' &&
+                    installed.includes(message.action.gadgetId) ? (
+                      <span className="text-xs text-stone-400">導入済み</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={message.done}
+                        onClick={() => runAction(index, message.action!)}
+                        className="rounded-lg border border-[color:var(--nb-terra)] px-3 py-1 text-xs font-medium disabled:opacity-40"
+                        style={{ color: 'var(--nb-terra)' }}
+                      >
+                        {message.done ? '実行しました' : `▶ ${actionLabel(message.action)}`}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             {busy && <p className="text-xs text-stone-400">考え中…</p>}

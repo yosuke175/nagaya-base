@@ -13,14 +13,20 @@ export interface GuideError extends Error {
   code?: string
 }
 
-/** 直近ターン（messages）を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。 */
-export async function askGuide(messages: GuideMessage[]): Promise<string> {
+/** 段2: クライアントが分かる「今の文脈」（サーバ状態票を補う。画面など）。 */
+export interface GuideContext {
+  /** 今ユーザーが見ている画面の表示名（例: 道具市） */
+  viewLabel?: string
+}
+
+/** 直近ターン（messages）＋文脈を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。 */
+export async function askGuide(messages: GuideMessage[], context?: GuideContext): Promise<string> {
   const token = await getAccessToken()
   if (!token) throw new Error('ログインが必要です')
   const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ action: 'guide', request: { messages } }),
+    body: JSON.stringify({ action: 'guide', request: { messages }, context }),
   })
   const payload = (await response.json().catch(() => ({}))) as {
     text?: string

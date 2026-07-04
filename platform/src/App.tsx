@@ -33,6 +33,19 @@ type View =
   | 'workshop'
   | 'profile'
   | 'admin'
+/** 案内AIの文脈追従用: 画面の表示名（world-view 語彙） */
+const VIEW_LABEL: Record<View, string> = {
+  dashboard: '自分の部屋',
+  catalog: '道具市',
+  announcements: '回覧板',
+  calendar: '長屋暦',
+  help: '案内所',
+  residents: '入居者',
+  workshop: '工房',
+  profile: '入居者情報',
+  admin: '大家の間',
+}
+
 /** Full-screen guidance overlays (entrance branch is behavioral only) */
 type Overlay = 'entrance' | 'craftsman-guide' | 'tutorial' | null
 
@@ -278,9 +291,19 @@ export default function App() {
           onOpenDashboard={() => setView('dashboard')}
         />
       )}
-      {/* 案内AI（段1・ステートレス）。下部常駐の単一窓。AIは任意 */}
+      {/* 案内AI（段1ステートレス＋段2 文脈追従・承認つき操作補助）。下部常駐の単一窓。AIは任意 */}
       {auth.status === 'signed-in' && !overlay && (
-        <GuideAssistant onOpenAiSettings={() => setView('workshop')} />
+        <GuideAssistant
+          onOpenAiSettings={() => setView('workshop')}
+          viewLabel={VIEW_LABEL[view] ?? ''}
+          installed={installed}
+          onInstall={handleInstall}
+          onNavigate={(v) => setView(v)}
+          onOpenHelp={(article) => {
+            setHelpArticle(article)
+            setView('help')
+          }}
+        />
       )}
     </div>
   )

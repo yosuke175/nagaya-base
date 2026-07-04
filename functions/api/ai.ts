@@ -208,6 +208,7 @@ async function buildGuideSystemPrompt(
   env: Env,
   userId: string,
   chunks: Array<{ source_path: string; content: string }>,
+  context?: { viewLabel?: string },
 ): Promise<string> {
   const state = await buildStateTicket(env, userId)
   const docs = chunks.length
@@ -216,6 +217,10 @@ async function buildGuideSystemPrompt(
         ...chunks.map((c, i) => `【${i + 1}】(${c.source_path})\n${c.content}`),
       ].join('\n')
     : '# 長屋の資料\n（関連資料は見つかりませんでした。確信が無いことは断定せず、「案内所」を勧めてよい）'
+  const now =
+    typeof context?.viewLabel === 'string' && context.viewLabel.length <= 20
+      ? `# 今の状況\n- ユーザーが今見ている画面: ${context.viewLabel}`
+      : ''
   return [
     'あなたは「長屋（NAGAYA-BASE）」の案内AIです。入居者が道具（ガジェット）を活用するのを助ける、親切で簡潔な案内役。',
     '# 役割・態度',
@@ -225,10 +230,20 @@ async function buildGuideSystemPrompt(
     '- 下の「長屋の資料」に書かれていることを根拠に答える。資料に無い断定はしない。',
     '# 長屋の語彙',
     '- 自分の部屋=ログイン後の主画面 / 棚=部屋の中の道具置き場 / 道具市=道具のカタログ / 工房=道具をつくる人の作業場 / 入居者=メンバー / 回覧板・長屋暦・案内所=情報レイヤー。',
+    '# 操作の提案（任意・段2）',
+    '- 画面移動やインストールを勧めたいときは、回答の最後に「1つだけ」操作提案を書ける。形式は次のコードブロック:',
+    '  ```nagaya-action',
+    '  {"type":"open","view":"道具市"}',
+    '  ```',
+    '- 使える type: install(gadgetId=道具ID) / open(view=部屋・道具市・入居者・案内所・工房・回覧板・長屋暦) / help(article=記事ID 例05-ai) / ai-settings。',
+    '- 該当しなければ書かない。**あなたは実行しない**。ユーザーが承認ボタンを押して初めて実行される。提案は本文でも一言添える（例:「道具市を開きますか？」）。',
+    now,
     '# 利用者の状態（システムが毎回渡す。あなたは会話を記憶しない＝このセッション内だけ覚えている）',
     state,
     docs,
-  ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 function normalizeProvider(value: unknown): Provider {
@@ -350,6 +365,7 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     apiKey?: string
     model?: string
     request?: { system?: string; messages?: unknown; maxTokens?: number }
+    context?: { viewLabel?: string }
   }
   try {
     body = (await request.json()) as typeof body
@@ -519,7 +535,7 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
         // 埋め込みは運営分（プラットフォームキー）として記録
         await logUsage(env, userId, 'openai', EMBEDDING_MODEL, lastUser.length, 0, 'embed', 'platform')
       }
-      const system = await buildGuideSystemPrompt(env, userId, chunks)
+      const system = await buildGuideSystemPrompt(env, userId, chunks, body.context)
       const maxTokens =
         typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
           ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)
