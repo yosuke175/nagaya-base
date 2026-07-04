@@ -2,6 +2,26 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-04（入居者情報・大家メニュー・道具GUI編集 — フェーズ2〜4）
+
+- **フェーズ2 入居者情報・部屋番号・入居者一覧**（`20260704040000_resident_profiles.sql`）:
+  profiles に room_no（入居順の連番・guestには付けない・BEFOREトリガーで採番+既存backfill）、
+  avatar / bio / links / visibility を追加。本人が更新できる列を拡張（role/room_no は不可）。
+  各項目の公開/非公開は visibility(jsonb)、他者への表示は `list_residents()`（security definer）が
+  visibility 適用済みで返す（非公開項目はDBから出さない）。プロフィール編集・入居者一覧の画面と
+  「入居者」タブ、ヘッダーの名前クリックで自分の部屋へ。アイコン画像はクライアント圧縮
+  data-URL（`lib/imageCompress.ts`、Storage不使用）。Docker で採番・visibility を実測
+- **フェーズ3 大家の間（ロール付与）**: `functions/api/admin.ts`（service_role、呼び出し元が
+  admin かを検証 → ロール変更を PATCH ＋ audit_logs 記録。自分自身は変更不可でロックアウト防止）。
+  admin だけに「大家の間」タブ。クライアントに role 列の更新権限は与えないまま（ADR-003）
+- **フェーズ4 道具のGUI編集**（`20260704050000_gadget_presentation.sql`）: 道具市カードの
+  表示名・説明・カバー画像を manifest を触らず DB で上書き。編集は owner か admin（RLS）。
+  カタログ表示時にマージ。画像は圧縮 data-URL（≤150KB）。gadget_presentation テーブルが
+  無くてもカタログは壊れない（best-effort）
+- 全10マイグレーション Docker 検証。全47テスト green。ゲスト入場・ナビ・admin タブ非表示を実機確認
+- **向井: 追加3マイグレーション（030000 merge / 040000 residents / 050000 presentation）を
+  SQL Editor で適用要**。admin API は既存の Pages Secret（service_role/url）を再利用（新設定不要）
+
 ## 2026-07-04（入場・ロールモデルの刷新 — フェーズ1＋ロール統合）
 
 - **入場モデル**（決定: ゲスト即入場／一般ユーザー、パスワード＋マジックリンク両対応）:

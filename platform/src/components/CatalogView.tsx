@@ -1,20 +1,47 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { externalServiceBaseUrls } from 'gadget-sdk'
 import { fetchCatalog, type CatalogEntry } from '../host/catalog'
 import { PERMISSION_LABELS } from '../host/permissionLabels'
+import { compressImageToDataUrl } from '../lib/imageCompress'
+import {
+  listGadgetOwners,
+  listPresentations,
+  savePresentation,
+  type GadgetPresentation,
+} from '../host/gadgetPresentation'
+
+const COVER_MAX_DIM = 800
+const COVER_MAX_BYTES = 150 * 1024
 
 interface CatalogViewProps {
   installed: string[]
   /** False for guests — catalog stays browsable but install is disabled. */
   canInstall: boolean
+  /** 現在のユーザーID（道具の owner 判定用） */
+  currentUserId: string | null
+  isAdmin: boolean
   onInstall: (dir: string) => void
   onUninstall: (dir: string) => void
 }
 
 /** Gadget catalog (FR-03) with per-user install/uninstall (FR-04). */
-export function CatalogView({ installed, canInstall, onInstall, onUninstall }: CatalogViewProps) {
+export function CatalogView({
+  installed,
+  canInstall,
+  currentUserId,
+  isAdmin,
+  onInstall,
+  onUninstall,
+}: CatalogViewProps) {
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [presentations, setPresentations] = useState<Map<string, GadgetPresentation>>(new Map())
+  const [owners, setOwners] = useState<Map<string, string | null>>(new Map())
+
+  const reloadOverrides = () => {
+    void listPresentations().then(setPresentations)
+    void listGadgetOwners().then(setOwners)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -25,6 +52,7 @@ export function CatalogView({ installed, canInstall, onInstall, onUninstall }: C
       .catch((cause: Error) => {
         if (!cancelled) setError(cause.message)
       })
+    reloadOverrides()
     return () => {
       cancelled = true
     }
@@ -56,6 +84,9 @@ export function CatalogView({ installed, canInstall, onInstall, onUninstall }: C
           entry={entry}
           installed={installed.includes(entry.dir)}
           canInstall={canInstall}
+          presentation={presentations.get(entry.dir)}
+          canEdit={isAdmin || (!!currentUserId && owners.get(entry.dir) === currentUserId)}
+          onEdited={reloadOverrides}
           onInstall={onInstall}
           onUninstall={onUninstall}
         />
@@ -68,25 +99,56 @@ function CatalogCard({
   entry,
   installed,
   canInstall,
+  presentation,
+  canEdit,
+  onEdited,
   onInstall,
   onUninstall,
 }: {
   entry: CatalogEntry
   installed: boolean
   canInstall: boolean
+  presentation?: GadgetPresentation
+  canEdit: boolean
+  onEdited: () => void
   onInstall: (dir: string) => void
   onUninstall: (dir: string) => void
 }) {
   const { manifest } = entry
   const services = manifest.externalServices ?? []
+  const [editing, setEditing] = useState(false)
+
+  // DB の上書き（フェーズ4）を manifest にマージして表示する
+  const displayName = presentation?.display_name || manifest.name
+  const description = presentation?.description || manifest.description
+  const coverImage =
+    presentation?.cover_image || (manifest.icon ? `/gadgets/${entry.dir}/${manifest.icon}` : null)
+
+  if (editing) {
+    return (
+      <PresentationEditor
+        gadgetId={entry.dir}
+        initial={{
+          display_name: presentation?.display_name ?? manifest.name,
+          description: presentation?.description ?? manifest.description,
+          cover_image: presentation?.cover_image ?? null,
+        }}
+        onDone={() => {
+          setEditing(false)
+          onEdited()
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    )
+  }
 
   // 将来「職人別の棚（この職人の道具一覧）」に拡張しやすいよう、
   // カード単位のコンポーネントを維持する（author 起点の絞り込みは未実装）
   return (
     <section className="nb-panel flex flex-col overflow-hidden">
-      {manifest.icon && (
+      {coverImage && (
         <img
-          src={`/gadgets/${entry.dir}/${manifest.icon}`}
+          src={coverImage}
           alt=""
           className="h-36 w-full object-cover"
           // 画像ファイルが無い/壊れている場合はカードを崩さず隠す
@@ -98,12 +160,21 @@ function CatalogCard({
       <div className="flex flex-col p-4">
         <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold" style={{ color: 'var(--nb-navy)' }}>
-          {manifest.name}
+          {displayName}
         </h2>
         <span className="text-xs text-stone-400">v{manifest.version}</span>
       </div>
       <p className="mt-1 text-xs text-stone-500">作者: {manifest.author.name}</p>
-      <p className="mt-2 flex-1 text-xs leading-relaxed text-stone-700">{manifest.description}</p>
+      <p className="mt-2 flex-1 text-xs leading-relaxed text-stone-700">{description}</p>
+      {canEdit && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="mt-2 self-start rounded-lg border border-stone-300 px-2 py-1 text-xs text-stone-600 hover:bg-stone-50"
+        >
+          表示を編集
+        </button>
+      )}
 
       <div className="mt-3 text-xs text-stone-600">
         <h3 className="font-semibold">必要な権限</h3>
@@ -163,6 +234,117 @@ function CatalogCard({
         )}
         </div>
       </div>
+    </section>
+  )
+}
+
+/** 道具の表示（名前・説明・カバー画像）を GUI で編集（フェーズ4） */
+function PresentationEditor({
+  gadgetId,
+  initial,
+  onDone,
+  onCancel,
+}: {
+  gadgetId: string
+  initial: GadgetPresentation
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [displayName, setDisplayName] = useState(initial.display_name ?? '')
+  const [description, setDescription] = useState(initial.description ?? '')
+  const [cover, setCover] = useState<string | null>(initial.cover_image)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const pickCover = async (file: File) => {
+    setError(null)
+    try {
+      const { dataUrl } = await compressImageToDataUrl(file, COVER_MAX_DIM, COVER_MAX_BYTES)
+      setCover(dataUrl)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const save = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await savePresentation(gadgetId, {
+        display_name: displayName.trim() || null,
+        description: description.trim() || null,
+        cover_image: cover,
+      })
+      onDone()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="nb-panel flex flex-col gap-2 p-4 text-sm">
+      <p className="text-xs font-semibold text-stone-500">道具市での表示を編集: {gadgetId}</p>
+      {cover && <img src={cover} alt="" className="h-32 w-full rounded-lg object-cover" />}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void pickCover(file)
+        }}
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs"
+        >
+          カバー画像を選ぶ（軽い画像）
+        </button>
+        {cover && (
+          <button type="button" onClick={() => setCover(null)} className="text-xs text-red-600 underline">
+            画像を外す
+          </button>
+        )}
+      </div>
+      <label className="grid gap-1">
+        <span className="text-xs text-stone-600">表示名</span>
+        <input
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+        />
+      </label>
+      <label className="grid gap-1">
+        <span className="text-xs text-stone-600">説明</span>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+        />
+      </label>
+      {error && <p className="text-xs text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={busy}
+          className="btn-primary rounded-lg px-4 py-1.5 text-xs font-medium disabled:opacity-50"
+        >
+          {busy ? '保存中…' : '保存'}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs">
+          やめる
+        </button>
+      </div>
+      <p className="text-xs text-stone-400">
+        ここでの変更は manifest を書き換えず、道具市の表示だけを上書きします。画像は軽いものだけ保存できます。
+      </p>
     </section>
   )
 }

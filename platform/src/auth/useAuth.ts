@@ -12,6 +12,7 @@ export type AuthStatus = 'disabled' | 'loading' | 'signed-out' | 'signed-in'
 
 export interface Auth {
   status: AuthStatus
+  userId: string | null
   email: string | null
   isAnonymous: boolean
   profile: AuthProfile | null
@@ -26,6 +27,7 @@ export interface Auth {
 
 export function useAuth(): Auth {
   const [status, setStatus] = useState<AuthStatus>(supabase ? 'loading' : 'disabled')
+  const [userId, setUserId] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [profile, setProfile] = useState<AuthProfile | null>(null)
@@ -39,11 +41,13 @@ export function useAuth(): Auth {
       if (cancelled) return
       if (!session) {
         setStatus('signed-out')
+        setUserId(null)
         setEmail(null)
         setProfile(null)
         return
       }
       setStatus('signed-in')
+      setUserId(session.user.id)
       setEmail(session.user.email ?? null)
       setIsAnonymous(session.user.is_anonymous ?? false)
       // Profile row is auto-created by the signup trigger
@@ -70,6 +74,7 @@ export function useAuth(): Auth {
 
   return {
     status,
+    userId,
     email,
     isAnonymous,
     profile,

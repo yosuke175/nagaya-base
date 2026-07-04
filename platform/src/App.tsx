@@ -10,16 +10,28 @@ import { GadgetFrame } from './components/GadgetFrame'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
+import { AdminView } from './components/AdminView'
 import { AnnouncementsView } from './components/AnnouncementsView'
 import { CalendarView } from './components/CalendarView'
 import { HelpView } from './components/HelpView'
 import { InfoSlot } from './components/InfoSlot'
+import { ProfileView } from './components/ProfileView'
 import { ProgressView } from './components/ProgressView'
+import { ResidentsView } from './components/ResidentsView'
 import { TutorialOverlay } from './components/TutorialOverlay'
 import { IMG } from './assets'
 import { loadUserSettings, saveUserSettings, type UserSettings } from './host/userSettings'
 
-type View = 'dashboard' | 'catalog' | 'announcements' | 'calendar' | 'help' | 'progress'
+type View =
+  | 'dashboard'
+  | 'catalog'
+  | 'announcements'
+  | 'calendar'
+  | 'help'
+  | 'progress'
+  | 'residents'
+  | 'profile'
+  | 'admin'
 /** Full-screen guidance overlays (entrance branch is behavioral only) */
 type Overlay = 'entrance' | 'craftsman-guide' | 'tutorial' | null
 
@@ -119,12 +131,17 @@ export default function App() {
           <div className="flex items-center gap-3">
             {auth.status === 'signed-in' && (
               <span className="flex items-center gap-2 text-xs text-stone-600">
-                <span>
-                  {auth.profile?.displayName ?? auth.email}
+                <button
+                  type="button"
+                  onClick={() => setView('profile')}
+                  className="hover:underline"
+                  title="入居者情報（あなたの部屋）"
+                >
+                  {auth.profile?.displayName ?? auth.email ?? '軒先の方'}
                   <span className="ml-1 rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
                     {auth.profile?.role ?? '…'}
                   </span>
-                </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => void auth.signOut()}
@@ -152,12 +169,20 @@ export default function App() {
                 <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
                   長屋暦
                 </TabButton>
+                <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
+                  入居者
+                </TabButton>
                 <TabButton active={view === 'help'} onClick={() => setView('help')}>
                   案内所
                 </TabButton>
                 <TabButton active={view === 'progress'} onClick={() => setView('progress')}>
                   歩み
                 </TabButton>
+                {auth.profile?.role === 'admin' && (
+                  <TabButton active={view === 'admin'} onClick={() => setView('admin')}>
+                    大家の間
+                  </TabButton>
+                )}
               </nav>
             )}
             {(auth.status === 'signed-in' || auth.status === 'disabled') && (
@@ -197,6 +222,8 @@ export default function App() {
               <CatalogView
                 installed={installed}
                 canInstall={canInstall}
+                currentUserId={auth.userId}
+                isAdmin={auth.profile?.role === 'admin'}
                 onInstall={handleInstall}
                 onUninstall={handleUninstall}
               />
@@ -207,6 +234,9 @@ export default function App() {
             {view === 'calendar' && <CalendarView isAdmin={auth.profile?.role === 'admin'} />}
             {view === 'help' && <HelpView />}
             {view === 'progress' && <ProgressView />}
+            {view === 'residents' && <ResidentsView />}
+            {view === 'profile' && <ProfileView />}
+            {view === 'admin' && auth.profile?.role === 'admin' && <AdminView />}
           </>
         )}
       </main>
