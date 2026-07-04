@@ -2,6 +2,30 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-04（見た目統合・入口・チュートリアル・ウィザード完了 — 指示書④⑤⑥）
+
+- STEP 0: 画像30枚をWebP最適化し `platform/public/img/` へ（背景/KV 1920px・小物512px・
+  テクスチャは継ぎ目維持のため原寸WebP=877KB。指示の「そのまま」は重量制約と衝突するため調整）。
+  原本は `assets/src/` 退避、`platform/src/assets.ts` にパス定数、変換は `scripts/optimize-assets.mjs`
+- **重要発見: アセットのファイル名と中身が広範囲に不一致**（例: happi-coat.png=木目、
+  rice-barrel.png=法被、wide-town.png=額縁構図）。全30枚を実物監査し、MANIFEST.md に
+  訂正表を追記。コードからの参照は assets.ts の意味キー経由に統一（調査エージェントの
+  報告にも誤りがあり、最終判定は全て人手=Claude本体の目視で実施）
+- STEP 1: `docs/frontend-design.md`（色6トークン・タイポ・質感・語彙帳）新設、CLAUDE.md に語彙帳
+- STEP 2: 入口分岐（職人/店子）。**行動分岐のみでステータス無関係**（2026-07-04決定、
+  ロールは admin 付与のまま）。選択は profiles.settings（新マイグレーション、
+  authenticated は display_name と settings のみ更新可）。メニュー「案内」から再実行可
+- STEP 3: 店子チュートリアル3ステップ（スキップ可・tutorialDone保存）+
+  「欲しい道具」Issueフォーム（gadget-request.yml）
+- STEP 4: 棚・道具市に世界観適用（和紙地紋・creamパネル・navy見出し・井戸の空状態）。
+  棚上部に情報系スロット（InfoSlot）を確保して指示書⑦へ引き継ぎ
+- STEP 5: ウィザードに画面別水彩背景を同梱、「最初の道具」画面に**ID自動命名+お題カード**
+  （おみくじ/今日の3つ/プロンプト帳/単位変換/白紙→AI指示文に反映）。起動スモーク確認済み
+- STEP 6: OGP画像設定（gate-street）、チラシ修正点4件を README に記録
+- backlog に「入口体験・チュートリアル・ウィザード世界観」の既存項目は無かったためクローズ対象なし
+- 未決: 本番URLでの通し確認（デプロイ後に向井）。profiles.settings マイグレーションの
+  本番適用（SQL Editor）
+
 ## 2026-07-03（追記: セットアップウィザード新規作成）
 
 - `tools/setup-wizard/`（Electron、Win/Mac・日本語UI）を新規作成し、monorepo の
