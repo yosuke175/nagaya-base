@@ -238,7 +238,13 @@ export default function App() {
                 onOpenGuide={(guide) => setOverlay(guide)}
               />
             )}
-            {view === 'residents' && <ResidentsView />}
+            {view === 'residents' && (
+              <ResidentsView
+                installed={installed}
+                canInstall={canInstall}
+                onInstall={handleInstall}
+              />
+            )}
             {view === 'workshop' && (
               <WorkshopView
                 userId={auth.userId}

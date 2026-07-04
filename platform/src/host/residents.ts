@@ -80,6 +80,20 @@ export async function listResidents(): Promise<ResidentEntry[]> {
   return (data ?? []) as ResidentEntry[]
 }
 
+export interface ResidentGadget {
+  kind: 'developed' | 'installed'
+  gadget_id: string
+  name: string | null
+  status: string
+}
+
+/** ある入居者（部屋番号）が作った道具／入れている道具（公開中のみ・security definer RPC） */
+export async function listResidentGadgets(roomNo: number): Promise<ResidentGadget[]> {
+  const { data, error } = await required().rpc('resident_gadgets', { p_room_no: roomNo })
+  if (error) throw new Error(`道具の取得に失敗しました: ${error.message}`)
+  return (data ?? []) as ResidentGadget[]
+}
+
 /**
  * ログイン中のユーザーにパスワードを設定/変更する。マジックリンクで作った
  * 既存アカウントにあとからパスワードを足す用途（設定後はメール＋パスワードで
