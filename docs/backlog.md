@@ -19,3 +19,4 @@
 | 13 | 案内AI 段3（永続記憶マネージャー） | ADR-010 段3。セッション跨ぎの永続記憶（多段階記憶・記憶圧縮・人物像更新）。**要・権利/プライバシー整理と創業者条項**。目的地だが慎重に | 権利整理後 |
 | 14 | RAG の CI 自動再インデックス | **実装済み（2026-07-05）**: `.github/workflows/reindex.yml`。main への .md push で GitHub Actions が `reindex.mjs` を実行（journal/backlog/dist は除外）。**要: GitHub Secrets 3つ**（PLATFORM_EMBEDDING_KEY / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY）。手動実行(workflow_dispatch)も可。残: ガジェットのDB公開(status変更)は発火しない（ファイルpush時に索引済みのため段1では可） | Secrets登録で有効 |
 | 15 | 共通埋め込みキーの協会引き取り | 段1のプラットフォーム保有 埋め込みキー（＋キーなし職人の生成代行分）の費用を、将来 Honmono 運営へ引き取り精算する。根拠は `ai_usage`（key_owner='platform'）の集計 | 運営移管時 |
+| 16 | 統合アシスタント＝ガジェットのツール開放（ADR-011） | **設計ドラフト済み（2026-07-05、architecture.md ADR-011 / gadget-spec §9）**。案内AI1つがガジェット宣言のツール（read/act）を横断呼び出し（MCP的）。opt-in・既定OFF・`act`は承認必須・`gadget.ai`と共存。ステートレスで成立。残: P2 `read`最小実装（`aiTools`宣言＋`tool-invoke` RPC＋承認カード＋function-calling）→ P3 `act`＋複数横断 → P4 PC個別会話/段3統合。SDK変更＝gadget-spec v1.6 で確定 | 段2安定後にP2 |

@@ -162,6 +162,64 @@ A. v1では対応しません（プラットフォームの外部連携ポリシ
 **Q. ガジェット同士でデータをやり取りしたい**
 A. v1では不可です。要望が多ければv2で共有ストレージAPIを検討します。
 
+## 9.（ドラフト・未実装）AIツール開放 — ADR-011
+
+> **これは設計ドラフトです。まだ実装されておらず、契約としては未確定**（実装時に v1.6 として確定）。
+> 既存ガジェットは `aiTools` を宣言しなければ**一切影響を受けません**（従来どおり動く）。
+
+長屋には常駐の「案内AI」が1つある。ガジェットは**自前のAIチャットを持つ代わりに**、
+「AIから呼べる道具（ツール）」を宣言でき、案内AIがそれを横断的に呼ぶ（MCP的な考え方）。
+これは `gadget.ai`（ガジェット→AI・§4）とは**向きが逆**（AI→ガジェット）で、両者は共存する。
+
+### 参加は任意（既定OFF）
+- `aiTools` を宣言しなければ、AIからは触れない（＝これまで通り）。
+- 宣言しても、利用者がインストール時に「AI操作の許可」を承認して初めて有効（FR-06 承認カード）。
+- permissions に `ai-tools` を追加宣言する。
+
+### manifest（案）
+```json
+"permissions": ["storage", "ai-tools"],
+"aiTools": [
+  {
+    "name": "list_events",
+    "description": "今後30日の予定を返す",
+    "kind": "read",
+    "params": { "days": { "type": "number", "required": false } }
+  },
+  {
+    "name": "create_event",
+    "description": "予定を1件作成する",
+    "kind": "act",
+    "requiresConfirm": true,
+    "params": { "title": { "type": "string" }, "start": { "type": "string" } }
+  }
+]
+```
+- `kind`: `read`（読み取り専用・副作用なし）/ `act`（操作）。`act` は既定で `requiresConfirm: true`
+  （ユーザーが承認ボタンを押して初めて実行）。
+- `params`: 最小のスキーマ（型・必須）。
+
+### SDK（案）
+```js
+// ガジェット側: ツールを登録し、呼び出しに応答する
+gadget.ai.registerTools([
+  { name: 'list_events', /* ...manifestと一致... */ },
+  { name: 'create_event' },
+])
+gadget.ai.onToolInvoke(async ({ name, params }) => {
+  if (name === 'list_events') return { events: await loadEvents(params.days ?? 30) }
+  if (name === 'create_event') { await createEvent(params); return { ok: true } }
+})
+```
+- ホスト（プラットフォーム）が、案内AIの function-calling 判断に従い `tool-invoke` を postMessage で送る。
+- `act` は、実行前にプラットフォームが承認UIを出す（AIもガジェットも勝手に実行しない）。
+- 表示中/近接のガジェットのツールを優先してAIに渡す（ツール数が増えてもプロンプトを肥大させない）。
+
+### 原則（ADR-011）
+- ステートレスで成立（会話履歴＋ツール定義＋現在状態を毎回渡す。永続記憶は不要）。
+- ガジェット内部への直接アクセスは無し。あくまで**宣言されたツール経由**（ADR-001 のサンドボックス維持）。
+- `gadget.ai`（§4）は残る。会話UIとしてのAIは案内AI1つに集約する。
+
 ## 8. 変更履歴
 
 - **v1.5（2026-07-05）**: externalServices に任意フィールド `setupHint`（連携設定ダイアログに貼り付け形式を1行表示）と `setupUrl`（詳しい設定手順へのリンク）を追加（後方互換・追加のみ）。BYOKクレデンシャルを要求するサービスは少なくとも一方を付けることを推奨
