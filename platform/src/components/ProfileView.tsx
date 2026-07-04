@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { compressImageToDataUrl } from '../lib/imageCompress'
-import { loadMyProfile, residentsAvailable, saveMyProfile } from '../host/residents'
+import { loadMyProfile, residentsAvailable, saveMyProfile, setMyPassword } from '../host/residents'
 
 // 自分の入居者情報の編集（フェーズ2）。各項目に「他の入居者に見せる」トグル。
 // アイコンはクライアント圧縮した小さな data-URL（Storage 不使用）。
@@ -32,6 +32,10 @@ export function ProfileView() {
   const [linkUrl, setLinkUrl] = useState('')
   const [links, setLinks] = useState<Record<string, string>>({})
   const [visibility, setVisibility] = useState<Record<string, boolean>>({})
+  const [role, setRole] = useState('user')
+  const [newPassword, setNewPassword] = useState('')
+  const [pwSaved, setPwSaved] = useState(false)
+  const [pwError, setPwError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -43,6 +47,7 @@ export function ProfileView() {
         setBio(profile.bio ?? '')
         setLinks(profile.links)
         setVisibility(profile.visibility)
+        setRole(profile.role)
         setLoading(false)
       })
       .catch((cause: Error) => {
@@ -236,6 +241,51 @@ export function ProfileView() {
           {saved && <span className="text-xs text-green-700">保存しました</span>}
         </div>
       </div>
+
+      {role !== 'guest' && (
+        <div className="nb-panel mt-4 grid gap-2 p-5 text-sm">
+          <p className="text-xs font-semibold text-stone-500">ログイン用パスワード</p>
+          <p className="text-xs text-stone-500">
+            パスワードを設定すると、次回から「メール＋パスワード」でもログインできます
+            （マジックリンクも引き続き使えます）。
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value)
+                setPwSaved(false)
+                setPwError(null)
+              }}
+              placeholder="新しいパスワード（8文字以上）"
+              className="flex-1 rounded-lg border border-stone-300 px-3 py-2"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                if (newPassword.length < 8) {
+                  setPwError('パスワードは8文字以上にしてください')
+                  return
+                }
+                setPwError(null)
+                try {
+                  await setMyPassword(newPassword)
+                  setPwSaved(true)
+                  setNewPassword('')
+                } catch (cause) {
+                  setPwError(cause instanceof Error ? cause.message : String(cause))
+                }
+              }}
+              className="btn-primary rounded-lg px-4 py-2 text-sm font-medium"
+            >
+              パスワードを設定する
+            </button>
+          </div>
+          {pwSaved && <span className="text-xs text-green-700">パスワードを設定しました</span>}
+          {pwError && <span className="text-xs text-red-700">{pwError}</span>}
+        </div>
+      )}
     </div>
   )
 }

@@ -79,3 +79,13 @@ export async function listResidents(): Promise<ResidentEntry[]> {
   if (error) throw new Error(`入居者一覧の取得に失敗しました: ${error.message}`)
   return (data ?? []) as ResidentEntry[]
 }
+
+/**
+ * ログイン中のユーザーにパスワードを設定/変更する。マジックリンクで作った
+ * 既存アカウントにあとからパスワードを足す用途（設定後はメール＋パスワードで
+ * ログインできる）。ログイン済みなのでメール確認は不要。
+ */
+export async function setMyPassword(password: string): Promise<void> {
+  const { error } = await required().auth.updateUser({ password })
+  if (error) throw new Error(`パスワードの設定に失敗しました: ${error.message}`)
+}
