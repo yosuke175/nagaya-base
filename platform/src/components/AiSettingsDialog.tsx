@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react'
 import {
+  AI_PROVIDERS,
   DEFAULT_AI_MODEL,
   fetchAiStatus,
   getAiSettings,
   persistAiSettings,
   removeAiSettings,
+  type AiProvider,
   type AiSettingsScope,
 } from '../host/aiSettings'
 
 /**
- * Platform-wide AI settings (one key per user, used by gadget.ai).
- * Account scope: the key is stored encrypted server-side and used only by
- * /api/ai — it is never displayed nor returned to the browser. Device scope
- * (no-login local dev) keeps the old localStorage behavior.
+ * プラットフォーム共通の AI設定（ユーザー1人につき1キー、gadget.ai が使う）。
+ * キーはガジェット iframe に渡らない（ADR-001）。account スコープでは暗号化して
+ * サーバー保管され、AI呼び出しもサーバー側で代理実行される（キーはブラウザに返らない）。
  */
-export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
+export function AiSettingsDialog({ onClose, onOpenHelp }: { onClose: () => void; onOpenHelp: () => void }) {
+  const [provider, setProvider] = useState<AiProvider>('anthropic')
   const [apiKey, setApiKey] = useState('')
-  const [model, setModel] = useState(DEFAULT_AI_MODEL)
+  const [model, setModel] = useState(DEFAULT_AI_MODEL.anthropic)
   const [scope, setScope] = useState<AiSettingsScope>('device')
   const [registered, setRegistered] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -30,11 +32,9 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
       if (cancelled) return
       setScope(status.scope)
       setRegistered(status.registered)
+      setProvider(status.provider)
       setModel(status.model)
-      if (status.scope === 'device') {
-        // Device fallback only — on the account scope the key never comes back
-        setApiKey(getAiSettings().apiKey ?? '')
-      }
+      if (status.scope === 'device') setApiKey(getAiSettings().apiKey ?? '')
       setLoading(false)
     })()
     return () => {
@@ -42,14 +42,23 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
     }
   }, [])
 
+  // プロバイダを変えたら、モデル欄が既定値のままなら新プロバイダの既定に追従
+  const changeProvider = (next: AiProvider) => {
+    setProvider(next)
+    setSaved(null)
+    const isDefaultModel = Object.values(DEFAULT_AI_MODEL).includes(model)
+    if (!model || isDefaultModel) setModel(DEFAULT_AI_MODEL[next])
+  }
+
   const save = async () => {
     const trimmed = apiKey.trim()
     if (!trimmed && !(scope === 'account' && registered)) return
     setError(null)
     try {
       const storedScope = await persistAiSettings({
+        provider,
         apiKey: trimmed || null,
-        model: model.trim() || DEFAULT_AI_MODEL,
+        model: model.trim() || DEFAULT_AI_MODEL[provider],
       })
       setSaved(storedScope)
       setRegistered(true)
@@ -64,7 +73,6 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
     try {
       await removeAiSettings()
       setApiKey('')
-      setModel(DEFAULT_AI_MODEL)
       setRegistered(false)
       setSaved(null)
     } catch (cause) {
@@ -86,46 +94,52 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <p className="mt-2 leading-relaxed text-stone-600">
-          ここに登録した API キーで、「ai」権限を承認したガジェットが AI（文章生成）を
-          利用できます。キーはガジェットには渡されず、利用量はあなたのキーに課金されます。
+          AIを使う道具は、<strong>あなた自身のAIのAPIキー</strong>で動きます（使った分だけ、
+          あなたのAI契約に課金）。Claude / OpenAI / Google など、お好みの提供元を選べます。
+          <button type="button" onClick={onOpenHelp} className="ml-1 underline" style={{ color: 'var(--nb-terra)' }}>
+            キーの取り方・使い方（案内所）
+          </button>
         </p>
         {loading ? (
           <p className="mt-3 text-stone-400">読み込み中…</p>
         ) : (
           <>
             <p className="mt-2 text-stone-500">
-              現在の状態:{' '}
-              {registered ? (
-                <span className="text-green-700">APIキー登録済み</span>
-              ) : (
-                'APIキー未登録'
-              )}
+              現在: {registered ? <span className="text-green-700">登録済み</span> : '未登録'}
             </p>
             <label className="mt-3 grid gap-1">
-              <span className="text-stone-600">
-                Anthropic API キー（console.anthropic.com で取得）
-              </span>
+              <span className="text-stone-600">AIの提供元</span>
+              <select
+                value={provider}
+                onChange={(e) => changeProvider(e.target.value as AiProvider)}
+                className="rounded-lg border border-stone-300 p-2"
+              >
+                {AI_PROVIDERS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-2 grid gap-1">
+              <span className="text-stone-600">API キー</span>
               <input
                 type="password"
                 value={apiKey}
-                onChange={(changeEvent) => {
-                  setApiKey(changeEvent.target.value)
+                onChange={(e) => {
+                  setApiKey(e.target.value)
                   setSaved(null)
                 }}
-                placeholder={
-                  scope === 'account' && registered
-                    ? '登録済み（変更する場合のみ入力）'
-                    : 'sk-ant-...'
-                }
+                placeholder={scope === 'account' && registered ? '登録済み（変更する場合のみ入力）' : 'sk-... / AIza...'}
                 className="rounded-lg border border-stone-300 p-2 font-mono"
               />
             </label>
             <label className="mt-2 grid gap-1">
-              <span className="text-stone-600">モデル（既定: {DEFAULT_AI_MODEL}）</span>
+              <span className="text-stone-600">モデル（既定: {DEFAULT_AI_MODEL[provider]}）</span>
               <input
                 value={model}
-                onChange={(changeEvent) => {
-                  setModel(changeEvent.target.value)
+                onChange={(e) => {
+                  setModel(e.target.value)
                   setSaved(null)
                 }}
                 className="rounded-lg border border-stone-300 p-2 font-mono"
@@ -148,9 +162,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
               </button>
               {saved && (
                 <span className="text-green-700">
-                  {saved === 'account'
-                    ? '保存しました（アカウント・全端末で共有）'
-                    : '保存しました（この端末のみ）'}
+                  {saved === 'account' ? '保存しました（全端末で共有）' : '保存しました（この端末のみ）'}
                 </span>
               )}
             </div>
@@ -158,7 +170,7 @@ export function AiSettingsDialog({ onClose }: { onClose: () => void }) {
             <p className="mt-2 text-stone-400">
               {scope === 'account'
                 ? '保存先: あなたのアカウント（サーバー側で暗号化保管。AI呼び出しもサーバー側で代理実行され、キーがブラウザに返ることはありません）'
-                : '保存先: この端末のみ（ログイン + サーバー設定が揃うとアカウント保存に切り替わります。docs/backlog.md 参照）'}
+                : '保存先: この端末のみ（ログイン + サーバー設定が揃うとアカウント保存に切り替わります）'}
             </p>
           </>
         )}

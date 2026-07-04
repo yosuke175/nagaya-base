@@ -378,7 +378,12 @@ async function remoteAiComplete(request: AiCompleteRequest): Promise<string> {
   return String(data.text ?? '')
 }
 
-/** Local-dev fallback: key from this device's localStorage, browser-direct call. */
+/**
+ * Local-dev fallback (no Supabase): key from this device's localStorage,
+ * browser-direct call. Anthropic と Google はブラウザ直呼び可。OpenAI は
+ * CORS 上ブラウザから直接呼べないため、本番（ログイン環境・/api/ai 経由）を
+ * 使ってもらう。※開発用の分岐で、本番はサーバー側 /api/ai が全社対応。
+ */
 async function deviceAiComplete(request: AiCompleteRequest): Promise<string> {
   const settings = getAiSettings()
   if (!settings.apiKey) {
@@ -387,6 +392,39 @@ async function deviceAiComplete(request: AiCompleteRequest): Promise<string> {
       'AIのAPIキーが未登録です。プラットフォーム右上の「AI設定」から登録してください',
     )
   }
+  const maxTokens = Math.min(request.maxTokens ?? 1000, AI_MAX_TOKENS_LIMIT)
+
+  if (settings.provider === 'google') {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      settings.model,
+    )}:generateContent?key=${encodeURIComponent(settings.apiKey)}`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ...(request.system ? { systemInstruction: { parts: [{ text: request.system }] } } : {}),
+        contents: request.messages.map((m) => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }],
+        })),
+        generationConfig: { maxOutputTokens: maxTokens },
+      }),
+    })
+    const data = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+      error?: { message?: string }
+    }
+    if (!response.ok) throw new RpcError('ai_error', data.error?.message ?? 'Gemini API エラー')
+    return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('')
+  }
+
+  if (settings.provider === 'openai') {
+    throw new RpcError(
+      'ai_error',
+      'ローカル開発モードでは OpenAI を直接呼べません（ログイン環境で利用してください）',
+    )
+  }
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -398,7 +436,7 @@ async function deviceAiComplete(request: AiCompleteRequest): Promise<string> {
     },
     body: JSON.stringify({
       model: settings.model,
-      max_tokens: Math.min(request.maxTokens ?? 1000, AI_MAX_TOKENS_LIMIT),
+      max_tokens: maxTokens,
       ...(request.system ? { system: request.system } : {}),
       messages: request.messages,
     }),

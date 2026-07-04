@@ -41,6 +41,7 @@ export default function App() {
   const [installed, setInstalled] = useState<string[]>([])
   const [storeError, setStoreError] = useState<string | null>(null)
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
+  const [helpArticle, setHelpArticle] = useState<string | undefined>(undefined)
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [overlay, setOverlay] = useState<Overlay>(null)
 
@@ -232,7 +233,7 @@ export default function App() {
               <AnnouncementsView isAdmin={auth.profile?.role === 'admin'} />
             )}
             {view === 'calendar' && <CalendarView isAdmin={auth.profile?.role === 'admin'} />}
-            {view === 'help' && <HelpView />}
+            {view === 'help' && <HelpView key={helpArticle ?? 'default'} initialArticle={helpArticle} />}
             {view === 'progress' && <ProgressView />}
             {view === 'residents' && <ResidentsView />}
             {view === 'profile' && <ProfileView />}
@@ -240,7 +241,16 @@ export default function App() {
           </>
         )}
       </main>
-      {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
+      {aiSettingsOpen && (
+        <AiSettingsDialog
+          onClose={() => setAiSettingsOpen(false)}
+          onOpenHelp={() => {
+            setAiSettingsOpen(false)
+            setHelpArticle('05-ai')
+            setView('help')
+          }}
+        />
+      )}
       {overlay === 'entrance' && <EntranceScreen onSelect={handleEntranceSelect} />}
       {overlay === 'craftsman-guide' && <CraftsmanGuide onClose={() => setOverlay(null)} />}
       {overlay === 'tutorial' && (

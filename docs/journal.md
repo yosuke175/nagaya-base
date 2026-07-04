@@ -2,6 +2,18 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-04（gadget.ai を複数プロバイダ対応 — backlog #7 完了）
+
+- `functions/api/ai.ts` を anthropic / openai / google に対応。gadget.ai.complete の
+  {system, messages, maxTokens} を各社形式（Anthropic messages / OpenAI chat.completions /
+  Gemini generateContent）へ変換。保管設定に provider を追加（既定モデルは各社別）
+- AI設定ダイアログ: 提供元セレクト＋趣旨説明＋案内所リンク。案内所に「AIの使い方」ページ
+  （05-ai.md: 趣旨、対応表、Anthropic/OpenAI/Google のキー取得手順、設定方法、注意）を追加。
+  ダイアログのリンクから該当ページへ deep-link
+- device フォールバック（ローカル開発・無ログイン）は anthropic/google をブラウザ直呼び対応、
+  openai は CORS 上サーバー経由（本番 /api/ai）が必要な旨を明示。本番は全社サーバー代理実行
+- 全47テスト green。新設定は不要（既存の Pages Secret を再利用）
+
 ## 2026-07-04（入居者情報・大家メニュー・道具GUI編集 — フェーズ2〜4）
 
 - **フェーズ2 入居者情報・部屋番号・入居者一覧**（`20260704040000_resident_profiles.sql`）:
