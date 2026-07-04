@@ -58,6 +58,14 @@ export function TutorialOverlay({ onFinish, onOpenCatalog, onOpenDashboard }: Tu
               <p className="mt-2 text-sm leading-relaxed">
                 まずは<strong>「スケジュール秘書」</strong>を1つ試してみるのがおすすめです。
               </p>
+              <button
+                type="button"
+                onClick={onOpenCatalog}
+                className="mt-3 rounded-lg px-4 py-2 text-sm font-medium text-white"
+                style={{ backgroundColor: 'var(--nb-terra)' }}
+              >
+                道具市を開いてみる
+              </button>
             </>
           )}
 
@@ -73,64 +81,62 @@ export function TutorialOverlay({ onFinish, onOpenCatalog, onOpenDashboard }: Tu
               <p className="mt-2 text-sm leading-relaxed">
                 欲しい道具が見つからなかったら、遠慮なく職人に伝えてください。
               </p>
+              <a
+                href={issueUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-block rounded-lg px-4 py-2 text-sm font-medium text-white"
+                style={{ backgroundColor: 'var(--nb-sage)' }}
+              >
+                欲しい道具を提案する
+              </a>
             </>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            {step === 1 && (
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-                style={{ backgroundColor: 'var(--nb-navy)' }}
-              >
-                次へ
-              </button>
-            )}
-            {step === 2 && (
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenCatalog()
-                  setStep(3)
-                }}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-                style={{ backgroundColor: 'var(--nb-terra)' }}
-              >
-                道具市をのぞいてみる
-              </button>
-            )}
-            {step === 3 && (
-              <>
+          {/* 左から右へ進む: 戻る(左下) / スキップ(中央・小) / 次へ(右下・大) */}
+          <div className="mt-6 grid grid-cols-3 items-center">
+            <div className="justify-self-start">
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setStep(step - 1)}
+                  className="rounded-lg border border-stone-300 px-4 py-2 text-sm text-stone-600"
+                >
+                  戻る
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onFinish}
+              className="justify-self-center text-xs text-stone-400 underline"
+            >
+              スキップ
+            </button>
+            <div className="justify-self-end">
+              {step < 3 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(step + 1)}
+                  className="rounded-lg px-7 py-2.5 text-base font-bold text-white shadow"
+                  style={{ backgroundColor: 'var(--nb-navy)' }}
+                >
+                  次へ
+                </button>
+              ) : (
                 <button
                   type="button"
                   onClick={() => {
                     onOpenDashboard()
                     onFinish()
                   }}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                  className="rounded-lg px-7 py-2.5 text-base font-bold text-white shadow"
                   style={{ backgroundColor: 'var(--nb-navy)' }}
                 >
                   自分の棚を見る
                 </button>
-                <a
-                  href={issueUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-                  style={{ backgroundColor: 'var(--nb-sage)' }}
-                >
-                  欲しい道具を提案する
-                </a>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={onFinish}
-              className="ml-auto rounded-lg border border-stone-300 px-3 py-2 text-xs text-stone-500"
-            >
-              スキップ
-            </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
