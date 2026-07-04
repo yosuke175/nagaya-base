@@ -17,7 +17,7 @@
         <li data-step="2">環境診断</li>
         <li data-step="3">GitHub連携</li>
         <li data-step="4">長屋に入る</li>
-        <li data-step="5">部屋を建てる</li>
+        <li data-step="5">最初の道具</li>
         <li data-step="6">完成</li>
       </ol>
     </header>
@@ -130,19 +130,45 @@ npm install</pre>
         </details>
       </section>
 
-      <!-- 5. 部屋を建てる -->
+      <!-- 5. 最初の道具に取りかかる -->
       <section class="step" data-step="5" hidden>
-        <h2>部屋を建てる（自分のガジェットを作る）</h2>
-        <p>あなたのガジェットの「ID」を決めてください。雛形をコピーして専用フォルダを作ります。</p>
+        <h2>最初の道具に取りかかる</h2>
+        <p>
+          あなたの最初の道具（ガジェット）の雛形を作ります。
+          お題を選ぶと迷いません（あとで何にでも作り替えられます）。
+        </p>
         <div class="box">
-          <label>ガジェットID（半角英小文字・数字・ハイフン、3〜40文字）
+          <span style="font-size: 13px; color: #57534e">お題を選ぶ（任意）</span>
+          <div class="theme-cards" id="theme-cards">
+            <button type="button" class="theme-card" data-theme="omikuji" data-idea="ボタンを押すと今日の運勢とひとことアドバイスを表示するおみくじ">
+              <span class="t-name">おみくじ</span>
+              <span class="t-desc">押すと今日の運勢が出る</span>
+            </button>
+            <button type="button" class="theme-card" data-theme="today-three" data-idea="今日やることを3つだけ書いて、終えたら消せる小さなToDo">
+              <span class="t-name">今日の3つ</span>
+              <span class="t-desc">今日やる3つだけのToDo</span>
+            </button>
+            <button type="button" class="theme-card" data-theme="prompt-book" data-idea="お気に入りのAIプロンプトを保存して、ワンタップでコピーできるプロンプト帳">
+              <span class="t-name">プロンプト帳</span>
+              <span class="t-desc">推しプロンプトを保存</span>
+            </button>
+            <button type="button" class="theme-card" data-theme="unit-convert" data-idea="坪⇔平米、寸⇔cmなど、よく使う単位をさっと変換する道具">
+              <span class="t-name">単位変換</span>
+              <span class="t-desc">坪⇔m² などをさっと変換</span>
+            </button>
+            <button type="button" class="theme-card" data-theme="blank" data-idea="">
+              <span class="t-name">白紙</span>
+              <span class="t-desc">自分のアイデアで作る</span>
+            </button>
+          </div>
+          <label>道具のID（半角英小文字・数字・ハイフン、3〜40文字。自動で入ります）
             <input id="gadget-id" placeholder="例: my-first-gadget" spellcheck="false" />
           </label>
           <p id="gadget-id-feedback" class="hint"></p>
           <label>表示名（日本語OK。カタログに表示されます）
             <input id="gadget-name" placeholder="例: はじめてのガジェット" />
           </label>
-          <button class="primary" id="gadget-create" disabled>雛形をコピーして作成</button>
+          <button class="primary" id="gadget-create" disabled>雛形をコピーして道具をつくる</button>
           <p id="gadget-done" class="ok" hidden></p>
         </div>
         <div class="error" id="error-5" hidden></div>

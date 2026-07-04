@@ -1,14 +1,26 @@
 * { box-sizing: border-box; }
+:root {
+  /* NAGAYA-BASE watercolor palette (docs/frontend-design.md) */
+  --nb-navy: #1e2c4a;
+  --nb-terra: #b85042;
+  --nb-sage: #6e8f7c;
+  --nb-gold: #c9a15a;
+  --nb-cream: #f1eee3;
+  --nb-ink: #2d2a26;
+}
 body {
   margin: 0;
   font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
-  color: #1c1917;
-  background: #fafaf9;
+  color: var(--nb-ink);
+  background: var(--nb-cream);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   font-size: 15px;
   line-height: 1.7;
 }
 header {
-  background: #292524;
+  background: var(--nb-navy);
   color: #fafaf9;
   padding: 12px 20px;
 }
@@ -30,7 +42,28 @@ header h1 { font-size: 16px; margin: 0 0 8px; }
 #steps-nav li.active { background: #fafaf9; color: #1c1917; font-weight: 700; }
 #steps-nav li.done { background: #166534; color: #fff; }
 main { padding: 20px 24px 40px; max-width: 760px; margin: 0 auto; }
-h2 { font-size: 20px; margin: 8px 0 12px; }
+/* 各ステップは cream の半透明パネル（背景の水彩が透ける） */
+main .step {
+  background: color-mix(in srgb, var(--nb-cream) 92%, white);
+  border-radius: 12px;
+  padding: 18px 22px;
+  box-shadow: 0 2px 14px rgb(45 42 38 / 0.18);
+}
+h2 { font-size: 20px; margin: 8px 0 12px; color: var(--nb-navy); }
+/* お題カード（最初の道具のテーマ選び） */
+.theme-cards { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.theme-card {
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+.theme-card .t-name { font-weight: 700; color: var(--nb-navy); display: block; }
+.theme-card .t-desc { font-size: 11px; color: #78716c; }
+.theme-card.selected { border-color: var(--nb-terra); background: #fdf3f1; }
 .box {
   background: #fff;
   border: 1px solid #e7e5e4;

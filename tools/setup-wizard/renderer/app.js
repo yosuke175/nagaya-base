@@ -6,19 +6,32 @@ const state = {
   step: 1,
   login: null,
   cloneUrl: null,
+  isOwner: false,
   parentDir: null,
   clonePath: null,
   gadgetId: null,
   authTimer: null,
   authOpened: null,
+  theme: null, // 選択したお題カード { key, name, idea }
 }
 
 const $ = (selector) => document.querySelector(selector)
 const show = (el) => el.removeAttribute('hidden')
 const hide = (el) => el.setAttribute('hidden', '')
 
+// 各画面の水彩背景（指示書④⑤⑥ STEP 5。renderer/img に同梱）
+const STEP_BACKGROUNDS = {
+  1: 'img/gate-street.webp', // 門をくぐる
+  2: 'img/workshop-tools.webp', // 工房で道具を揃える
+  3: 'img/workshop-lantern.webp',
+  4: 'img/workshop-lantern.webp',
+  5: 'img/desk-code.webp',
+  6: 'img/marketplace.webp', // 賑わいへ
+}
+
 function goTo(step) {
   state.step = step
+  document.body.style.backgroundImage = `url(${STEP_BACKGROUNDS[step]})`
   document.querySelectorAll('main .step').forEach((section) => {
     section.toggleAttribute('hidden', Number(section.dataset.step) !== step)
   })
@@ -28,6 +41,11 @@ function goTo(step) {
     item.classList.toggle('done', n < step)
   })
   if (step === 2) void runEnvCheck()
+  if (step === 5 && !gadgetIdInput.value) {
+    // 迷わせない: IDは自動命名で埋めておく（変更可）
+    gadgetIdInput.value = 'my-first-gadget'
+    gadgetIdInput.dispatchEvent(new Event('input'))
+  }
   if (step === 6) prepareFinish()
 }
 
@@ -213,6 +231,23 @@ $('#use-existing').addEventListener('click', async () => {
 // ---- step 5: create gadget ---------------------------------------------------------
 
 const gadgetIdInput = $('#gadget-id')
+
+// お題カード: 選ぶと表示名を提案し、完成画面のAI指示文に反映される
+document.querySelectorAll('.theme-card').forEach((card) => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.theme-card').forEach((other) => other.classList.remove('selected'))
+    card.classList.add('selected')
+    state.theme = {
+      key: card.dataset.theme,
+      idea: card.dataset.idea,
+      name: card.querySelector('.t-name').textContent,
+    }
+    const nameInput = $('#gadget-name')
+    if (state.theme.key !== 'blank' && !nameInput.value.trim()) {
+      nameInput.value = state.theme.name
+    }
+  })
+})
 gadgetIdInput.addEventListener('input', async () => {
   const id = gadgetIdInput.value.trim()
   const feedback = $('#gadget-id-feedback')
@@ -247,11 +282,12 @@ $('#gadget-create').addEventListener('click', async () => {
 
 function prepareFinish() {
   const id = state.gadgetId ?? '<あなたのID>'
+  const idea = state.theme && state.theme.idea ? state.theme.idea : '（ここに作りたいものを書く）'
   $('#dev-cmd').textContent = `npm run dev:gadget ${id}`
   $('#ai-prompt').textContent =
     `docs/gadget-spec.md と gadgets/${id}/ の雛形を読んでください。\n` +
-    'この雛形を、次のアイデアのガジェットに改造してください。\n\n' +
-    'アイデア: （ここに作りたいものを書く）\n\n' +
+    'この雛形を、次のアイデアのガジェット（道具）に改造してください。\n\n' +
+    `アイデア: ${idea}\n\n` +
     '制約: gadget-spec.md の仕様を厳守すること\n' +
     '- プラットフォームとの通信は gadget-sdk（postMessage API）のみ\n' +
     '- manifest.json で宣言した permissions 以外の SDK 機能は使わない\n' +
