@@ -46,6 +46,8 @@ export interface GadgetManifest {
   description: string;
   author: { name: string; contact: string };
   entry: string;
+  /** Optional catalog card image, relative to the gadget root (spec v1.4+). */
+  icon?: string;
   size: { default: GadgetSize; supported: GadgetSize[] };
   permissions: GadgetPermission[];
   externalServices?: GadgetExternalService[];

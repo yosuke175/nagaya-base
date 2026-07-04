@@ -83,8 +83,20 @@ function CatalogCard({
   // 将来「職人別の棚（この職人の道具一覧）」に拡張しやすいよう、
   // カード単位のコンポーネントを維持する（author 起点の絞り込みは未実装）
   return (
-    <section className="nb-panel flex flex-col p-4">
-      <div className="flex items-baseline justify-between gap-2">
+    <section className="nb-panel flex flex-col overflow-hidden">
+      {manifest.icon && (
+        <img
+          src={`/gadgets/${entry.dir}/${manifest.icon}`}
+          alt=""
+          className="h-36 w-full object-cover"
+          // 画像ファイルが無い/壊れている場合はカードを崩さず隠す
+          onError={(e) => {
+            e.currentTarget.style.display = 'none'
+          }}
+        />
+      )}
+      <div className="flex flex-col p-4">
+        <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold" style={{ color: 'var(--nb-navy)' }}>
           {manifest.name}
         </h2>
@@ -149,6 +161,7 @@ function CatalogCard({
             </p>
           </div>
         )}
+        </div>
       </div>
     </section>
   )
