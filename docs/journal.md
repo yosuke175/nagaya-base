@@ -2,6 +2,26 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（案内AI 段1 — サブステップ1〜4 実装。5=RAGはキー準備待ち）
+
+向井の指示「1〜4を止まらず完了、判断は推奨案で、後で報告」に基づき自律実装。5（RAG）は
+埋め込みキー準備が前提のため未着手（要件を別途提示）。
+
+実装（migrations 20260705010000/020000。要・手動適用）:
+- 使用量/コスト: ai_usage に purpose/key_owner/est_cost_usd 追加。ai.ts が呼び出しごとに概算コスト
+  記録。AI設定に「今月の概算費用」、大家の間に「AI利用（運営分/BYOF分）」集計（ai_usage_summary RPC）
+- ADR-010（アシスタントと記憶・段1/2/3）起草。backlog #12〜15 追加
+- 状態票: profiles.last_visit_at/visit_count ＋ record_visit() RPC。ログイン時に記録。
+  guide Function が毎回サーバー側で状態票を組む
+- 案内AI窓: /api/ai に guide アクション（状態票＋systemプロンプト＋既存BYOK complete）。
+  GuideAssistant = 下部常駐の単一窓（スマホ最優先・会話はセッション内のみ）。**AIは任意**
+
+自律判断（推奨案で進めた点）:
+- コスト概算: 文字数÷4≒トークン、モデル別の粗い単価表（未知モデルは既定）。円換算は固定160円/$の概算表記
+- 案内AI窓は signed-in 時のみ・オーバーレイ表示中は隠す。未設定時は入口のみ（工房のAI設定へ誘導）
+- guide の system は長屋の語彙＋状態票のみ（RAGなし版）。詳細誘導は「案内所」を案内
+- 検証: 17 migrations Docker適用OK、record_visit/ai_usage_summary 挙動確認、build+test 47 緑
+
 ## 2026-07-05（案内AI 段1 — STEP 0 差分計画・調査報告）
 
 指示書「08_案内AI_Code指示書.md」の STEP 0。既存を調査し、差分計画を記録（実装は承認後）。
