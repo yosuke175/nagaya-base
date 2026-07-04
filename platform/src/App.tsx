@@ -3,13 +3,17 @@ import { roleAtLeast } from './auth/roles'
 import { useAuth } from './auth/useAuth'
 import { AiSettingsDialog } from './components/AiSettingsDialog'
 import { CatalogView } from './components/CatalogView'
+import { CraftsmanGuide, EntranceScreen, type EntranceChoice } from './components/EntranceScreen'
 import { ThemePicker } from './components/ThemePicker'
 import { GadgetFrame } from './components/GadgetFrame'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
+import { loadUserSettings, saveUserSettings, type UserSettings } from './host/userSettings'
 
 type View = 'dashboard' | 'catalog'
+/** Full-screen guidance overlays (entrance branch is behavioral only) */
+type Overlay = 'entrance' | 'craftsman-guide' | null
 
 export default function App() {
   const auth = useAuth()
@@ -17,6 +21,8 @@ export default function App() {
   const [installed, setInstalled] = useState<string[]>([])
   const [storeError, setStoreError] = useState<string | null>(null)
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState<UserSettings | null>(null)
+  const [overlay, setOverlay] = useState<Overlay>(null)
 
   const refreshInstalled = async () => {
     try {
@@ -32,11 +38,25 @@ export default function App() {
   useEffect(() => {
     if (auth.status === 'signed-in' || auth.status === 'disabled') {
       void refreshInstalled()
+      // 初回アクセス（入口が未選択）なら入口分岐を全画面表示
+      void loadUserSettings()
+        .then((loaded) => {
+          setSettings(loaded)
+          if (!loaded.entrance) setOverlay('entrance')
+        })
+        .catch(() => setSettings({}))
     } else {
       setInstalled([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.status])
+
+  const handleEntranceSelect = (choice: EntranceChoice) => {
+    setOverlay(choice === 'craftsman' ? 'craftsman-guide' : null)
+    void saveUserSettings({ entrance: choice })
+      .then(setSettings)
+      .catch((error) => setStoreError(error instanceof Error ? error.message : String(error)))
+  }
 
   const handleInstall = async (dir: string) => {
     try {
@@ -105,6 +125,9 @@ export default function App() {
                 </TabButton>
               </nav>
             )}
+            {(auth.status === 'signed-in' || auth.status === 'disabled') && (
+              <GuideMenu entrance={settings?.entrance} onOpen={(next) => setOverlay(next)} />
+            )}
             <button
               type="button"
               onClick={() => setAiSettingsOpen(true)}
@@ -139,6 +162,57 @@ export default function App() {
           ))}
       </main>
       {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
+      {overlay === 'entrance' && <EntranceScreen onSelect={handleEntranceSelect} />}
+      {overlay === 'craftsman-guide' && <CraftsmanGuide onClose={() => setOverlay(null)} />}
+    </div>
+  )
+}
+
+/** メニュー「案内」— 入口・各はじめ方をいつでもやり直せる入口 */
+function GuideMenu({
+  entrance,
+  onOpen,
+}: {
+  entrance: UserSettings['entrance']
+  onOpen: (overlay: Overlay) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const pick = (next: Overlay) => {
+    setOpen(false)
+    onOpen(next)
+  }
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
+      >
+        案内
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-56 rounded-xl border border-stone-200 bg-white p-2 text-xs shadow-lg">
+          <button
+            type="button"
+            onClick={() => pick('entrance')}
+            className="block w-full rounded-lg px-3 py-2 text-left hover:bg-stone-50"
+          >
+            入口からやり直す（職人/店子）
+            {entrance && (
+              <span className="ml-1 text-stone-400">
+                現在: {entrance === 'craftsman' ? '職人' : '店子'}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => pick('craftsman-guide')}
+            className="block w-full rounded-lg px-3 py-2 text-left hover:bg-stone-50"
+          >
+            職人のはじめ方（ウィザード案内）
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -10,4 +10,6 @@ export const appConfig = {
   // Supabase wiring lands in the next iteration (see .env.example).
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+  /** Upstream repository (single place — the repo name is provisional too). */
+  repoUrl: 'https://github.com/yosuke175/nagaya-base',
 } as const

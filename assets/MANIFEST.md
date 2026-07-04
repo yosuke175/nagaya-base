@@ -1,5 +1,10 @@
 # NAGAYA-BASE 画像アセット・マニフェスト
 
+> ⚠ **訂正（2026-07-04 実物監査）**: 以下の説明のうち複数のファイルで
+> **ファイル名と中身が一致していない**ことが判明した。実際の対応は本ファイル末尾の
+> 「訂正表」と、コードから使う正典 `platform/src/assets.ts` を参照。
+> ファイル名からの推測でアセットを使わないこと。
+
 出典: ChatGPTで生成（権利は向井庸祐に帰属、商用利用可）。
 配置先: リポジトリの `assets/` 直下にこのディレクトリ構造ごと展開。
 注意: AI生成画像のため、独占的な権利主張（著作権登録・差止）には制約あり。
@@ -40,6 +45,29 @@
 - shoji.png .............. 障子の格子。ヘッダー/区切り 向け
 - tatami.png ............. 畳。フッター/和の下地 向け
 - indigo-linen.png ....... 藍染めの布。濃色セクション/暖簾 向け
+
+## 訂正表（2026-07-04 実物監査で確定した「ファイル名 → 実際の中身」）
+
+Claude Code が全画像を1枚ずつ開いて確認した結果。ズレていたのは以下（記載のないファイルは名前どおり）:
+
+| ファイル | 実際の中身 | 備考 |
+|---|---|---|
+| keyvisual/workshop-shop-frame.png | 瓦屋根テクスチャ | 額縁構図ではない |
+| backgrounds/wide-town.png | **額縁構図（左工房・右店・中央余白+ロゴ）** | 本来の workshop-shop-frame。入口分岐の背景はこれ |
+| objects/happi-coat.png | 木目テクスチャ | 法被ではない |
+| objects/rice-barrel.png | **法被（藍・組子柄）** | 職人バッジはこれ |
+| objects/geta.png | 井戸 | |
+| objects/well.png | 草履 | |
+| objects/futon.png | 七輪 | |
+| objects/obj-32.png | 布団 | |
+| objects/obj-33.png | 手桶と柄杓 | |
+| objects/obj-34.png | 米櫃と簾 | |
+| objects/shichirin.png | 土壁・漆喰テクスチャ | |
+| objects/water-bucket.png | 団扇（波柄） | |
+| objects/uchiwa-fan.png | 石畳テクスチャ | |
+
+一致確認済み: hair-comb（櫛と簪）、gate-street、marketplace、backgrounds 7枚、textures 4枚。
+コードからの参照は必ず `platform/src/assets.ts` の意味キー経由で行う。
 
 ## パワポ以外の推奨用途（Code向け）
 - Webヒーロー: keyvisual/gate-street.png

@@ -2,6 +2,26 @@
 
 :root {
   --accent: #292524;
+  /* NAGAYA-BASE watercolor palette — docs/frontend-design.md が正典 */
+  --nb-navy: #1e2c4a;
+  --nb-terra: #b85042;
+  --nb-sage: #6e8f7c;
+  --nb-gold: #c9a15a;
+  --nb-cream: #f1eee3;
+  --nb-ink: #2d2a26;
+}
+
+/* cream の半透明パネル（水彩背景が透ける）+ 柔らかいシャドウ + 角丸 */
+.nb-panel {
+  background: color-mix(in srgb, var(--nb-cream) 90%, transparent);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 14px rgb(45 42 38 / 0.14);
+}
+/* 和紙の地紋 */
+.nb-washi {
+  background-color: var(--nb-cream);
+  background-image: url('/img/textures/washi.webp');
+  background-size: 520px;
 }
 
 /* User-selectable accent color (src/theme.ts). Keep primary actions on this
