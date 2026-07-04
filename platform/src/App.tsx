@@ -118,89 +118,81 @@ export default function App() {
         className="accent-topbar border-b border-stone-200 px-4 py-3 shadow-sm"
         style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 80%, white)' }}
       >
-        <div className="mx-auto max-w-5xl">
-          <div className="flex items-end justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/img/logo.png"
-              alt=""
-              className="h-9 w-9 shrink-0"
-              width={36}
-              height={36}
-            />
-            <div>
-              <h1 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
-                {appConfig.appName}
-                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-xs font-normal text-amber-800">
-                  仮称
-                </span>
-              </h1>
-              <p className="text-xs text-stone-500">
-                {auth.status === 'disabled'
-                  ? 'Phase 1・ログインなしローカル開発モード'
-                  : 'Phase 1'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* 右上は「あなたの部屋」への入口だけ。ログアウト/案内/AI設定/テーマは
-                そのページ（ProfileView）に集約してヘッダーを軽くする */}
-            {(auth.status === 'signed-in' || auth.status === 'disabled') && (
-              <button
-                type="button"
-                onClick={() => setView('profile')}
-                className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
-                title="あなたの部屋（設定・ログアウト・見た目）"
-              >
-                {auth.status === 'signed-in'
-                  ? (auth.profile?.displayName ?? auth.email ?? '軒先の方')
-                  : 'あなたの部屋'}
-                {auth.status === 'signed-in' && (
-                  <span className="rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
-                    {auth.profile?.role ?? '…'}
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/img/logo.png"
+                alt=""
+                className="h-9 w-9 shrink-0"
+                width={36}
+                height={36}
+              />
+              <div>
+                <h1 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
+                  {appConfig.appName}
+                  <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-xs font-normal text-amber-800">
+                    仮称
                   </span>
+                </h1>
+                <p className="text-xs text-stone-500">
+                  {auth.status === 'disabled'
+                    ? 'Phase 1・ログインなしローカル開発モード'
+                    : 'Phase 1'}
+                </p>
+              </div>
+            </div>
+            {/* メニューはタイトルの右に一列。情報系（回覧板/長屋暦/案内所/歩み）は
+                「長屋だより」ドロップダウンにまとめて項目数を抑える。
+                大家の間は「あなたの部屋」内へ移設した */}
+            {(auth.status === 'signed-in' || auth.status === 'disabled') && (
+              <nav className="flex flex-wrap items-center gap-1 text-sm">
+                <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
+                  棚
+                </TabButton>
+                <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
+                  道具市
+                </TabButton>
+                <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
+                  入居者
+                </TabButton>
+                <NavDropdown
+                  label="長屋だより"
+                  current={view}
+                  onSelect={setView}
+                  items={[
+                    { view: 'announcements', label: '回覧板' },
+                    { view: 'calendar', label: '長屋暦' },
+                    { view: 'help', label: '案内所' },
+                    { view: 'progress', label: '歩み' },
+                  ]}
+                />
+                {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
+                {(auth.status === 'disabled' ||
+                  (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))) && (
+                  <TabButton active={view === 'workshop'} onClick={() => setView('workshop')}>
+                    工房
+                  </TabButton>
                 )}
-              </button>
+              </nav>
             )}
           </div>
-          </div>
-          {/* ナビは2段目に独立配置。情報系（回覧板/長屋暦/案内所/歩み）は
-              「長屋だより」ドロップダウンにまとめ、常時表示するタブ数を絞る */}
           {(auth.status === 'signed-in' || auth.status === 'disabled') && (
-            <nav className="mt-2 flex flex-wrap items-center gap-1 text-sm">
-              <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
-                棚
-              </TabButton>
-              <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
-                道具市
-              </TabButton>
-              <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
-                入居者
-              </TabButton>
-              <NavDropdown
-                label="長屋だより"
-                current={view}
-                onSelect={setView}
-                items={[
-                  { view: 'announcements', label: '回覧板' },
-                  { view: 'calendar', label: '長屋暦' },
-                  { view: 'help', label: '案内所' },
-                  { view: 'progress', label: '歩み' },
-                ]}
-              />
-              {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
-              {(auth.status === 'disabled' ||
-                (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))) && (
-                <TabButton active={view === 'workshop'} onClick={() => setView('workshop')}>
-                  工房
-                </TabButton>
+            <button
+              type="button"
+              onClick={() => setView('profile')}
+              className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
+              title="あなたの部屋（設定・ログアウト・見た目）"
+            >
+              {auth.status === 'signed-in'
+                ? (auth.profile?.displayName ?? auth.email ?? '軒先の方')
+                : 'あなたの部屋'}
+              {auth.status === 'signed-in' && (
+                <span className="rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
+                  {auth.profile?.role ?? '…'}
+                </span>
               )}
-              {auth.profile?.role === 'admin' && (
-                <TabButton active={view === 'admin'} onClick={() => setView('admin')}>
-                  大家の間
-                </TabButton>
-              )}
-            </nav>
+            </button>
           )}
         </div>
       </header>
@@ -238,19 +230,23 @@ export default function App() {
               <AnnouncementsView isAdmin={auth.profile?.role === 'admin'} />
             )}
             {view === 'calendar' && <CalendarView isAdmin={auth.profile?.role === 'admin'} />}
-            {view === 'help' && <HelpView key={helpArticle ?? 'default'} initialArticle={helpArticle} />}
+            {view === 'help' && (
+              <HelpView
+                key={helpArticle ?? 'default'}
+                initialArticle={helpArticle}
+                onOpenGuide={(guide) => setOverlay(guide)}
+              />
+            )}
             {view === 'progress' && <ProgressView />}
             {view === 'residents' && <ResidentsView />}
-            {view === 'workshop' && <WorkshopView userId={auth.userId} />}
+            {view === 'workshop' && (
+              <WorkshopView userId={auth.userId} onOpenAiSettings={() => setAiSettingsOpen(true)} />
+            )}
             {view === 'profile' && (
               <ProfileView
                 onSignOut={() => void auth.signOut()}
-                onOpenAiSettings={() => setAiSettingsOpen(true)}
-                onOpenHelp={() => {
-                  setHelpArticle(undefined)
-                  setView('help')
-                }}
-                onOpenGuide={(guide) => setOverlay(guide)}
+                isAdmin={auth.profile?.role === 'admin'}
+                onOpenAdmin={() => setView('admin')}
               />
             )}
             {view === 'admin' && auth.profile?.role === 'admin' && <AdminView />}

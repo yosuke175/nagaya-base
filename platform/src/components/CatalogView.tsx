@@ -159,6 +159,11 @@ function CatalogCard({
   const coverImage =
     presentation?.cover_image || (manifest.icon ? `/gadgets/${entry.dir}/${manifest.icon}` : null)
 
+  // 画像読み込み失敗の管理。src が変わったらリセットする（onError で imperative に
+  // display:none にすると、後から presentation の画像が来ても隠れたままになるため）。
+  const [coverFailed, setCoverFailed] = useState(false)
+  useEffect(() => setCoverFailed(false), [coverImage])
+
   if (editing) {
     return (
       <PresentationEditor
@@ -181,15 +186,13 @@ function CatalogCard({
   // カード単位のコンポーネントを維持する（author 起点の絞り込みは未実装）
   return (
     <section className="nb-panel flex flex-col overflow-hidden">
-      {coverImage && (
+      {coverImage && !coverFailed && (
         <img
           src={coverImage}
           alt=""
           className="h-36 w-full object-cover"
           // 画像ファイルが無い/壊れている場合はカードを崩さず隠す
-          onError={(e) => {
-            e.currentTarget.style.display = 'none'
-          }}
+          onError={() => setCoverFailed(true)}
         />
       )}
       <div className="flex flex-col p-4">

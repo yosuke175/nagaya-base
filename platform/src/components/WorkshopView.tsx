@@ -21,7 +21,13 @@ const STATUS_LABEL: Record<string, string> = {
   suspended: '停止中',
 }
 
-export function WorkshopView({ userId }: { userId: string | null }) {
+export function WorkshopView({
+  userId,
+  onOpenAiSettings,
+}: {
+  userId: string | null
+  onOpenAiSettings: () => void
+}) {
   const [mine, setMine] = useState<GadgetRecord[] | null>(null)
   const [catalog, setCatalog] = useState<CatalogEntry[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -90,7 +96,17 @@ export function WorkshopView({ userId }: { userId: string | null }) {
           >
             セットアップウィザードを入手
           </a>
+          <button
+            type="button"
+            onClick={onOpenAiSettings}
+            className="rounded-lg border border-stone-300 px-4 py-2 text-sm"
+          >
+            AI設定
+          </button>
         </div>
+        <p className="mt-2 text-xs text-stone-400">
+          AIを使う道具には、あなた自身のAPIキーの登録が必要です（「AI設定」から）。
+        </p>
       </div>
 
       {/* あなたの道具 */}

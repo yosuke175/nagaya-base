@@ -23,7 +23,13 @@ function articleSource(file: string): string {
   return key ? articles[key] : '記事が見つかりません'
 }
 
-export function HelpView({ initialArticle }: { initialArticle?: string }) {
+export function HelpView({
+  initialArticle,
+  onOpenGuide,
+}: {
+  initialArticle?: string
+  onOpenGuide: (guide: 'entrance' | 'craftsman-guide' | 'tutorial') => void
+}) {
   const [current, setCurrent] = useState(
     initialArticle && TOC.some((t) => t.file === initialArticle) ? initialArticle : TOC[0].file,
   )
@@ -44,6 +50,32 @@ export function HelpView({ initialArticle }: { initialArticle?: string }) {
             {item.title}
           </button>
         ))}
+
+        {/* はじめ方（入口・チュートリアル）はここから開き直せる */}
+        <p className="mb-1 mt-3 border-t border-stone-200 pt-3 text-xs font-semibold text-stone-500">
+          はじめ方をもう一度
+        </p>
+        <button
+          type="button"
+          onClick={() => onOpenGuide('entrance')}
+          className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-100"
+        >
+          入口をやり直す（職人/店子）
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenGuide('craftsman-guide')}
+          className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-100"
+        >
+          職人のはじめ方
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenGuide('tutorial')}
+          className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-100"
+        >
+          店子のはじめ方
+        </button>
       </nav>
       <article
         className="nb-panel help-article min-w-0 flex-1 p-6 text-sm leading-relaxed"

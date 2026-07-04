@@ -38,16 +38,17 @@ export async function listMyGadgets(userId: string): Promise<GadgetRecord[]> {
 
 /**
  * 道具市の道具を「自分の道具」として登録（owner を自分に）。既存行が他人所有なら
- * RLS で弾かれる（他人の道具は登録できない）。初期状態は draft（構築中）。
+ * RLS で弾かれる（他人の道具は登録できない）。
+ *
+ * status は payload に含めない: 新規行は既定の 'draft'（構築中）で入り、既に公開済みの
+ * 道具（例: 種として published で入っている schedule-secretary）を登録しても
+ * 公開状態を維持する（以前は 'draft' に戻してしまい、勝手に非公開化していた）。
  */
 export async function registerGadget(id: string, name: string, userId: string): Promise<void> {
   if (!supabase) throw new Error('Supabase 接続時のみ利用できます')
   const { error } = await supabase
     .from('gadgets')
-    .upsert(
-      { id, owner_id: userId, name: name || null, status: 'draft' },
-      { onConflict: 'id' },
-    )
+    .upsert({ id, owner_id: userId, name: name || null }, { onConflict: 'id' })
   if (error) throw new Error(`登録に失敗しました: ${error.message}`)
 }
 
