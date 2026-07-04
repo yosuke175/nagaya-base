@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { roleAtLeast } from './auth/roles'
-import { useClickOutside } from './lib/useClickOutside'
 import { useAuth } from './auth/useAuth'
-import { AiSettingsDialog } from './components/AiSettingsDialog'
 import { CatalogView } from './components/CatalogView'
 import { CraftsmanGuide, EntranceScreen, type EntranceChoice } from './components/EntranceScreen'
 import { GadgetFrame } from './components/GadgetFrame'
@@ -15,7 +13,6 @@ import { CalendarView } from './components/CalendarView'
 import { HelpView } from './components/HelpView'
 import { InfoSlot } from './components/InfoSlot'
 import { ProfileView } from './components/ProfileView'
-import { ProgressView } from './components/ProgressView'
 import { ResidentsView } from './components/ResidentsView'
 import { WorkshopView } from './components/WorkshopView'
 import { TutorialOverlay } from './components/TutorialOverlay'
@@ -28,7 +25,6 @@ type View =
   | 'announcements'
   | 'calendar'
   | 'help'
-  | 'progress'
   | 'residents'
   | 'workshop'
   | 'profile'
@@ -41,7 +37,6 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard')
   const [installed, setInstalled] = useState<string[]>([])
   const [storeError, setStoreError] = useState<string | null>(null)
-  const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
   const [helpArticle, setHelpArticle] = useState<string | undefined>(undefined)
   // settings 値自体は現在ヘッダーから参照しない（案内は「あなたの部屋」へ移設）。
   // 保存の副作用のため setter だけ使う。
@@ -120,7 +115,13 @@ export default function App() {
       >
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="flex items-center gap-2.5">
+            {/* ロゴ・タイトルをクリックすると既定表示（棚）へ */}
+            <button
+              type="button"
+              onClick={() => setView('dashboard')}
+              className="flex items-center gap-2.5 text-left"
+              title="棚（ホーム）へ"
+            >
               <img
                 src="/img/logo.png"
                 alt=""
@@ -141,32 +142,23 @@ export default function App() {
                     : 'Phase 1'}
                 </p>
               </div>
-            </div>
-            {/* メニューはタイトルの右に一列。情報系（回覧板/長屋暦/案内所/歩み）は
-                「長屋だより」ドロップダウンにまとめて項目数を抑える。
+            </button>
+            {/* メニューはタイトルの右に一列（指定の並び順）。歩みは案内所内へ、
                 大家の間は「あなたの部屋」内へ移設した */}
             {(auth.status === 'signed-in' || auth.status === 'disabled') && (
               <nav className="flex flex-wrap items-center gap-1 text-sm">
-                <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
-                  棚
-                </TabButton>
-                <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
-                  道具市
+                <TabButton active={view === 'announcements'} onClick={() => setView('announcements')}>
+                  回覧板
                 </TabButton>
                 <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
                   入居者
                 </TabButton>
-                <NavDropdown
-                  label="長屋だより"
-                  current={view}
-                  onSelect={setView}
-                  items={[
-                    { view: 'announcements', label: '回覧板' },
-                    { view: 'calendar', label: '長屋暦' },
-                    { view: 'help', label: '案内所' },
-                    { view: 'progress', label: '歩み' },
-                  ]}
-                />
+                <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
+                  道具市
+                </TabButton>
+                <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
+                  棚
+                </TabButton>
                 {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
                 {(auth.status === 'disabled' ||
                   (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))) && (
@@ -174,6 +166,12 @@ export default function App() {
                     工房
                   </TabButton>
                 )}
+                <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
+                  長屋暦
+                </TabButton>
+                <TabButton active={view === 'help'} onClick={() => setView('help')}>
+                  案内所
+                </TabButton>
               </nav>
             )}
           </div>
@@ -237,10 +235,15 @@ export default function App() {
                 onOpenGuide={(guide) => setOverlay(guide)}
               />
             )}
-            {view === 'progress' && <ProgressView />}
             {view === 'residents' && <ResidentsView />}
             {view === 'workshop' && (
-              <WorkshopView userId={auth.userId} onOpenAiSettings={() => setAiSettingsOpen(true)} />
+              <WorkshopView
+                userId={auth.userId}
+                onOpenHelp={() => {
+                  setHelpArticle('05-ai')
+                  setView('help')
+                }}
+              />
             )}
             {view === 'profile' && (
               <ProfileView
@@ -253,16 +256,6 @@ export default function App() {
           </>
         )}
       </main>
-      {aiSettingsOpen && (
-        <AiSettingsDialog
-          onClose={() => setAiSettingsOpen(false)}
-          onOpenHelp={() => {
-            setAiSettingsOpen(false)
-            setHelpArticle('05-ai')
-            setView('help')
-          }}
-        />
-      )}
       {overlay === 'entrance' && <EntranceScreen onSelect={handleEntranceSelect} />}
       {overlay === 'craftsman-guide' && <CraftsmanGuide onClose={() => setOverlay(null)} />}
       {overlay === 'tutorial' && (
@@ -271,58 +264,6 @@ export default function App() {
           onOpenCatalog={() => setView('catalog')}
           onOpenDashboard={() => setView('dashboard')}
         />
-      )}
-    </div>
-  )
-}
-
-/** 複数のビューを1つのボタンにまとめるナビ用ドロップダウン（ヘッダーの項目数を絞る） */
-function NavDropdown({
-  label,
-  items,
-  current,
-  onSelect,
-}: {
-  label: string
-  items: { view: View; label: string }[]
-  current: View
-  onSelect: (view: View) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, () => setOpen(false), open)
-  const active = items.some((item) => item.view === current)
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-          active ? 'btn-primary' : 'text-stone-600 hover:bg-stone-100'
-        }`}
-      >
-        {label} ▾
-      </button>
-      {open && (
-        <div className="absolute left-0 z-20 mt-1 w-36 rounded-xl border border-stone-200 bg-white p-1 shadow-lg">
-          {items.map((item) => (
-            <button
-              key={item.view}
-              type="button"
-              onClick={() => {
-                setOpen(false)
-                onSelect(item.view)
-              }}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-xs ${
-                current === item.view
-                  ? 'font-semibold text-[color:var(--nb-terra)]'
-                  : 'text-stone-600 hover:bg-stone-50'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
       )}
     </div>
   )

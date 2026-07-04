@@ -3,7 +3,6 @@ import {
   AI_PROVIDERS,
   DEFAULT_AI_MODEL,
   fetchAiStatus,
-  getAiSettings,
   persistAiSettings,
   removeAiSettings,
   type AiProvider,
@@ -11,11 +10,14 @@ import {
 } from '../host/aiSettings'
 
 /**
- * プラットフォーム共通の AI設定（ユーザー1人につき1キー、gadget.ai が使う）。
+ * プラットフォーム共通の AI設定フォーム（ユーザー1人につき1キー、gadget.ai が使う）。
  * キーはガジェット iframe に渡らない（ADR-001）。account スコープでは暗号化して
  * サーバー保管され、AI呼び出しもサーバー側で代理実行される（キーはブラウザに返らない）。
+ *
+ * 保存済みのキーは画面に出さない（●● 表示）。工房にインライン表示するほか、
+ * モーダル（AiSettingsDialog）からも使う。
  */
-export function AiSettingsDialog({ onClose, onOpenHelp }: { onClose: () => void; onOpenHelp: () => void }) {
+export function AiSettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
   const [provider, setProvider] = useState<AiProvider>('anthropic')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState(DEFAULT_AI_MODEL.anthropic)
@@ -34,7 +36,7 @@ export function AiSettingsDialog({ onClose, onOpenHelp }: { onClose: () => void;
       setRegistered(status.registered)
       setProvider(status.provider)
       setModel(status.model)
-      if (status.scope === 'device') setApiKey(getAiSettings().apiKey ?? '')
+      // 保存済みキーは読み込まない（●● 表示のまま。変更時のみ入力させる）
       setLoading(false)
     })()
     return () => {
@@ -52,7 +54,7 @@ export function AiSettingsDialog({ onClose, onOpenHelp }: { onClose: () => void;
 
   const save = async () => {
     const trimmed = apiKey.trim()
-    if (!trimmed && !(scope === 'account' && registered)) return
+    if (!trimmed && !registered) return
     setError(null)
     try {
       const storedScope = await persistAiSettings({
@@ -81,99 +83,110 @@ export function AiSettingsDialog({ onClose, onOpenHelp }: { onClose: () => void;
   }
 
   return (
+    <div className="text-xs">
+      <p className="leading-relaxed text-stone-600">
+        AIを使う道具は、<strong>あなた自身のAIのAPIキー</strong>で動きます（使った分だけ、
+        あなたのAI契約に課金）。Claude / OpenAI / Google など、お好みの提供元を選べます。
+        <button type="button" onClick={onOpenHelp} className="ml-1 underline" style={{ color: 'var(--nb-terra)' }}>
+          キーの取り方・使い方（案内所）
+        </button>
+      </p>
+      {loading ? (
+        <p className="mt-3 text-stone-400">読み込み中…</p>
+      ) : (
+        <>
+          <p className="mt-2 text-stone-500">
+            現在: {registered ? <span className="text-green-700">登録済み（●●●●）</span> : '未登録'}
+          </p>
+          <label className="mt-3 grid gap-1">
+            <span className="text-stone-600">AIの提供元</span>
+            <select
+              value={provider}
+              onChange={(e) => changeProvider(e.target.value as AiProvider)}
+              className="rounded-lg border border-stone-300 p-2"
+            >
+              {AI_PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="mt-2 grid gap-1">
+            <span className="text-stone-600">API キー</span>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value)
+                setSaved(null)
+              }}
+              placeholder={registered ? '●●●●●●●●（登録済み・変更する場合のみ入力）' : 'sk-... / AIza...'}
+              className="rounded-lg border border-stone-300 p-2 font-mono"
+            />
+          </label>
+          <label className="mt-2 grid gap-1">
+            <span className="text-stone-600">モデル（既定: {DEFAULT_AI_MODEL[provider]}）</span>
+            <input
+              value={model}
+              onChange={(e) => {
+                setModel(e.target.value)
+                setSaved(null)
+              }}
+              className="rounded-lg border border-stone-300 p-2 font-mono"
+            />
+          </label>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void save()}
+              className="btn-primary rounded-lg px-3 py-1.5 font-medium"
+            >
+              保存
+            </button>
+            <button
+              type="button"
+              onClick={() => void remove()}
+              className="rounded-lg border border-red-200 px-3 py-1.5 text-red-700 hover:bg-red-50"
+            >
+              削除
+            </button>
+            {saved && (
+              <span className="text-green-700">
+                {saved === 'account' ? '保存しました（全端末で共有）' : '保存しました（この端末のみ）'}
+              </span>
+            )}
+          </div>
+          {error && <p className="mt-2 text-red-700">{error}</p>}
+          <p className="mt-2 text-stone-400">
+            {scope === 'account'
+              ? '保存先: あなたのアカウント（サーバー側で暗号化保管。AI呼び出しもサーバー側で代理実行され、キーがブラウザに返ることはありません）'
+              : '保存先: この端末のみ（ログイン + サーバー設定が揃うとアカウント保存に切り替わります）'}
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** AI設定をモーダルで開くラッパー（インライン表示できない場面用に残置） */
+export function AiSettingsDialog({ onClose, onOpenHelp }: { onClose: () => void; onOpenHelp: () => void }) {
+  return (
     <div className="fixed inset-0 z-30 flex items-start justify-center bg-stone-900/30 p-4 pt-20">
-      <div className="w-full max-w-md rounded-xl border border-stone-200 bg-white p-4 text-xs shadow-xl">
+      <div className="w-full max-w-md rounded-xl border border-stone-200 bg-white p-4 shadow-xl">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-semibold">AI設定</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-stone-200 px-2 py-0.5 text-stone-500 hover:bg-stone-50"
+            className="rounded border border-stone-200 px-2 py-0.5 text-xs text-stone-500 hover:bg-stone-50"
           >
             閉じる
           </button>
         </div>
-        <p className="mt-2 leading-relaxed text-stone-600">
-          AIを使う道具は、<strong>あなた自身のAIのAPIキー</strong>で動きます（使った分だけ、
-          あなたのAI契約に課金）。Claude / OpenAI / Google など、お好みの提供元を選べます。
-          <button type="button" onClick={onOpenHelp} className="ml-1 underline" style={{ color: 'var(--nb-terra)' }}>
-            キーの取り方・使い方（案内所）
-          </button>
-        </p>
-        {loading ? (
-          <p className="mt-3 text-stone-400">読み込み中…</p>
-        ) : (
-          <>
-            <p className="mt-2 text-stone-500">
-              現在: {registered ? <span className="text-green-700">登録済み</span> : '未登録'}
-            </p>
-            <label className="mt-3 grid gap-1">
-              <span className="text-stone-600">AIの提供元</span>
-              <select
-                value={provider}
-                onChange={(e) => changeProvider(e.target.value as AiProvider)}
-                className="rounded-lg border border-stone-300 p-2"
-              >
-                {AI_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="mt-2 grid gap-1">
-              <span className="text-stone-600">API キー</span>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => {
-                  setApiKey(e.target.value)
-                  setSaved(null)
-                }}
-                placeholder={scope === 'account' && registered ? '登録済み（変更する場合のみ入力）' : 'sk-... / AIza...'}
-                className="rounded-lg border border-stone-300 p-2 font-mono"
-              />
-            </label>
-            <label className="mt-2 grid gap-1">
-              <span className="text-stone-600">モデル（既定: {DEFAULT_AI_MODEL[provider]}）</span>
-              <input
-                value={model}
-                onChange={(e) => {
-                  setModel(e.target.value)
-                  setSaved(null)
-                }}
-                className="rounded-lg border border-stone-300 p-2 font-mono"
-              />
-            </label>
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void save()}
-                className="btn-primary rounded-lg px-3 py-1.5 font-medium"
-              >
-                保存
-              </button>
-              <button
-                type="button"
-                onClick={() => void remove()}
-                className="rounded-lg border border-red-200 px-3 py-1.5 text-red-700 hover:bg-red-50"
-              >
-                削除
-              </button>
-              {saved && (
-                <span className="text-green-700">
-                  {saved === 'account' ? '保存しました（全端末で共有）' : '保存しました（この端末のみ）'}
-                </span>
-              )}
-            </div>
-            {error && <p className="mt-2 text-red-700">{error}</p>}
-            <p className="mt-2 text-stone-400">
-              {scope === 'account'
-                ? '保存先: あなたのアカウント（サーバー側で暗号化保管。AI呼び出しもサーバー側で代理実行され、キーがブラウザに返ることはありません）'
-                : '保存先: この端末のみ（ログイン + サーバー設定が揃うとアカウント保存に切り替わります）'}
-            </p>
-          </>
-        )}
+        <div className="mt-2">
+          <AiSettingsPanel onOpenHelp={onOpenHelp} />
+        </div>
       </div>
     </div>
   )

@@ -260,6 +260,28 @@ export function ProfileView({ onSignOut, isAdmin, onOpenAdmin }: ProfileViewProp
         </div>
       </div>
 
+      <ThemeEditor />
+
+      {isAdmin && (
+        <div className="nb-panel mt-4 flex items-center justify-between gap-3 p-5 text-sm">
+          <div className="min-w-0">
+            <p className="font-medium" style={{ color: 'var(--nb-navy)' }}>
+              大家の間（管理）
+            </p>
+            <p className="text-xs text-stone-500">
+              入居者の管理・号室の変更・道具の緊急停止・アカウント削除
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="btn-primary shrink-0 rounded-lg px-4 py-2 text-xs font-medium"
+          >
+            開く
+          </button>
+        </div>
+      )}
+
       {role !== 'guest' && (
         <div className="nb-panel mt-4 grid gap-2 p-5 text-sm">
           <p className="text-xs font-semibold text-stone-500">ログイン用パスワード</p>
@@ -302,28 +324,6 @@ export function ProfileView({ onSignOut, isAdmin, onOpenAdmin }: ProfileViewProp
           </div>
           {pwSaved && <span className="text-xs text-green-700">パスワードを設定しました</span>}
           {pwError && <span className="text-xs text-red-700">{pwError}</span>}
-        </div>
-      )}
-
-      <ThemeEditor />
-
-      {isAdmin && (
-        <div className="nb-panel mt-4 flex items-center justify-between gap-3 p-5 text-sm">
-          <div className="min-w-0">
-            <p className="font-medium" style={{ color: 'var(--nb-navy)' }}>
-              大家の間（管理）
-            </p>
-            <p className="text-xs text-stone-500">
-              入居者の管理・号室の変更・道具の緊急停止・アカウント削除
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onOpenAdmin}
-            className="btn-primary shrink-0 rounded-lg px-4 py-2 text-xs font-medium"
-          >
-            開く
-          </button>
         </div>
       )}
 

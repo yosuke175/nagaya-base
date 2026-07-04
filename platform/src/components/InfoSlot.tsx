@@ -13,7 +13,8 @@ import {
 // 回覧板の最新 1〜2件 / 速報！ / 次の予定（長屋暦）を一方向で差し込む。
 // 通知はここに「表示される」まで。メール/プッシュは作らない（将来 backlog）。
 
-type InfoView = 'announcements' | 'calendar' | 'progress'
+// 歩みは案内所（help）内に移設したので、速報！は help に飛ばす（既定で長屋の歩みが開く）
+type InfoView = 'announcements' | 'calendar' | 'help'
 
 export function InfoSlot({ onNavigate }: { onNavigate?: (view: InfoView) => void }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -63,7 +64,7 @@ export function InfoSlot({ onNavigate }: { onNavigate?: (view: InfoView) => void
       {feed.length > 0 && (
         <button
           type="button"
-          onClick={() => onNavigate?.('progress')}
+          onClick={() => onNavigate?.('help')}
           className="nb-panel p-3 text-left hover:opacity-90"
         >
           <p className="text-xs font-semibold" style={{ color: 'var(--nb-terra)' }}>

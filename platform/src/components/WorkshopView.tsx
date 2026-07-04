@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchCatalog, type CatalogEntry } from '../host/catalog'
 import { appConfig } from '../config'
+import { AiSettingsPanel } from './AiSettingsDialog'
 import {
   listMyGadgets,
   registerGadget,
@@ -23,10 +24,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function WorkshopView({
   userId,
-  onOpenAiSettings,
+  onOpenHelp,
 }: {
   userId: string | null
-  onOpenAiSettings: () => void
+  onOpenHelp: () => void
 }) {
   const [mine, setMine] = useState<GadgetRecord[] | null>(null)
   const [catalog, setCatalog] = useState<CatalogEntry[]>([])
@@ -96,17 +97,7 @@ export function WorkshopView({
           >
             セットアップウィザードを入手
           </a>
-          <button
-            type="button"
-            onClick={onOpenAiSettings}
-            className="rounded-lg border border-stone-300 px-4 py-2 text-sm"
-          >
-            AI設定
-          </button>
         </div>
-        <p className="mt-2 text-xs text-stone-400">
-          AIを使う道具には、あなた自身のAPIキーの登録が必要です（「AI設定」から）。
-        </p>
       </div>
 
       {/* あなたの道具 */}
@@ -162,6 +153,14 @@ export function WorkshopView({
           カード画像・表示文の編集は「道具市」の各カードの「表示を編集」から行えます。
         </p>
       )}
+
+      {/* AI設定（道具でAIを使うためのキー登録）。あなたの道具の下に配置 */}
+      <h3 className="mb-2 text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
+        AI設定
+      </h3>
+      <div className="nb-panel mb-6 p-5">
+        <AiSettingsPanel onOpenHelp={onOpenHelp} />
+      </div>
 
       {/* 道具市の道具を自分のものとして登録 */}
       {unregistered.length > 0 && (

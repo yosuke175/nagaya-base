@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { renderMarkdown } from '../lib/markdown'
+import { ProgressView } from './ProgressView'
 
 // 案内所（指示書⑦-4）: 静的ドキュメント。交流ではなくリファレンス。
 // 記事は src/content/help/*.md（ビルド時に取り込み。ログイン不要で読める）。
+// 「長屋の歩み」だけは記事ではなく ProgressView を差し込む（file: 'progress'）。
 
 const articles = import.meta.glob('../content/help/*.md', {
   query: '?raw',
@@ -11,6 +13,7 @@ const articles = import.meta.glob('../content/help/*.md', {
 }) as Record<string, string>
 
 const TOC: Array<{ file: string; title: string }> = [
+  { file: 'progress', title: '長屋の歩み' },
   { file: '01-hajimete', title: 'はじめての方へ' },
   { file: '02-dougu', title: '道具の作り方' },
   { file: '05-ai', title: 'AIの使い方' },
@@ -77,10 +80,16 @@ export function HelpView({
           店子のはじめ方
         </button>
       </nav>
-      <article
-        className="nb-panel help-article min-w-0 flex-1 p-6 text-sm leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(articleSource(current)) }}
-      />
+      {current === 'progress' ? (
+        <div className="min-w-0 flex-1">
+          <ProgressView />
+        </div>
+      ) : (
+        <article
+          className="nb-panel help-article min-w-0 flex-1 p-6 text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(articleSource(current)) }}
+        />
+      )}
     </div>
   )
 }
