@@ -1,0 +1,29 @@
+# 店子からの「欲しい道具」提案フォーム（チュートリアル STEP 3 から誘導）
+name: 欲しい道具（ガジェット）の提案
+description: 「こんな道具が欲しい」を職人に届けます。あなたの「欲しい」が職人の次の仕事になります
+title: "欲しい道具: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        技術の知識は不要です。困りごとベースで気軽にどうぞ。
+  - type: textarea
+    id: what
+    attributes:
+      label: どんな道具が欲しいですか
+      placeholder: "例: 毎朝、その日の予定をまとめて見せてくれる道具"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: それがあると何が嬉しいですか（いまの困りごと）
+      placeholder: "例: 予定をアプリ3つで管理していて見落とす"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足（任意）
+      placeholder: 似ているアプリ・使う場面・スマホ/PCどちらで使いたいか など

@@ -9,11 +9,12 @@ import { GadgetFrame } from './components/GadgetFrame'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
+import { TutorialOverlay } from './components/TutorialOverlay'
 import { loadUserSettings, saveUserSettings, type UserSettings } from './host/userSettings'
 
 type View = 'dashboard' | 'catalog'
 /** Full-screen guidance overlays (entrance branch is behavioral only) */
-type Overlay = 'entrance' | 'craftsman-guide' | null
+type Overlay = 'entrance' | 'craftsman-guide' | 'tutorial' | null
 
 export default function App() {
   const auth = useAuth()
@@ -52,8 +53,15 @@ export default function App() {
   }, [auth.status])
 
   const handleEntranceSelect = (choice: EntranceChoice) => {
-    setOverlay(choice === 'craftsman' ? 'craftsman-guide' : null)
+    setOverlay(choice === 'craftsman' ? 'craftsman-guide' : 'tutorial')
     void saveUserSettings({ entrance: choice })
+      .then(setSettings)
+      .catch((error) => setStoreError(error instanceof Error ? error.message : String(error)))
+  }
+
+  const handleTutorialFinish = () => {
+    setOverlay(null)
+    void saveUserSettings({ tutorialDone: true })
       .then(setSettings)
       .catch((error) => setStoreError(error instanceof Error ? error.message : String(error)))
   }
@@ -164,6 +172,13 @@ export default function App() {
       {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
       {overlay === 'entrance' && <EntranceScreen onSelect={handleEntranceSelect} />}
       {overlay === 'craftsman-guide' && <CraftsmanGuide onClose={() => setOverlay(null)} />}
+      {overlay === 'tutorial' && (
+        <TutorialOverlay
+          onFinish={handleTutorialFinish}
+          onOpenCatalog={() => setView('catalog')}
+          onOpenDashboard={() => setView('dashboard')}
+        />
+      )}
     </div>
   )
 }
@@ -210,6 +225,13 @@ function GuideMenu({
             className="block w-full rounded-lg px-3 py-2 text-left hover:bg-stone-50"
           >
             職人のはじめ方（ウィザード案内）
+          </button>
+          <button
+            type="button"
+            onClick={() => pick('tutorial')}
+            className="block w-full rounded-lg px-3 py-2 text-left hover:bg-stone-50"
+          >
+            店子のはじめ方（チュートリアル）
           </button>
         </div>
       )}
