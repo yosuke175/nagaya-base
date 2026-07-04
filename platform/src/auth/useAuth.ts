@@ -13,14 +13,21 @@ export type AuthStatus = 'disabled' | 'loading' | 'signed-out' | 'signed-in'
 export interface Auth {
   status: AuthStatus
   email: string | null
+  isAnonymous: boolean
   profile: AuthProfile | null
+  /** ゲスト即入場（匿名）。ロールはトリガーで guest。 */
+  signInAsGuest: () => Promise<{ error: string | null }>
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>
+  signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>
+  /** 新規登録（メール確認後にログイン可能）。ロールはトリガーで user。 */
+  signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
 export function useAuth(): Auth {
   const [status, setStatus] = useState<AuthStatus>(supabase ? 'loading' : 'disabled')
   const [email, setEmail] = useState<string | null>(null)
+  const [isAnonymous, setIsAnonymous] = useState(false)
   const [profile, setProfile] = useState<AuthProfile | null>(null)
 
   useEffect(() => {
@@ -38,7 +45,9 @@ export function useAuth(): Auth {
       }
       setStatus('signed-in')
       setEmail(session.user.email ?? null)
-      // Profile row is auto-created by the signup trigger (initial role: guest)
+      setIsAnonymous(session.user.is_anonymous ?? false)
+      // Profile row is auto-created by the signup trigger
+      // (匿名→guest / メール登録→user、20260704020000_auth_roles.sql)
       const { data } = await client
         .from('profiles')
         .select('display_name, role')
@@ -62,11 +71,31 @@ export function useAuth(): Auth {
   return {
     status,
     email,
+    isAnonymous,
     profile,
+    async signInAsGuest() {
+      if (!supabase) return { error: 'Supabase が設定されていません' }
+      const { error } = await supabase.auth.signInAnonymously()
+      return { error: error ? error.message : null }
+    },
     async signInWithMagicLink(target: string) {
       if (!supabase) return { error: 'Supabase が設定されていません' }
       const { error } = await supabase.auth.signInWithOtp({
         email: target,
+        options: { emailRedirectTo: window.location.origin },
+      })
+      return { error: error ? error.message : null }
+    },
+    async signInWithPassword(target: string, password: string) {
+      if (!supabase) return { error: 'Supabase が設定されていません' }
+      const { error } = await supabase.auth.signInWithPassword({ email: target, password })
+      return { error: error ? error.message : null }
+    },
+    async signUpWithPassword(target: string, password: string) {
+      if (!supabase) return { error: 'Supabase が設定されていません' }
+      const { error } = await supabase.auth.signUp({
+        email: target,
+        password,
         options: { emailRedirectTo: window.location.origin },
       })
       return { error: error ? error.message : null }

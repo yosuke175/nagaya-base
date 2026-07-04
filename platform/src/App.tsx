@@ -50,7 +50,8 @@ export default function App() {
       void loadUserSettings()
         .then((loaded) => {
           setSettings(loaded)
-          if (!loaded.entrance) setOverlay('entrance')
+          // ゲスト（軒先）は「すぐ入れる」を優先し、入口分岐は出さない
+          if (!loaded.entrance && !auth.isAnonymous) setOverlay('entrance')
         })
         .catch(() => setSettings({}))
     } else {
@@ -182,7 +183,7 @@ export default function App() {
         {auth.status === 'loading' && (
           <p className="p-8 text-center text-sm text-stone-400">読み込み中…</p>
         )}
-        {auth.status === 'signed-out' && <LoginView onSubmit={auth.signInWithMagicLink} />}
+        {auth.status === 'signed-out' && <LoginView auth={auth} />}
         {(auth.status === 'signed-in' || auth.status === 'disabled') && (
           <>
             {view === 'dashboard' && (
