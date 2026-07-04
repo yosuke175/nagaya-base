@@ -3,6 +3,7 @@ import { askGuide, type GuideError } from '../host/guide'
 import { fetchAiStatus } from '../host/aiSettings'
 import { loadLayouts, saveLayout, type WinRect } from '../host/gadgetLayout'
 import { actionLabel, parseGuideReply, type GuideAction, type GuideView } from '../host/guideActions'
+import { loadGadgetManifest } from '../host/gadgetHost'
 
 interface GuideAssistantProps {
   onOpenAiSettings: () => void
@@ -60,6 +61,8 @@ export function GuideAssistant({
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 段2 伴走: 連携設定が要る（externalServices を持つ）導入済み道具 → 設定方法チップを出す
+  const [setupGadgets, setSetupGadgets] = useState<Array<{ id: string; name: string }>>([])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const drag = useRef<null | { mode: 'move' | 'resize'; sx: number; sy: number; orig: WinRect }>(null)
@@ -80,6 +83,19 @@ export function GuideAssistant({
         .then((status) => setConfigured(status.registered))
         .catch(() => setConfigured(false))
     }
+    // 導入済み道具のうち「連携設定が要る」ものを拾い、設定方法チップの候補にする
+    void (async () => {
+      const found: Array<{ id: string; name: string }> = []
+      for (const id of installed) {
+        try {
+          const manifest = await loadGadgetManifest(id)
+          if ((manifest.externalServices?.length ?? 0) > 0) found.push({ id, name: manifest.name })
+        } catch {
+          // 読めない道具はスキップ
+        }
+      }
+      setSetupGadgets(found)
+    })()
   }
 
   // --- ドラッグ / リサイズ（PCのみ） ---
@@ -141,8 +157,8 @@ export function GuideAssistant({
     setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, done: true } : m)))
   }
 
-  const send = async () => {
-    const text = input.trim()
+  const send = async (preset?: string) => {
+    const text = (preset ?? input).trim()
     if (!text || busy) return
     setError(null)
     const next: Msg[] = [...messages, { role: 'user', content: text }]
@@ -235,9 +251,37 @@ export function GuideAssistant({
         <>
           <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {messages.length === 0 && (
-              <p className="rounded-lg bg-stone-50 p-3 text-xs text-stone-500">
-                長屋の使い方をたずねてください。例:「道具はどこから入れる？」「スケジュール秘書の設定方法は？」
-              </p>
+              <div className="grid gap-2">
+                <p className="rounded-lg bg-stone-50 p-3 text-xs text-stone-500">
+                  長屋の使い方をたずねてください。下のボタンからも聞けます。
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {setupGadgets.slice(0, 2).map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => void send(`「${g.name}」の連携設定のやり方を教えて`)}
+                      className="rounded-full border border-stone-300 px-3 py-1 text-xs hover:bg-stone-50"
+                    >
+                      「{g.name}」の設定方法
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => void send('道具はどこから入れる？')}
+                    className="rounded-full border border-stone-300 px-3 py-1 text-xs hover:bg-stone-50"
+                  >
+                    道具の入れ方
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void send('この画面でできることは？')}
+                    className="rounded-full border border-stone-300 px-3 py-1 text-xs hover:bg-stone-50"
+                  >
+                    この画面の使い方
+                  </button>
+                </div>
+              </div>
             )}
             {messages.map((message, index) => (
               <div
