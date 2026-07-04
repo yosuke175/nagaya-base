@@ -1,7 +1,10 @@
 import { externalServiceBaseUrls, type GadgetManifest } from 'gadget-sdk'
+import { currentUserId, supabase } from '../auth/supabaseClient'
 
-// Mock of the `installations.granted_permissions` row (docs/architecture.md
-// ADR-003, FR-06). Moves to Supabase behind RLS in the Supabase iteration.
+// インストール時の権限承認（FR-06）。以前は端末ごとの localStorage だけだったため、
+// 別端末や再ログインのたびに承認をやり直させていた。承認はユーザー単位で
+// installations.granted_permissions（jsonb）に保存し、端末をまたいで保持する。
+// 未ログインのローカル開発では localStorage にフォールバックする。
 const APPROVAL_PREFIX = 'gadget-approval:'
 
 export interface StoredApproval {
@@ -10,17 +13,8 @@ export interface StoredApproval {
   services: Array<{ id: string; baseUrls: string[] }>
 }
 
-export function getStoredApproval(gadgetId: string): StoredApproval | null {
-  try {
-    const raw = localStorage.getItem(APPROVAL_PREFIX + gadgetId)
-    return raw ? (JSON.parse(raw) as StoredApproval) : null
-  } catch {
-    return null
-  }
-}
-
-export function saveApproval(manifest: GadgetManifest): StoredApproval {
-  const approval: StoredApproval = {
+function buildApproval(manifest: GadgetManifest): StoredApproval {
+  return {
     approvedAt: new Date().toISOString(),
     permissions: [...manifest.permissions],
     services: (manifest.externalServices ?? []).map((service) => ({
@@ -28,7 +22,56 @@ export function saveApproval(manifest: GadgetManifest): StoredApproval {
       baseUrls: externalServiceBaseUrls(service),
     })),
   }
-  localStorage.setItem(APPROVAL_PREFIX + manifest.id, JSON.stringify(approval))
+}
+
+function isStoredApproval(value: unknown): value is StoredApproval {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return Array.isArray(v.permissions) && Array.isArray(v.services)
+}
+
+function localGet(gadgetId: string): StoredApproval | null {
+  try {
+    const raw = localStorage.getItem(APPROVAL_PREFIX + gadgetId)
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null
+    return isStoredApproval(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function localSet(gadgetId: string, approval: StoredApproval): void {
+  localStorage.setItem(APPROVAL_PREFIX + gadgetId, JSON.stringify(approval))
+}
+
+/** 承認内容を読む。ログイン時は installations 行、未ログインは localStorage。 */
+export async function loadApproval(gadgetId: string): Promise<StoredApproval | null> {
+  const userId = await currentUserId()
+  if (supabase && userId) {
+    const { data, error } = await supabase
+      .from('installations')
+      .select('granted_permissions')
+      .eq('gadget_id', gadgetId)
+      .maybeSingle()
+    if (error || !data) return localGet(gadgetId) // 取れない時はローカルキャッシュを試す
+    const granted = (data as { granted_permissions?: unknown }).granted_permissions
+    return isStoredApproval(granted) ? granted : null
+  }
+  return localGet(gadgetId)
+}
+
+/** 承認を保存。ログイン時は installations 行に保存し、端末間で保持する。 */
+export async function persistApproval(manifest: GadgetManifest): Promise<StoredApproval> {
+  const approval = buildApproval(manifest)
+  localSet(manifest.id, approval) // ローカルにもキャッシュ（オフライン/フォールバック用）
+  const userId = await currentUserId()
+  if (supabase && userId) {
+    // インストール行が既にある前提（承認カードはインストール後に出る）
+    await supabase
+      .from('installations')
+      .update({ granted_permissions: approval })
+      .eq('gadget_id', manifest.id)
+  }
   return approval
 }
 

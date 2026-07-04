@@ -122,7 +122,7 @@ export default function App() {
               type="button"
               onClick={() => setView('dashboard')}
               className="flex items-center gap-2.5 text-left"
-              title="部屋（ホーム）へ"
+              title="自分の部屋（ホーム）へ"
             >
               <img
                 src="/img/logo.png"
@@ -151,7 +151,7 @@ export default function App() {
             {(auth.status === 'signed-in' || auth.status === 'disabled') && (
               <nav className="flex flex-wrap items-center gap-1 text-sm">
                 <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
-                  部屋
+                  自分の部屋
                 </TabButton>
                 <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
                   入居者
@@ -406,31 +406,44 @@ function FloatingDesk({
     }),
   )
 
+  // スマホ等の狭い画面では自由配置はやめ、縦積み・全幅で表示する（操作しやすさ優先）
+  const narrow = deskWidth > 0 && deskWidth < 640
+
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-end gap-2 text-xs text-stone-500">
-        <span>道具の枠は自由に動かせます（見出しをドラッグ／右下でサイズ変更）</span>
-        <button
-          type="button"
-          onClick={tidy}
-          className="rounded-lg border border-stone-300 px-3 py-1 text-stone-600 hover:bg-stone-50"
-        >
-          整列する
-        </button>
-      </div>
-      <div ref={deskRef} className="relative" style={{ height: deskHeight }}>
-        {installed.map((id, index) => (
-          <FloatingWindow
-            key={id}
-            gadgetDir={id}
-            rect={rectFor(id, index)}
-            zIndex={order.indexOf(id) + 1}
-            onFocus={() => bringToFront(id)}
-            onCommit={(rect) => commit(id, rect)}
-            onUninstall={onUninstall}
-          />
-        ))}
-      </div>
+    <div ref={deskRef}>
+      {narrow ? (
+        <div className="grid grid-cols-1 gap-4">
+          {installed.map((id) => (
+            <GadgetFrame key={id} gadgetDir={id} onUninstall={onUninstall} />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="mb-2 flex items-center justify-end gap-2 text-xs text-stone-500">
+            <span>道具の枠は自由に動かせます（見出しをドラッグ／右下でサイズ変更）</span>
+            <button
+              type="button"
+              onClick={tidy}
+              className="rounded-lg border border-stone-300 px-3 py-1 text-stone-600 hover:bg-stone-50"
+            >
+              整列する
+            </button>
+          </div>
+          <div className="relative" style={{ height: deskHeight }}>
+            {installed.map((id, index) => (
+              <FloatingWindow
+                key={id}
+                gadgetDir={id}
+                rect={rectFor(id, index)}
+                zIndex={order.indexOf(id) + 1}
+                onFocus={() => bringToFront(id)}
+                onCommit={(rect) => commit(id, rect)}
+                onUninstall={onUninstall}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

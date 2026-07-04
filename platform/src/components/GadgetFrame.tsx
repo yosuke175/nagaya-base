@@ -5,7 +5,7 @@ import {
   type GadgetManifest,
   type GadgetSize,
 } from 'gadget-sdk'
-import { getStoredApproval, isApprovalCurrent, saveApproval } from '../host/approvals'
+import { isApprovalCurrent, loadApproval, persistApproval } from '../host/approvals'
 import { PERMISSION_LABELS } from '../host/permissionLabels'
 import {
   createGadgetHost,
@@ -49,10 +49,12 @@ export function GadgetFrame({
     setError(null)
     setApproved(false)
     loadGadgetManifest(gadgetDir)
-      .then((loaded) => {
+      .then(async (loaded) => {
         if (cancelled) return
         setManifest(loaded)
-        setApproved(isApprovalCurrent(loaded, getStoredApproval(loaded.id)))
+        // 承認はユーザー単位で保存済み（installations）なので、再ログインでも保持される
+        const approval = await loadApproval(loaded.id)
+        if (!cancelled) setApproved(isApprovalCurrent(loaded, approval))
       })
       .catch((cause: Error) => {
         if (!cancelled) setError(cause.message)
@@ -96,9 +98,11 @@ export function GadgetFrame({
       <ApprovalCard
         manifest={manifest}
         floating={floating}
+        onHeaderPointerDown={onHeaderPointerDown}
         onApprove={() => {
-          saveApproval(manifest)
+          // 表示は即切り替え、保存はバックグラウンドで（DB＝端末間で保持）
           setApproved(true)
+          void persistApproval(manifest)
         }}
       />
     )
@@ -180,10 +184,12 @@ function ApprovalCard({
   manifest,
   onApprove,
   floating,
+  onHeaderPointerDown,
 }: {
   manifest: GadgetManifest
   onApprove: () => void
   floating?: boolean
+  onHeaderPointerDown?: (event: ReactPointerEvent) => void
 }) {
   const services = manifest.externalServices ?? []
   return (
@@ -191,7 +197,11 @@ function ApprovalCard({
       className={`nb-panel flex flex-col overflow-hidden border ${floating ? 'h-full w-full' : SIZE_CLASSES[manifest.size.default]}`}
       style={{ borderColor: 'var(--nb-gold)' }}
     >
-      <header className="border-b px-3 py-2" style={{ borderColor: 'var(--nb-gold)' }}>
+      <header
+        onPointerDown={onHeaderPointerDown}
+        className={`border-b px-3 py-2 ${floating ? 'cursor-move select-none' : ''}`}
+        style={{ borderColor: 'var(--nb-gold)' }}
+      >
         <h2 className="text-sm font-semibold" style={{ color: 'var(--nb-navy)' }}>
           「{manifest.name}」を棚に並べる前に
         </h2>
