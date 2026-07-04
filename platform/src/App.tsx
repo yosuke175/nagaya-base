@@ -120,18 +120,27 @@ export default function App() {
       >
         <div className="mx-auto max-w-5xl">
           <div className="flex items-end justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
-              {appConfig.appName}
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-xs font-normal text-amber-800">
-                仮称
-              </span>
-            </h1>
-            <p className="text-xs text-stone-500">
-              {auth.status === 'disabled'
-                ? 'Phase 1・ログインなしローカル開発モード'
-                : 'Phase 1'}
-            </p>
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/img/logo.png"
+              alt=""
+              className="h-9 w-9 shrink-0"
+              width={36}
+              height={36}
+            />
+            <div>
+              <h1 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
+                {appConfig.appName}
+                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-xs font-normal text-amber-800">
+                  仮称
+                </span>
+              </h1>
+              <p className="text-xs text-stone-500">
+                {auth.status === 'disabled'
+                  ? 'Phase 1・ログインなしローカル開発モード'
+                  : 'Phase 1'}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {/* 右上は「あなたの部屋」への入口だけ。ログアウト/案内/AI設定/テーマは
