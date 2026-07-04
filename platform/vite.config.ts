@@ -178,6 +178,13 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'script',
+        // 新しいデプロイを即時反映する（古いキャッシュで止まらないように）。
+        // skipWaiting + clientsClaim で新SWがすぐ制御を握り、古いキャッシュは掃除する。
+        workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
+        },
         manifest: {
           name: appName,
           short_name: appName,
