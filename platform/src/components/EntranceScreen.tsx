@@ -118,7 +118,7 @@ export function CraftsmanGuide({ onClose }: { onClose: () => void }) {
             className="mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white"
             style={{ backgroundColor: 'var(--nb-navy)' }}
           >
-            棚（ダッシュボード）へ進む
+            部屋（ホーム）へ進む
           </button>
         </div>
       </div>

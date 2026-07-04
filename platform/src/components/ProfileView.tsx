@@ -99,7 +99,7 @@ export function ProfileView({ onSignOut, isAdmin, onOpenAdmin }: ProfileViewProp
     <div className="mx-auto max-w-lg">
       <div className="mb-1 flex items-center justify-between gap-2">
         <h2 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
-          入居者情報（あなたの部屋）
+          入居者情報
         </h2>
         <button
           type="button"

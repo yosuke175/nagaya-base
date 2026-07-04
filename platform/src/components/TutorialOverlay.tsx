@@ -75,7 +75,7 @@ export function TutorialOverlay({ onFinish, onOpenCatalog, onOpenDashboard }: Tu
                 棚に並べる
               </h2>
               <p className="mt-3 text-sm leading-relaxed">
-                道具市で「インストール」すると、道具はあなたの棚（ダッシュボード）に
+                道具市で「インストール」すると、道具はあなたの部屋の棚に
                 並びます。これがあなたの棚。道具はいつでも足したり外したりできます。
               </p>
               <p className="mt-2 text-sm leading-relaxed">
@@ -133,7 +133,7 @@ export function TutorialOverlay({ onFinish, onOpenCatalog, onOpenDashboard }: Tu
                   className="rounded-lg px-7 py-2.5 text-base font-bold text-white shadow"
                   style={{ backgroundColor: 'var(--nb-navy)' }}
                 >
-                  自分の棚を見る
+                  自分の部屋を見る
                 </button>
               )}
             </div>

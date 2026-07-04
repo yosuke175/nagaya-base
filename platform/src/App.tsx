@@ -117,12 +117,12 @@ export default function App() {
       >
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {/* ロゴ・タイトルをクリックすると既定表示（棚）へ */}
+            {/* ロゴ・タイトルをクリックすると既定表示（部屋＝ログイン後の起点）へ */}
             <button
               type="button"
               onClick={() => setView('dashboard')}
               className="flex items-center gap-2.5 text-left"
-              title="棚（ホーム）へ"
+              title="部屋（ホーム）へ"
             >
               <img
                 src="/img/logo.png"
@@ -145,12 +145,13 @@ export default function App() {
                 </p>
               </div>
             </button>
-            {/* メニューはタイトルの右に一列（指定の並び順）。歩みは案内所内へ、
-                大家の間は「あなたの部屋」内へ移設した */}
+            {/* メニューはタイトルの右に一列（指定の並び順: 部屋/入居者/道具市/回覧板/
+                長屋暦/案内所/工房）。「部屋」は主画面(dashboard)の表示名。歩みは案内所内、
+                大家の間は入居者情報内へ移設済み */}
             {(auth.status === 'signed-in' || auth.status === 'disabled') && (
               <nav className="flex flex-wrap items-center gap-1 text-sm">
-                <TabButton active={view === 'announcements'} onClick={() => setView('announcements')}>
-                  回覧板
+                <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
+                  部屋
                 </TabButton>
                 <TabButton active={view === 'residents'} onClick={() => setView('residents')}>
                   入居者
@@ -158,8 +159,14 @@ export default function App() {
                 <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
                   道具市
                 </TabButton>
-                <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
-                  棚
+                <TabButton active={view === 'announcements'} onClick={() => setView('announcements')}>
+                  回覧板
+                </TabButton>
+                <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
+                  長屋暦
+                </TabButton>
+                <TabButton active={view === 'help'} onClick={() => setView('help')}>
+                  案内所
                 </TabButton>
                 {/* 工房は道具をつくる人（店子以上＝軒先は不可）向け。ローカル開発では常に表示 */}
                 {(auth.status === 'disabled' ||
@@ -168,12 +175,6 @@ export default function App() {
                     工房
                   </TabButton>
                 )}
-                <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
-                  長屋暦
-                </TabButton>
-                <TabButton active={view === 'help'} onClick={() => setView('help')}>
-                  案内所
-                </TabButton>
               </nav>
             )}
           </div>
@@ -182,11 +183,11 @@ export default function App() {
               type="button"
               onClick={() => setView('profile')}
               className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
-              title="あなたの部屋（設定・ログアウト・見た目）"
+              title="入居者情報（設定・ログアウト・見た目）"
             >
               {auth.status === 'signed-in'
                 ? (auth.profile?.displayName ?? auth.email ?? '軒先の方')
-                : 'あなたの部屋'}
+                : '入居者情報'}
               {auth.status === 'signed-in' && (
                 <span className="rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
                   {auth.profile?.role ?? '…'}
