@@ -12,6 +12,20 @@ interface AdminUser {
   email: string | null
 }
 
+interface AdminGadget {
+  id: string
+  name: string | null
+  status: string
+  owner_id: string | null
+}
+
+const GADGET_STATUS_LABEL: Record<string, string> = {
+  draft: '構築中',
+  in_review: '審査中',
+  published: '公開中',
+  suspended: '停止中',
+}
+
 const ROLE_OPTIONS = ['guest', 'user', 'admin'] as const
 const ROLE_LABEL: Record<string, string> = {
   guest: '軒先（guest）',
@@ -35,12 +49,16 @@ async function adminApi<T>(body: Record<string, unknown>): Promise<T> {
 
 export function AdminView() {
   const [users, setUsers] = useState<AdminUser[] | null>(null)
+  const [gadgets, setGadgets] = useState<AdminGadget[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   const reload = () => {
     adminApi<{ users: AdminUser[] }>({ action: 'list' })
       .then((data) => setUsers(data.users))
+      .catch((cause: Error) => setError(cause.message))
+    adminApi<{ gadgets: AdminGadget[] }>({ action: 'list-gadgets' })
+      .then((data) => setGadgets(data.gadgets))
       .catch((cause: Error) => setError(cause.message))
   }
   useEffect(reload, [])
@@ -51,6 +69,20 @@ export function AdminView() {
     try {
       await adminApi({ action: 'set-role', targetUserId: user.id, role })
       setNotice(`${user.displayName} を ${ROLE_LABEL[role]} にしました`)
+      reload()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  const setGadgetStatus = async (gadget: AdminGadget, status: 'suspended' | 'published') => {
+    setError(null)
+    setNotice(null)
+    try {
+      await adminApi({ action: 'set-gadget-status', gadgetId: gadget.id, status })
+      setNotice(
+        `「${gadget.name ?? gadget.id}」を${status === 'suspended' ? '停止' : '再開'}しました`,
+      )
       reload()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -92,6 +124,52 @@ export function AdminView() {
                 </option>
               ))}
             </select>
+          </div>
+        ))}
+      </div>
+
+      <h3 className="mb-1 mt-8 text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
+        道具の緊急停止（FR-09）
+      </h3>
+      <p className="mb-3 text-xs text-stone-500">
+        問題のある道具を道具市・棚から即時に停止できます。停止すると誰も新たに使えなくなります。
+        変更は記録（監査ログ）に残ります。
+      </p>
+      {gadgets === null && !error && <p className="text-sm text-stone-400">読み込み中…</p>}
+      {gadgets?.length === 0 && (
+        <p className="nb-panel p-4 text-center text-xs text-stone-500">登録された道具はありません。</p>
+      )}
+      <div className="grid gap-2">
+        {gadgets?.map((gadget) => (
+          <div key={gadget.id} className="nb-panel flex items-center gap-3 p-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium" style={{ color: 'var(--nb-navy)' }}>
+                {gadget.name ?? gadget.id}
+              </p>
+              <p className="truncate text-xs text-stone-400">
+                {gadget.id} ・{' '}
+                <span style={{ color: gadget.status === 'suspended' ? 'var(--nb-terra)' : undefined }}>
+                  {GADGET_STATUS_LABEL[gadget.status] ?? gadget.status}
+                </span>
+              </p>
+            </div>
+            {gadget.status === 'suspended' ? (
+              <button
+                type="button"
+                onClick={() => void setGadgetStatus(gadget, 'published')}
+                className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs"
+              >
+                再開する
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void setGadgetStatus(gadget, 'suspended')}
+                className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50"
+              >
+                緊急停止
+              </button>
+            )}
           </div>
         ))}
       </div>

@@ -12,7 +12,7 @@
     "dist:mac": "electron-builder --mac dmg --publish never"
   },
   "devDependencies": {
-    "electron": "35.7.5",
+    "electron": "^43.0.0",
     "electron-builder": "^26.0.0"
   },
   "build": {

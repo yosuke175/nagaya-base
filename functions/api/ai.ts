@@ -51,6 +51,66 @@ const DEFAULT_MODEL: Record<Provider, string> = {
   google: 'gemini-2.0-flash',
 }
 
+// モデル許可リスト（backlog #3）。高額モデルの誤指定を防ぐ。増補は各社の
+// モデル追随（backlog #7）に合わせてここを1行足すだけ。既定モデルは必ず含める。
+const ALLOWED_MODELS: Record<Provider, string[]> = {
+  anthropic: ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-3-5-haiku-latest', 'claude-3-5-sonnet-latest'],
+  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+  google: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+}
+
+// レート制限（backlog #3）: 1時間あたりの complete 上限（本人のキー保護）
+const USAGE_WINDOW_MS = 60 * 60 * 1000
+const AI_HOURLY_LIMIT = 120
+
+function serviceHeaders(env: Env): Record<string, string> {
+  return {
+    apikey: env.SUPABASE_SERVICE_ROLE_KEY as string,
+    authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    'content-type': 'application/json',
+  }
+}
+
+/** 直近1時間の利用回数。障害時は 0 を返して AI をブロックしない（fail-open）。 */
+async function countRecentUsage(env: Env, userId: string): Promise<number> {
+  const since = new Date(Date.now() - USAGE_WINDOW_MS).toISOString()
+  const response = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/ai_usage?user_id=eq.${userId}&created_at=gte.${encodeURIComponent(
+      since,
+    )}&select=id`,
+    { headers: { ...serviceHeaders(env), prefer: 'count=exact', range: '0-0' } },
+  )
+  if (!response.ok) return 0
+  const total = Number((response.headers.get('content-range') ?? '').split('/')[1])
+  return Number.isFinite(total) ? total : 0
+}
+
+/** 利用記録（透明性＋レート制限の根拠）。best-effort（失敗しても本処理は続ける）。 */
+async function logUsage(
+  env: Env,
+  userId: string,
+  provider: Provider,
+  model: string,
+  inputChars: number,
+  outputChars: number,
+): Promise<void> {
+  try {
+    await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage`, {
+      method: 'POST',
+      headers: { ...serviceHeaders(env), prefer: 'return=minimal' },
+      body: JSON.stringify({
+        user_id: userId,
+        provider,
+        model,
+        input_chars: inputChars,
+        output_chars: outputChars,
+      }),
+    })
+  } catch {
+    // 記録失敗は無視（AI応答は既に成功している）
+  }
+}
+
 function normalizeProvider(value: unknown): Provider {
   return PROVIDERS.includes(value as Provider) ? (value as Provider) : 'anthropic'
 }
@@ -219,6 +279,15 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
       const provider = body.provider ? normalizeProvider(body.provider) : (existing?.provider ?? 'anthropic')
       const apiKey = body.apiKey?.trim() || existing?.apiKey
       if (!apiKey) return json(400, { error: 'APIキーを入力してください' }, MARKER)
+      // モデル許可リスト（明示指定時のみ検証。未指定は既定/既存を使う）
+      const requestedModel = body.model?.trim()
+      if (requestedModel && !ALLOWED_MODELS[provider].includes(requestedModel)) {
+        return json(
+          400,
+          { error: `モデル「${requestedModel}」は使えません。利用可能: ${ALLOWED_MODELS[provider].join(', ')}` },
+          MARKER,
+        )
+      }
       // モデル未指定 かつ プロバイダを変えた場合は、そのプロバイダの既定モデルにする
       const model =
         body.model?.trim() ||
@@ -258,6 +327,17 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           MARKER,
         )
       }
+      // レート制限（本人のキー保護）: 直近1時間の回数が上限なら 429
+      if ((await countRecentUsage(env, userId)) >= AI_HOURLY_LIMIT) {
+        return json(
+          429,
+          {
+            error: `AIの利用が上限に達しました（1時間あたり${AI_HOURLY_LIMIT}回）。しばらく待ってからお試しください。`,
+            code: 'ai_rate_limited',
+          },
+          MARKER,
+        )
+      }
       const maxTokens =
         typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
           ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)
@@ -268,6 +348,10 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           messages: aiRequest.messages,
           maxTokens,
         })
+        const inputChars =
+          (aiRequest.system?.length ?? 0) +
+          aiRequest.messages.reduce((sum, m) => sum + m.content.length, 0)
+        await logUsage(env, userId, settings.provider, settings.model, inputChars, text.length)
         return json(200, { text }, MARKER)
       } catch (error) {
         return json(

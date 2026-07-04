@@ -13,6 +13,8 @@ import { isConfigured, json, requireUserId, type Env } from './_shared'
 
 const MARKER = 'x-admin-api'
 const VALID_ROLES = new Set(['guest', 'user', 'developer', 'admin'])
+// 緊急停止で大家が切り替えられる状態（FR-09）。停止＝suspended / 再開＝published。
+const VALID_GADGET_STATUS = new Set(['published', 'suspended'])
 
 function rest(env: Env, path: string): string {
   return `${env.SUPABASE_URL}/rest/v1/${path}`
@@ -51,7 +53,7 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     return json(403, { error: '大家（管理者）のみが利用できます' }, MARKER)
   }
 
-  let body: { action?: string; targetUserId?: string; role?: string }
+  let body: { action?: string; targetUserId?: string; role?: string; gadgetId?: string; status?: string }
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -121,6 +123,49 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           action: 'set_role',
           target: targetUserId,
           detail: { role },
+        }),
+      })
+      return json(200, { ok: true }, MARKER)
+    }
+
+    if (body.action === 'list-gadgets') {
+      // 全道具（下書き含む）を service_role で取得。緊急停止の判断材料。
+      const gadgetsRes = await fetch(
+        rest(env, 'gadgets?select=id,name,status,owner_id&order=created_at.asc'),
+        { headers: restHeaders(env) },
+      )
+      if (!gadgetsRes.ok) return json(502, { error: 'storage error' }, MARKER)
+      const gadgets = (await gadgetsRes.json()) as Array<{
+        id: string
+        name: string | null
+        status: string
+        owner_id: string | null
+      }>
+      return json(200, { gadgets }, MARKER)
+    }
+
+    if (body.action === 'set-gadget-status') {
+      const { gadgetId, status } = body
+      if (typeof gadgetId !== 'string' || !status || !VALID_GADGET_STATUS.has(status)) {
+        return json(400, { error: 'invalid gadget or status' }, MARKER)
+      }
+      const updateRes = await fetch(rest(env, `gadgets?id=eq.${encodeURIComponent(gadgetId)}`), {
+        method: 'PATCH',
+        headers: { ...restHeaders(env), prefer: 'return=minimal' },
+        body: JSON.stringify({ status }),
+      })
+      if (!updateRes.ok) {
+        const detail = await updateRes.text().catch(() => '')
+        return json(502, { error: `状態変更に失敗しました: ${detail || `HTTP ${updateRes.status}`}` }, MARKER)
+      }
+      await fetch(rest(env, 'audit_logs'), {
+        method: 'POST',
+        headers: { ...restHeaders(env), prefer: 'return=minimal' },
+        body: JSON.stringify({
+          actor_id: callerId,
+          action: 'set_gadget_status',
+          target: gadgetId,
+          detail: { status },
         }),
       })
       return json(200, { ok: true }, MARKER)
