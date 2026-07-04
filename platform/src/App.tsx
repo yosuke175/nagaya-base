@@ -9,12 +9,16 @@ import { GadgetFrame } from './components/GadgetFrame'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
+import { AnnouncementsView } from './components/AnnouncementsView'
+import { CalendarView } from './components/CalendarView'
+import { HelpView } from './components/HelpView'
 import { InfoSlot } from './components/InfoSlot'
+import { ProgressView } from './components/ProgressView'
 import { TutorialOverlay } from './components/TutorialOverlay'
 import { IMG } from './assets'
 import { loadUserSettings, saveUserSettings, type UserSettings } from './host/userSettings'
 
-type View = 'dashboard' | 'catalog'
+type View = 'dashboard' | 'catalog' | 'announcements' | 'calendar' | 'help' | 'progress'
 /** Full-screen guidance overlays (entrance branch is behavioral only) */
 type Overlay = 'entrance' | 'craftsman-guide' | 'tutorial' | null
 
@@ -130,12 +134,27 @@ export default function App() {
             )}
             {/* ナビは項目が後から増える（指示書⑦で 回覧板/長屋暦/案内所/歩み を追加） */}
             {(auth.status === 'signed-in' || auth.status === 'disabled') && (
-              <nav className="flex gap-1 text-sm">
+              <nav className="flex flex-wrap gap-1 text-sm">
                 <TabButton active={view === 'dashboard'} onClick={() => setView('dashboard')}>
                   棚
                 </TabButton>
                 <TabButton active={view === 'catalog'} onClick={() => setView('catalog')}>
                   道具市
+                </TabButton>
+                <TabButton
+                  active={view === 'announcements'}
+                  onClick={() => setView('announcements')}
+                >
+                  回覧板
+                </TabButton>
+                <TabButton active={view === 'calendar'} onClick={() => setView('calendar')}>
+                  長屋暦
+                </TabButton>
+                <TabButton active={view === 'help'} onClick={() => setView('help')}>
+                  案内所
+                </TabButton>
+                <TabButton active={view === 'progress'} onClick={() => setView('progress')}>
+                  歩み
                 </TabButton>
               </nav>
             )}
@@ -163,17 +182,31 @@ export default function App() {
           <p className="p-8 text-center text-sm text-stone-400">読み込み中…</p>
         )}
         {auth.status === 'signed-out' && <LoginView onSubmit={auth.signInWithMagicLink} />}
-        {(auth.status === 'signed-in' || auth.status === 'disabled') &&
-          (view === 'dashboard' ? (
-            <Dashboard installed={installed} onOpenCatalog={() => setView('catalog')} />
-          ) : (
-            <CatalogView
-              installed={installed}
-              canInstall={canInstall}
-              onInstall={handleInstall}
-              onUninstall={handleUninstall}
-            />
-          ))}
+        {(auth.status === 'signed-in' || auth.status === 'disabled') && (
+          <>
+            {view === 'dashboard' && (
+              <Dashboard
+                installed={installed}
+                onOpenCatalog={() => setView('catalog')}
+                onNavigate={setView}
+              />
+            )}
+            {view === 'catalog' && (
+              <CatalogView
+                installed={installed}
+                canInstall={canInstall}
+                onInstall={handleInstall}
+                onUninstall={handleUninstall}
+              />
+            )}
+            {view === 'announcements' && (
+              <AnnouncementsView isAdmin={auth.profile?.role === 'admin'} />
+            )}
+            {view === 'calendar' && <CalendarView isAdmin={auth.profile?.role === 'admin'} />}
+            {view === 'help' && <HelpView />}
+            {view === 'progress' && <ProgressView />}
+          </>
+        )}
       </main>
       {aiSettingsOpen && <AiSettingsDialog onClose={() => setAiSettingsOpen(false)} />}
       {overlay === 'entrance' && <EntranceScreen onSelect={handleEntranceSelect} />}
@@ -271,9 +304,11 @@ function TabButton({
 function Dashboard({
   installed,
   onOpenCatalog,
+  onNavigate,
 }: {
   installed: string[]
   onOpenCatalog: () => void
+  onNavigate: (view: View) => void
 }) {
   // `npm run dev:gadget <dir>` pins the dashboard to one gadget for development
   if (appConfig.devGadgetDir) {
@@ -292,7 +327,7 @@ function Dashboard({
   if (installed.length === 0) {
     return (
       <>
-        <InfoSlot />
+        <InfoSlot onNavigate={onNavigate} />
         <div className="nb-panel p-10 text-center text-sm">
           <img src={IMG.objects.well} alt="" className="mx-auto h-24 w-24 object-contain" />
           <p className="mt-3" style={{ color: 'var(--nb-ink)' }}>
