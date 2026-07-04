@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { compressImageToDataUrl } from '../lib/imageCompress'
 import { loadMyProfile, residentsAvailable, saveMyProfile, setMyPassword } from '../host/residents'
+import { leaveNagaya, offboardingAvailable, type GadgetDisposition } from '../host/offboarding'
 
 // 自分の入居者情報の編集（フェーズ2）。各項目に「他の入居者に見せる」トグル。
 // アイコンはクライアント圧縮した小さな data-URL（Storage 不使用）。
@@ -284,6 +285,134 @@ export function ProfileView() {
           </div>
           {pwSaved && <span className="text-xs text-green-700">パスワードを設定しました</span>}
           {pwError && <span className="text-xs text-red-700">{pwError}</span>}
+        </div>
+      )}
+
+      <LeaveSection />
+    </div>
+  )
+}
+
+/**
+ * 退去（アカウント削除）。個人データは必ず消え、作った道具の扱いだけ本人が選ぶ。
+ * 著作権の話はUIに出さない（ADR-006: 著作権は作者に残る／CLA許諾は撤回不可）。
+ * 二段階（開く → 選ぶ → 理解チェック → 実行）で誤操作を防ぐ。
+ */
+function LeaveSection() {
+  const [available, setAvailable] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [disposition, setDisposition] = useState<GadgetDisposition>('keep')
+  const [understood, setUnderstood] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void offboardingAvailable().then(setAvailable)
+  }, [])
+
+  if (!available) return null
+
+  const leave = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await leaveNagaya(disposition)
+      // 成功するとサインアウト → App が LoginView に切り替わる（このビューは外れる）
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-8 rounded-xl border border-red-200 bg-red-50/50 p-5 text-sm">
+      <h3 className="text-sm font-bold text-red-800">長屋を出る（退去）</h3>
+      <p className="mt-1 text-xs leading-relaxed text-stone-600">
+        退去すると、あなたの個人データ（プロフィール・設定・道具の保存データ・連携キー）が
+        すべて削除され、元に戻せません。
+      </p>
+
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-3 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-100"
+        >
+          退去の手続きへ
+        </button>
+      ) : (
+        <div className="mt-3 grid gap-3">
+          <fieldset className="grid gap-2">
+            <legend className="text-xs font-semibold text-stone-700">
+              あなたが作った道具の扱い
+            </legend>
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="disposition"
+                checked={disposition === 'keep'}
+                onChange={() => setDisposition('keep')}
+                className="mt-0.5"
+              />
+              <span className="text-xs">
+                <span className="font-medium">長屋に残す（おすすめ）</span>
+                <br />
+                <span className="text-stone-500">
+                  道具はそのまま道具市に残り、今後の世話は大家に引き継がれます。
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="disposition"
+                checked={disposition === 'suspend'}
+                onChange={() => setDisposition('suspend')}
+                className="mt-0.5"
+              />
+              <span className="text-xs">
+                <span className="font-medium">自分の道具も道具市から下げる</span>
+                <br />
+                <span className="text-stone-500">
+                  あなたの道具を道具市から取り下げます（コード自体はリポジトリに残ります）。
+                </span>
+              </span>
+            </label>
+          </fieldset>
+
+          <label className="flex items-start gap-2 text-xs text-stone-700">
+            <input
+              type="checkbox"
+              checked={understood}
+              onChange={(e) => setUnderstood(e.target.checked)}
+              className="mt-0.5"
+            />
+            個人データが削除され、元に戻せないことを理解しました。
+          </label>
+
+          {error && <p className="rounded-lg bg-red-100 px-3 py-2 text-xs text-red-700">{error}</p>}
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={!understood || busy}
+              onClick={() => void leave()}
+              className="rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? '退去処理中…' : '退去する'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setUnderstood(false)
+                setError(null)
+              }}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-xs"
+            >
+              やめる
+            </button>
+          </div>
         </div>
       )}
     </div>
