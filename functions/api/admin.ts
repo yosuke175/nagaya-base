@@ -145,6 +145,21 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
       return json(200, { ok: true }, MARKER)
     }
 
+    if (body.action === 'ai-usage-summary') {
+      // 当月の AI 利用集計（key_owner 別: 'self'=ユーザーBYOK / 'platform'=運営保有）
+      const since = new Date()
+      since.setUTCDate(1)
+      since.setUTCHours(0, 0, 0, 0)
+      const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/ai_usage_summary`, {
+        method: 'POST',
+        headers: { ...restHeaders(env), prefer: 'return=representation' },
+        body: JSON.stringify({ p_since: since.toISOString() }),
+      })
+      if (!res.ok) return json(502, { error: 'storage error' }, MARKER)
+      const rows = (await res.json()) as Array<{ key_owner: string; total_usd: number; calls: number }>
+      return json(200, { since: since.toISOString(), rows }, MARKER)
+    }
+
     if (body.action === 'list-gadgets') {
       // 全道具（下書き含む）を service_role で取得。緊急停止の判断材料。
       const gadgetsRes = await fetch(

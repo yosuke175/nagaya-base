@@ -63,6 +63,27 @@ const ALLOWED_MODELS: Record<Provider, string[]> = {
 const USAGE_WINDOW_MS = 60 * 60 * 1000
 const AI_HOURLY_LIMIT = 120
 
+// 概算コスト（USD / 100万トークン, in/out）。正確な課金は各社ダッシュボード参照。
+// モデル追随は backlog（#7）。未知モデルは既定値でざっくり見積る。
+const PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
+  'claude-haiku-4-5': { in: 1, out: 5 },
+  'gpt-4o-mini': { in: 0.15, out: 0.6 },
+  'gpt-4o': { in: 2.5, out: 10 },
+  'gemini-2.0-flash': { in: 0.1, out: 0.4 },
+  'gemini-1.5-flash': { in: 0.075, out: 0.3 },
+  'gemini-1.5-pro': { in: 1.25, out: 5 },
+}
+const DEFAULT_PRICE = { in: 1, out: 5 }
+// 文字数からの粗いトークン換算（日英混在の中間値）。あくまで「概算」。
+const CHARS_PER_TOKEN = 4
+
+function estCostUsd(model: string, inputChars: number, outputChars: number): number {
+  const price = PRICE_PER_MTOK[model] ?? DEFAULT_PRICE
+  const inTok = inputChars / CHARS_PER_TOKEN
+  const outTok = outputChars / CHARS_PER_TOKEN
+  return (inTok * price.in + outTok * price.out) / 1_000_000
+}
+
 function serviceHeaders(env: Env): Record<string, string> {
   return {
     apikey: env.SUPABASE_SERVICE_ROLE_KEY as string,
@@ -85,7 +106,7 @@ async function countRecentUsage(env: Env, userId: string): Promise<number> {
   return Number.isFinite(total) ? total : 0
 }
 
-/** 利用記録（透明性＋レート制限の根拠）。best-effort（失敗しても本処理は続ける）。 */
+/** 利用記録（透明性＋レート制限の根拠＋概算コスト）。best-effort。 */
 async function logUsage(
   env: Env,
   userId: string,
@@ -93,6 +114,8 @@ async function logUsage(
   model: string,
   inputChars: number,
   outputChars: number,
+  purpose: 'gadget' | 'guide' | 'embed' = 'gadget',
+  keyOwner: 'self' | 'platform' = 'self',
 ): Promise<void> {
   try {
     await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage`, {
@@ -104,11 +127,56 @@ async function logUsage(
         model,
         input_chars: inputChars,
         output_chars: outputChars,
+        purpose,
+        key_owner: keyOwner,
+        est_cost_usd: estCostUsd(model, inputChars, outputChars),
       }),
     })
   } catch {
     // 記録失敗は無視（AI応答は既に成功している）
   }
+}
+
+// 案内AI（段1・ステートレス）の「状態票」。対話のたびシステムが DB から現在状態を
+// 引いてシステムプロンプトに添える（AIは覚えない、毎回渡す）。ADR-010。
+async function buildStateTicket(env: Env, userId: string): Promise<string> {
+  const get = async (path: string): Promise<unknown[]> => {
+    const response = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+      headers: serviceHeaders(env),
+    })
+    return response.ok ? ((await response.json()) as unknown[]) : []
+  }
+  const profiles = (await get(
+    `profiles?id=eq.${userId}&select=display_name,role,visit_count,last_visit_at`,
+  )) as Array<{ display_name: string; role: string; visit_count: number; last_visit_at: string | null }>
+  const installs = (await get(`installations?user_id=eq.${userId}&select=gadget_id`)) as Array<{
+    gadget_id: string
+  }>
+  const owned = (await get(
+    `gadgets?owner_id=eq.${userId}&status=eq.published&select=id`,
+  )) as Array<{ id: string }>
+  const p = profiles[0]
+  return [
+    `- 呼び名: ${p?.display_name ?? '入居者'}（役割: ${p?.role ?? 'user'}）`,
+    `- 来訪: ${p?.visit_count ?? 0}回目${p?.last_visit_at ? ` / 前回 ${p.last_visit_at.slice(0, 10)}` : ''}`,
+    `- 部屋に入れている道具: ${installs.length ? installs.map((i) => i.gadget_id).join(', ') : 'なし'}`,
+    `- 公開中の自作道具: ${owned.length}件`,
+  ].join('\n')
+}
+
+async function buildGuideSystemPrompt(env: Env, userId: string): Promise<string> {
+  const state = await buildStateTicket(env, userId)
+  return [
+    'あなたは「長屋（NAGAYA-BASE）」の案内AIです。入居者が道具（ガジェット）を活用するのを助ける、親切で簡潔な案内役。',
+    '# 役割・態度',
+    '- 長屋の使い方のQ&A、道具のインストール伴走（手順は各道具のSETUPに従って案内）。',
+    '- やさしく短く。専門用語は避ける。分からないことは正直に「分かりません」と言う。',
+    '- ガジェットの操作代行や自動実行はしない。詳しくは「案内所」の記事を見るよう促してよい。',
+    '# 長屋の語彙',
+    '- 自分の部屋=ログイン後の主画面 / 棚=部屋の中の道具置き場 / 道具市=道具のカタログ / 工房=道具をつくる人の作業場 / 入居者=メンバー / 回覧板・長屋暦・案内所=情報レイヤー。',
+    '# 利用者の状態（システムが毎回渡す。あなたは会話を記憶しない＝このセッション内だけ覚えている）',
+    state,
+  ].join('\n')
 }
 
 function normalizeProvider(value: unknown): Provider {
@@ -352,6 +420,53 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           (aiRequest.system?.length ?? 0) +
           aiRequest.messages.reduce((sum, m) => sum + m.content.length, 0)
         await logUsage(env, userId, settings.provider, settings.model, inputChars, text.length)
+        return json(200, { text }, MARKER)
+      } catch (error) {
+        return json(
+          502,
+          { error: error instanceof Error ? error.message : 'AI API エラー', code: 'ai_error' },
+          MARKER,
+        )
+      }
+    }
+
+    if (body.action === 'guide') {
+      // 案内AI（段1・ステートレス）。system は状態票つきでサーバーが組む（クライアントは送らない）。
+      const aiRequest = body.request
+      if (!aiRequest || !validMessages(aiRequest.messages)) {
+        return json(400, { error: 'invalid ai request' }, MARKER)
+      }
+      const settings = await loadSettings()
+      if (!settings) {
+        return json(
+          400,
+          {
+            error: 'AIのAPIキーが未登録です。工房の「AI設定」から登録すると案内AIが使えます（任意）',
+            code: 'ai_not_configured',
+          },
+          MARKER,
+        )
+      }
+      if ((await countRecentUsage(env, userId)) >= AI_HOURLY_LIMIT) {
+        return json(
+          429,
+          {
+            error: `AIの利用が上限に達しました（1時間あたり${AI_HOURLY_LIMIT}回）。しばらく待ってからお試しください。`,
+            code: 'ai_rate_limited',
+          },
+          MARKER,
+        )
+      }
+      const system = await buildGuideSystemPrompt(env, userId)
+      const maxTokens =
+        typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
+          ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)
+          : 800
+      try {
+        const text = await callProvider(settings, { system, messages: aiRequest.messages, maxTokens })
+        const inputChars =
+          system.length + aiRequest.messages.reduce((sum, m) => sum + m.content.length, 0)
+        await logUsage(env, userId, settings.provider, settings.model, inputChars, text.length, 'guide')
         return json(200, { text }, MARKER)
       } catch (error) {
         return json(

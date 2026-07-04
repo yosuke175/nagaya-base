@@ -5,6 +5,7 @@ import { CatalogView } from './components/CatalogView'
 import { CraftsmanGuide, EntranceScreen, type EntranceChoice } from './components/EntranceScreen'
 import { FloatingWindow } from './components/FloatingWindow'
 import { GadgetFrame } from './components/GadgetFrame'
+import { GuideAssistant } from './components/GuideAssistant'
 import { clearLayouts, loadLayouts, saveLayout, type WinRect } from './host/gadgetLayout'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
@@ -16,6 +17,7 @@ import { HelpView } from './components/HelpView'
 import { InfoSlot } from './components/InfoSlot'
 import { ProfileView } from './components/ProfileView'
 import { ResidentsView } from './components/ResidentsView'
+import { recordVisit } from './host/residents'
 import { WorkshopView } from './components/WorkshopView'
 import { TutorialOverlay } from './components/TutorialOverlay'
 import { IMG } from './assets'
@@ -59,6 +61,8 @@ export default function App() {
   useEffect(() => {
     if (auth.status === 'signed-in' || auth.status === 'disabled') {
       void refreshInstalled()
+      // 状態票用の最小の来訪ログ（案内AI / ADR-010）。ログイン時のみ
+      if (auth.status === 'signed-in') void recordVisit()
       // 初回アクセス（入口が未選択）なら入口分岐を全画面表示
       void loadUserSettings()
         .then((loaded) => {
@@ -273,6 +277,10 @@ export default function App() {
           onOpenCatalog={() => setView('catalog')}
           onOpenDashboard={() => setView('dashboard')}
         />
+      )}
+      {/* 案内AI（段1・ステートレス）。下部常駐の単一窓。AIは任意 */}
+      {auth.status === 'signed-in' && !overlay && (
+        <GuideAssistant onOpenAiSettings={() => setView('workshop')} />
       )}
     </div>
   )

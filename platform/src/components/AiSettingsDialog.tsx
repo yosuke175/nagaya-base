@@ -8,6 +8,7 @@ import {
   type AiProvider,
   type AiSettingsScope,
 } from '../host/aiSettings'
+import { JPY_PER_USD, myMonthlyCostUsd } from '../host/aiUsage'
 
 /**
  * プラットフォーム共通の AI設定フォーム（ユーザー1人につき1キー、gadget.ai が使う）。
@@ -26,6 +27,7 @@ export function AiSettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState<AiSettingsScope | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [monthUsd, setMonthUsd] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -39,6 +41,9 @@ export function AiSettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
       // 保存済みキーは読み込まない（●● 表示のまま。変更時のみ入力させる）
       setLoading(false)
     })()
+    void myMonthlyCostUsd().then((usd) => {
+      if (!cancelled) setMonthUsd(usd)
+    })
     return () => {
       cancelled = true
     }
@@ -98,6 +103,13 @@ export function AiSettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
           <p className="mt-2 text-stone-500">
             現在: {registered ? <span className="text-green-700">登録済み（●●●●）</span> : '未登録'}
           </p>
+          {monthUsd != null && monthUsd > 0 && (
+            <p className="mt-1 text-stone-400">
+              今月のAI利用（概算）: 約 ${monthUsd.toFixed(3)}（≈ ¥
+              {Math.round(monthUsd * JPY_PER_USD).toLocaleString('ja-JP')}）
+              <span className="ml-1">※文字数からの粗い見積り。正確な額は各社の請求で</span>
+            </p>
+          )}
           <label className="mt-3 grid gap-1">
             <span className="text-stone-600">AIの提供元</span>
             <select

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getAccessToken } from '../host/credentialsApi'
+import { JPY_PER_USD } from '../host/aiUsage'
 
 // 大家の間（フェーズ3）: admin だけに表示。入居者のロールを付与する。
 // 実際の変更は /api/admin（service_role）で行い、audit_logs に記録される。
@@ -127,6 +128,12 @@ export function AdminView() {
       </p>
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
       {notice && <p className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">{notice}</p>}
+
+      <AiUsageSummary />
+
+      <h3 className="mb-2 mt-2 text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
+        入居者
+      </h3>
       {users === null && !error && <p className="text-sm text-stone-400">読み込み中…</p>}
 
       <div className="grid gap-2">
@@ -219,6 +226,55 @@ export function AdminView() {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** 当月の AI 利用（概算）。運営分（platform）とユーザーBYOK（self）を分けて表示。 */
+function AiUsageSummary() {
+  const [rows, setRows] = useState<Array<{ key_owner: string; total_usd: number; calls: number }> | null>(
+    null,
+  )
+  useEffect(() => {
+    adminApi<{ rows: Array<{ key_owner: string; total_usd: number; calls: number }> }>({
+      action: 'ai-usage-summary',
+    })
+      .then((data) => setRows(data.rows))
+      .catch(() => setRows([]))
+  }, [])
+
+  const usd = (owner: string) => rows?.find((r) => r.key_owner === owner)?.total_usd ?? 0
+  const calls = (owner: string) => rows?.find((r) => r.key_owner === owner)?.calls ?? 0
+  const yen = (u: number) => `≈ ¥${Math.round(u * JPY_PER_USD).toLocaleString('ja-JP')}`
+
+  return (
+    <div className="nb-panel mb-4 p-4 text-sm">
+      <p className="text-xs font-semibold text-stone-500">AI利用（今月・概算）</p>
+      {rows === null ? (
+        <p className="mt-1 text-xs text-stone-400">読み込み中…</p>
+      ) : (
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-stone-500">運営分（共通埋め込み・代行）</p>
+            <p className="text-lg font-bold" style={{ color: 'var(--nb-terra)' }}>
+              ${usd('platform').toFixed(3)}{' '}
+              <span className="text-xs font-normal text-stone-400">{yen(usd('platform'))}</span>
+            </p>
+            <p className="text-xs text-stone-400">{calls('platform')}回</p>
+          </div>
+          <div>
+            <p className="text-xs text-stone-500">ユーザーBYOK分（参考）</p>
+            <p className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
+              ${usd('self').toFixed(3)}{' '}
+              <span className="text-xs font-normal text-stone-400">{yen(usd('self'))}</span>
+            </p>
+            <p className="text-xs text-stone-400">{calls('self')}回</p>
+          </div>
+        </div>
+      )}
+      <p className="mt-2 text-xs text-stone-400">
+        文字数からの粗い概算（正確な額は各社の請求）。運営分は将来 Honmono 運営への引き取り精算の根拠。
+      </p>
     </div>
   )
 }

@@ -80,6 +80,15 @@ export async function listResidents(): Promise<ResidentEntry[]> {
   return (data ?? []) as ResidentEntry[]
 }
 
+/** 来訪を記録（状態票用の最小ログ。security definer RPC）。best-effort。 */
+export async function recordVisit(): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.rpc('record_visit')
+  if (error) {
+    // 記録失敗は無視（本処理をブロックしない）
+  }
+}
+
 export interface ResidentGadget {
   kind: 'developed' | 'installed'
   gadget_id: string
