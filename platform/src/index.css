@@ -24,6 +24,10 @@
 .help-article p, .prose-sm p { margin: 0.4rem 0; }
 .help-article ul, .prose-sm ul { list-style: disc; padding-left: 1.25rem; margin: 0.4rem 0; }
 .help-article code, .prose-sm code { background: #e7e5e4; padding: 0 4px; border-radius: 4px; font-size: 0.85em; }
+.help-article table, .prose-sm table { border-collapse: collapse; width: 100%; margin: 0.6rem 0; font-size: 0.9em; }
+.help-article th, .prose-sm th { background: var(--nb-navy); color: #fff; text-align: left; padding: 6px 10px; }
+.help-article td, .prose-sm td { border: 1px solid #d6d3d1; padding: 6px 10px; vertical-align: top; }
+.help-article tbody tr:nth-child(even), .prose-sm tbody tr:nth-child(even) { background: color-mix(in srgb, var(--nb-cream) 60%, white); }
 
 /* 和紙の地紋 */
 .nb-washi {

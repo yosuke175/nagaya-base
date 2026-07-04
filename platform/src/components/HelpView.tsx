@@ -14,7 +14,7 @@ const TOC: Array<{ file: string; title: string }> = [
   { file: '01-hajimete', title: 'はじめての方へ' },
   { file: '02-dougu', title: '道具の作り方' },
   { file: '03-faq', title: 'よくある質問' },
-  { file: '04-kenri', title: '権利のはやわかり' },
+  { file: '04-kenri', title: '権利について' },
 ]
 
 function articleSource(file: string): string {
