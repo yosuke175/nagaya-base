@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { compressImageToDataUrl } from '../lib/imageCompress'
+import { useClickOutside } from '../lib/useClickOutside'
 import {
   THEME_COLOR_FIELDS,
   THEME_PRESETS,
@@ -14,6 +15,163 @@ import {
 
 const TEXTURE_MAX_DIM = 600
 const TEXTURE_MAX_BYTES = 120 * 1024
+
+// --- 色変換（HSL <-> HEX）: 自前カラーピッカー用 -----------------------------
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  const l = (max + min) / 2
+  let h = 0
+  let s = 0
+  if (d !== 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) }
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sn = s / 100
+  const ln = l / 100
+  const a = sn * Math.min(ln, 1 - ln)
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const c = ln - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)))
+    return Math.round(255 * c)
+      .toString(16)
+      .padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+/**
+ * 色の四角（スウォッチ）をクリックすると開く自前カラーピッカー。
+ * 色相・彩度・明度スライダー＋HEX入力で選び、「決定」または外側クリックで閉じる。
+ * （native の <input type=color> は閉じるボタンが無く分かりにくいので使わない）
+ */
+function ColorField({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string
+  hint: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, () => setOpen(false), open)
+
+  const { h, s, l } = hexToHsl(value)
+  const [hexText, setHexText] = useState(value.slice(1))
+  useEffect(() => setHexText(value.slice(1)), [value])
+
+  const setHsl = (nh: number, ns: number, nl: number) => onChange(hslToHex(nh, ns, nl))
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative" ref={ref}>
+        {/* この四角だけがピッカーを開くトリガー */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={`${label}の色を選ぶ`}
+          className="h-8 w-12 rounded border border-stone-300 shadow-inner"
+          style={{ backgroundColor: value }}
+        />
+        {open && (
+          <div className="absolute left-0 top-9 z-30 w-60 rounded-xl border border-stone-200 bg-white p-3 shadow-xl">
+            <div className="mb-2 flex items-center gap-2">
+              <span
+                className="inline-block h-6 w-6 rounded border border-stone-300"
+                style={{ backgroundColor: value }}
+              />
+              <p className="text-xs font-semibold text-stone-600">{label}の色</p>
+            </div>
+
+            <label className="block text-xs text-stone-500">
+              色あい
+              <input
+                type="range"
+                min={0}
+                max={360}
+                value={h}
+                onChange={(e) => setHsl(Number(e.target.value), s, l)}
+                className="nb-range mt-1 w-full"
+                style={{
+                  background:
+                    'linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)',
+                }}
+              />
+            </label>
+            <label className="mt-2 block text-xs text-stone-500">
+              あざやかさ
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={s}
+                onChange={(e) => setHsl(h, Number(e.target.value), l)}
+                className="nb-range mt-1 w-full"
+                style={{
+                  background: `linear-gradient(to right, hsl(${h},0%,${l}%), hsl(${h},100%,${l}%))`,
+                }}
+              />
+            </label>
+            <label className="mt-2 block text-xs text-stone-500">
+              明るさ
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={l}
+                onChange={(e) => setHsl(h, s, Number(e.target.value))}
+                className="nb-range mt-1 w-full"
+                style={{
+                  background: `linear-gradient(to right,#000,hsl(${h},${s}%,50%),#fff)`,
+                }}
+              />
+            </label>
+
+            <div className="mt-3 flex items-center gap-1">
+              <span className="text-xs text-stone-500">#</span>
+              <input
+                value={hexText}
+                maxLength={6}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6)
+                  setHexText(cleaned)
+                  if (/^[0-9a-fA-F]{6}$/.test(cleaned)) onChange(`#${cleaned}`)
+                }}
+                className="w-20 rounded border border-stone-300 px-2 py-1 font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="btn-primary ml-auto rounded-lg px-3 py-1.5 text-xs font-medium"
+              >
+                決定
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <span className="text-xs">
+        <span className="font-medium">{label}</span>
+        <span className="ml-2 text-stone-400">{hint}</span>
+      </span>
+    </div>
+  )
+}
 
 export function ThemeEditor() {
   const [theme, setTheme] = useState<ThemePrefs>(() => loadTheme())
@@ -72,37 +230,29 @@ export function ThemeEditor() {
         </div>
       </div>
 
-      {/* 要素ごとの色 */}
+      {/* 要素ごとの色（色の四角をクリックしてピッカーを開く） */}
       <div className="grid gap-2">
-        <p className="text-xs text-stone-600">要素ごとの色</p>
+        <p className="text-xs text-stone-600">要素ごとの色（色の四角を押して選ぶ）</p>
         {THEME_COLOR_FIELDS.map((field) => (
-          <label key={field.key} className="flex items-center gap-3">
-            <input
-              type="color"
-              value={theme[field.key] as string}
-              onChange={(e) => update({ [field.key]: e.target.value } as Partial<ThemePrefs>)}
-              className="h-7 w-10 shrink-0 cursor-pointer rounded border border-stone-200 bg-transparent p-0"
-            />
-            <span className="text-xs">
-              <span className="font-medium">{field.label}</span>
-              <span className="ml-2 text-stone-400">{field.hint}</span>
-            </span>
-          </label>
+          <ColorField
+            key={field.key}
+            label={field.label}
+            hint={field.hint}
+            value={theme[field.key] as string}
+            onChange={(v) => update({ [field.key]: v } as Partial<ThemePrefs>)}
+          />
         ))}
       </div>
 
       {/* 壁紙（地の色＋テクスチャ） */}
       <div className="grid gap-2">
         <p className="text-xs text-stone-600">壁紙</p>
-        <label className="flex items-center gap-3">
-          <input
-            type="color"
-            value={theme.cream}
-            onChange={(e) => update({ cream: e.target.value })}
-            className="h-7 w-10 shrink-0 cursor-pointer rounded border border-stone-200 bg-transparent p-0"
-          />
-          <span className="text-xs">壁紙の色（地の色）</span>
-        </label>
+        <ColorField
+          label="壁紙の色"
+          hint="地の色"
+          value={theme.cream}
+          onChange={(v) => update({ cream: v })}
+        />
 
         <input
           ref={fileRef}
@@ -114,7 +264,7 @@ export function ThemeEditor() {
             if (file) void pickTexture(file)
           }}
         />
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mt-1 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}

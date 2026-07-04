@@ -49,3 +49,31 @@
 .accent-topbar {
   border-top: 3px solid var(--accent);
 }
+
+/* テーマの色スライダー（色相・彩度・明度）。背景グラデが見えるよう見た目を上書き */
+.nb-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+}
+.nb-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #57534e;
+  cursor: pointer;
+}
+.nb-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid #57534e;
+  cursor: pointer;
+}
