@@ -96,6 +96,12 @@ $b=[byte[]]::new(32);[Security.Cryptography.RandomNumberGenerator]::Fill($b);[Co
 - **`service_role` キーは Pages の環境変数に設定しない**（Workers の Secret のみ — CLAUDE.md DO NOT 1）
 - 名称確定まで pages.dev サブドメインは対外共有しない（[docs/requirements.md](docs/requirements.md) §0）
 
+## 広報素材メモ（チラシの要修正点）
+
+`assets/keyvisual/flyer-original.png` は画像編集が必要なため向井が別途対応（Canva等）。
+修正点: ① Honnmono → **Honmono** ② 「一般社団法人」表記を外す（協会承認前のため）
+③ 「AIアプリ」→「道具（ガジェット）」 ④ URL/QR はリポジトリ公開状態の確認後に入れる。
+
 ## ガジェットを作りたい人へ
 
 [docs/gadget-spec.md](docs/gadget-spec.md) を読み、`gadgets/_template/` をコピーしてください。
