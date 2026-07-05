@@ -2,6 +2,25 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（非段3の設計を全実装: ADR-011 ツール開放 + #17 tier + #18 記事）
+
+向井「永続記憶未満の設計は全部実装。迷う所は推奨案で、E6まで確認を待たず完遂」を受けて自律実装。
+
+- #17 tier: `gadget.ai.complete({tier:'fast'|'smart'})` → `/api/ai` が `TIER_MODEL[tier][provider]` で解決。
+- ADR-011（gadget-spec v1.6 §9）E1〜E4:
+  - SDK: `aiTools`／permission `ai-tools`／`gadget.ai.onToolInvoke`／host→gadget の `tool-invoke` RPC
+    （createRpcClient を分離し port で RPC応答とツール実行を一本化）
+  - host: `createGadgetHost.invokeTool`、`gadgetTools` 登録簿（棚に開いている＋承認済みのみ）、GadgetFrame が登録
+  - 案内AI: タグ方式 `nagaya-tool` パーサ（テスト付き）＋エージェント的ループ（read自動・最大3連鎖／act承認ボタン）
+  - スケジュール秘書で実証（list_events=read / create_event=act）。version 0.3.0（ai-tools 追加で要再承認）
+- #18: 案内所に「学びの3段階」記事（06-manabi.md）→ reindex 済み（21ファイル/68チャンク）
+- 自律判断（推奨案）:
+  - ツールプロトコルは**タグ方式**（プロバイダの function-calling API 差を回避・段2の実装を再利用）
+  - 呼べるのは**今棚に開いているガジェットのみ**（隠しiframeプールを避け「見ている道具を操作」に限定）
+  - **E5 streaming は進捗表示で代替し、真のトークンstreamingは繰り延べ**（Functions+iframe配信は大規模インフラで、
+    進捗表示があれば体感の主目的は満たせるため。backlog #17 に streaming 残）
+- 未検証: 案内AI↔ガジェットの通しE2Eはログイン＋実デプロイ必須（パーサ/型はテスト、build+56テスト緑）
+
 ## 2026-07-05（設計メモ: 2軸の独立＋"学びの3段階"カリキュラム）
 
 向井との対話で固めた整理（実装なし・設計記録）:

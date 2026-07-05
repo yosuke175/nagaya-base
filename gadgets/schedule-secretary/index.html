@@ -380,6 +380,29 @@
         }
         statusEl.hidden = true;
 
+        // ADR-011: 案内AIからのツール実行に応答する（read=list_events / act=create_event）。
+        // 実際の実行はいずれもユーザー承認のうえで案内AI経由で呼ばれる。
+        gadget.ai?.onToolInvoke?.(async ({ name, args }) => {
+          if (!credential) throw new Error("先に連携設定（GAS WebApp）を済ませてください");
+          if (name === "list_events") {
+            return { events: await callGas("list") };
+          }
+          if (name === "create_event") {
+            if (!args.title || !args.start) {
+              throw new Error("title と start（開始日時 ISO）が必要です");
+            }
+            const created = await callGas("create", {
+              title: String(args.title),
+              description: args.description ? String(args.description) : "",
+              start: String(args.start),
+              end: args.end ? String(args.end) : String(args.start),
+            });
+            await reloadList().catch(() => {});
+            return { ok: true, created };
+          }
+          throw new Error("未対応のツールです: " + name);
+        });
+
         // gadget.services is part of the spec (§4) but may not be implemented
         // by the platform yet — degrade to an explanatory screen.
         if (!gadget.services || typeof gadget.services.getCredential !== "function") {

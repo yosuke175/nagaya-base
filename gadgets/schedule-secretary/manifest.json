@@ -2,13 +2,28 @@
   "manifestVersion": 1,
   "id": "schedule-secretary",
   "name": "スケジュール秘書",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Google カレンダーの今後30日の予定を表示・追加・移動・削除できるスケジュール秘書。「AIに相談」で空き時間への挿入案を提案（登録はあなたの承認後）。案件名・メモ・相談は音声入力対応。連携にはユーザー自身がデプロイする GAS WebApp を使います（セットアップ手順は gas/SETUP.md）。",
   "author": { "name": "向井庸祐", "contact": "yosuke175@gmail.com" },
   "entry": "index.html",
   "icon": "cover.webp",
   "size": { "default": "large", "supported": ["large", "full"] },
-  "permissions": ["storage", "microphone", "ai"],
+  "permissions": ["storage", "microphone", "ai", "ai-tools"],
+  "aiTools": [
+    { "name": "list_events", "description": "今後の予定の一覧を返す（読み取り）", "kind": "read" },
+    {
+      "name": "create_event",
+      "description": "予定を1件作成する。args: title(必須), start(ISO日時・必須), end(ISO日時), description",
+      "kind": "act",
+      "requiresConfirm": true,
+      "params": {
+        "title": { "type": "string", "required": true },
+        "start": { "type": "string", "required": true },
+        "end": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    }
+  ],
   "externalServices": [
     {
       "id": "gas-webapp",
