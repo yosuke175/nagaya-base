@@ -24,6 +24,9 @@ interface CatalogViewProps {
   isAdmin: boolean
   onInstall: (dir: string) => void
   onUninstall: (dir: string) => void
+  /** 速報！や入居者一覧から「この道具を見る」で来たとき、そのカードへスクロール＆強調 */
+  focusDir?: string | null
+  onFocusHandled?: () => void
 }
 
 /** Gadget catalog (FR-03) with per-user install/uninstall (FR-04). */
@@ -34,6 +37,8 @@ export function CatalogView({
   isAdmin,
   onInstall,
   onUninstall,
+  focusDir,
+  onFocusHandled,
 }: CatalogViewProps) {
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +68,24 @@ export function CatalogView({
       cancelled = true
     }
   }, [])
+
+  // 速報！/入居者一覧から「この道具を見る」で来たら、そのカードへスクロール＆一瞬強調。
+  useEffect(() => {
+    if (!focusDir || !entries || !recordsReady) return
+    const raf = requestAnimationFrame(() => {
+      const el = document.getElementById(`gadget-card-${focusDir}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.style.outline = '3px solid var(--nb-terra)'
+        el.style.outlineOffset = '2px'
+        window.setTimeout(() => {
+          el.style.outline = ''
+        }, 2500)
+      }
+      onFocusHandled?.()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [focusDir, entries, recordsReady, onFocusHandled])
 
   if (error) {
     return (
@@ -197,7 +220,7 @@ function CatalogCard({
   // 将来「職人別の棚（この職人の道具一覧）」に拡張しやすいよう、
   // カード単位のコンポーネントを維持する（author 起点の絞り込みは未実装）
   return (
-    <section className="nb-panel flex flex-col overflow-hidden">
+    <section id={`gadget-card-${entry.dir}`} className="nb-panel flex flex-col overflow-hidden">
       {coverImage && !coverFailed && (
         <img
           src={coverImage}

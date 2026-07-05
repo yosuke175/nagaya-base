@@ -17,9 +17,11 @@ interface ResidentsViewProps {
   /** 軒先（ゲスト）は false。インストール導線を出さない */
   canInstall: boolean
   onInstall: (dir: string) => void
+  /** 道具名クリックで道具市の該当ガジェットへ */
+  onOpenGadget?: (dir: string) => void
 }
 
-export function ResidentsView({ installed, canInstall, onInstall }: ResidentsViewProps) {
+export function ResidentsView({ installed, canInstall, onInstall, onOpenGadget }: ResidentsViewProps) {
   const [residents, setResidents] = useState<ResidentEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ResidentEntry | null>(null)
@@ -42,6 +44,7 @@ export function ResidentsView({ installed, canInstall, onInstall }: ResidentsVie
         installed={installed}
         canInstall={canInstall}
         onInstall={onInstall}
+        onOpenGadget={onOpenGadget}
         onBack={() => setSelected(null)}
       />
     )
@@ -101,12 +104,14 @@ function ResidentDetail({
   installed,
   canInstall,
   onInstall,
+  onOpenGadget,
   onBack,
 }: {
   resident: ResidentEntry
   installed: string[]
   canInstall: boolean
   onInstall: (dir: string) => void
+  onOpenGadget?: (dir: string) => void
   onBack: () => void
 }) {
   const [gadgets, setGadgets] = useState<ResidentGadget[] | null>(null)
@@ -184,6 +189,7 @@ function ResidentDetail({
         installed={installed}
         canInstall={canInstall}
         onInstall={onInstall}
+        onOpenGadget={onOpenGadget}
       />
       <GadgetGroup
         title="部屋に入れている道具"
@@ -192,6 +198,7 @@ function ResidentDetail({
         installed={installed}
         canInstall={canInstall}
         onInstall={onInstall}
+        onOpenGadget={onOpenGadget}
       />
     </div>
   )
@@ -204,6 +211,7 @@ function GadgetGroup({
   installed,
   canInstall,
   onInstall,
+  onOpenGadget,
 }: {
   title: string
   empty: string
@@ -211,6 +219,7 @@ function GadgetGroup({
   installed: string[]
   canInstall: boolean
   onInstall: (dir: string) => void
+  onOpenGadget?: (dir: string) => void
 }) {
   return (
     <section className="mb-5">
@@ -226,9 +235,21 @@ function GadgetGroup({
             const already = installed.includes(gadget.gadget_id)
             return (
               <div key={gadget.gadget_id} className="nb-panel flex items-center gap-3 p-3 text-sm">
-                <p className="min-w-0 flex-1 truncate font-medium" style={{ color: 'var(--nb-navy)' }}>
-                  {gadget.name ?? gadget.gadget_id}
-                </p>
+                {onOpenGadget ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenGadget(gadget.gadget_id)}
+                    className="min-w-0 flex-1 truncate text-left font-medium underline-offset-2 hover:underline"
+                    style={{ color: 'var(--nb-navy)' }}
+                    title="道具市でこの道具を見る"
+                  >
+                    {gadget.name ?? gadget.gadget_id}
+                  </button>
+                ) : (
+                  <p className="min-w-0 flex-1 truncate font-medium" style={{ color: 'var(--nb-navy)' }}>
+                    {gadget.name ?? gadget.gadget_id}
+                  </p>
+                )}
                 {already ? (
                   <span className="shrink-0 text-xs text-stone-400">導入済み</span>
                 ) : canInstall ? (

@@ -16,7 +16,14 @@ import {
 // 歩みは案内所（help）内に移設したので、速報！は help に飛ばす（既定で長屋の歩みが開く）
 type InfoView = 'announcements' | 'calendar' | 'help'
 
-export function InfoSlot({ onNavigate }: { onNavigate?: (view: InfoView) => void }) {
+export function InfoSlot({
+  onNavigate,
+  onOpenGadget,
+}: {
+  onNavigate?: (view: InfoView) => void
+  /** 速報！の各項目（道具公開）から、道具市の該当ガジェットへ飛ぶ */
+  onOpenGadget?: (dir: string) => void
+}) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [nextEvent, setNextEvent] = useState<EventItem | null>(null)
@@ -62,20 +69,35 @@ export function InfoSlot({ onNavigate }: { onNavigate?: (view: InfoView) => void
         </button>
       )}
       {feed.length > 0 && (
-        <button
-          type="button"
-          onClick={() => onNavigate?.('help')}
-          className="nb-panel p-3 text-left hover:opacity-90"
-        >
+        <div className="nb-panel p-3">
           <p className="text-xs font-semibold" style={{ color: 'var(--nb-terra)' }}>
             速報！
           </p>
-          {feed.map((item) => (
-            <p key={item.id} className="mt-1 truncate text-sm">
-              {item.summary}
-            </p>
-          ))}
-        </button>
+          {feed.map((item) => {
+            // 道具公開の速報は、その道具（target=道具ID＝道具市のdir）へ飛べる
+            const dir = item.type === 'gadget_published' && item.target ? item.target : null
+            return dir && onOpenGadget ? (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenGadget(dir)}
+                className="mt-1 block w-full truncate text-left text-sm underline-offset-2 hover:underline"
+                title="道具市でこの道具を見る"
+              >
+                {item.summary}
+              </button>
+            ) : (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onNavigate?.('help')}
+                className="mt-1 block w-full truncate text-left text-sm"
+              >
+                {item.summary}
+              </button>
+            )
+          })}
+        </div>
       )}
       {nextEvent && (
         <button

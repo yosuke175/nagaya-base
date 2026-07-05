@@ -46,6 +46,19 @@ const VIEW_LABEL: Record<View, string> = {
   admin: '大家の間',
 }
 
+/** 各画面の「この画面の使い方」で開く案内所の記事 */
+const VIEW_HELP: Record<View, string> = {
+  dashboard: '12-tenant-tsukau',
+  catalog: '11-tenant-sagasu',
+  announcements: '13-tenant-joho',
+  calendar: '13-tenant-joho',
+  help: '01-hajimete',
+  residents: '14-tenant-heya',
+  workshop: '20-maker-kobo',
+  profile: '14-tenant-heya',
+  admin: '30-admin-kanri',
+}
+
 /** Full-screen guidance overlays (entrance branch is behavioral only) */
 type Overlay = 'entrance' | 'craftsman-guide' | 'tutorial' | null
 
@@ -55,6 +68,17 @@ export default function App() {
   const [installed, setInstalled] = useState<string[]>([])
   const [storeError, setStoreError] = useState<string | null>(null)
   const [helpArticle, setHelpArticle] = useState<string | undefined>(undefined)
+  // 速報！/入居者一覧の道具クリック → 道具市でその道具へスクロール＆強調
+  const [focusGadget, setFocusGadget] = useState<string | null>(null)
+  const openCatalogGadget = (dir: string) => {
+    setFocusGadget(dir)
+    setView('catalog')
+  }
+  // 「この画面の使い方」→ 各画面に対応する案内所の記事
+  const openViewHelp = () => {
+    setHelpArticle(VIEW_HELP[view])
+    setView('help')
+  }
   // settings 値自体は現在ヘッダーから参照しない（案内は「あなたの部屋」へ移設）。
   // 保存の副作用のため setter だけ使う。
   const [, setSettings] = useState<UserSettings | null>(null)
@@ -196,6 +220,18 @@ export default function App() {
             )}
           </div>
           {(auth.status === 'signed-in' || auth.status === 'disabled') && (
+          <div className="flex shrink-0 items-center gap-1">
+            {view !== 'help' && (
+              <button
+                type="button"
+                onClick={openViewHelp}
+                className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
+                title="この画面の使い方（案内所）"
+              >
+                <span aria-hidden>❓</span>
+                <span className="hidden sm:inline">使い方</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setView('profile')}
@@ -211,6 +247,7 @@ export default function App() {
                 </span>
               )}
             </button>
+          </div>
           )}
         </div>
       </header>
@@ -231,6 +268,7 @@ export default function App() {
                 installed={installed}
                 onOpenCatalog={() => setView('catalog')}
                 onNavigate={setView}
+                onOpenGadget={openCatalogGadget}
                 onUninstall={handleUninstall}
               />
             )}
@@ -242,6 +280,8 @@ export default function App() {
                 isAdmin={auth.profile?.role === 'admin'}
                 onInstall={handleInstall}
                 onUninstall={handleUninstall}
+                focusDir={focusGadget}
+                onFocusHandled={() => setFocusGadget(null)}
               />
             )}
             {view === 'announcements' && (
@@ -260,6 +300,7 @@ export default function App() {
                 installed={installed}
                 canInstall={canInstall}
                 onInstall={handleInstall}
+                onOpenGadget={openCatalogGadget}
               />
             )}
             {view === 'workshop' && (
@@ -336,11 +377,13 @@ function Dashboard({
   installed,
   onOpenCatalog,
   onNavigate,
+  onOpenGadget,
   onUninstall,
 }: {
   installed: string[]
   onOpenCatalog: () => void
   onNavigate: (view: View) => void
+  onOpenGadget: (dir: string) => void
   onUninstall: (dir: string) => void
 }) {
   // `npm run dev:gadget <dir>` pins the dashboard to one gadget for development
@@ -360,7 +403,7 @@ function Dashboard({
   if (installed.length === 0) {
     return (
       <>
-        <InfoSlot onNavigate={onNavigate} />
+        <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} />
         <div className="nb-panel p-10 text-center text-sm">
           <img src={IMG.objects.well} alt="" className="mx-auto h-24 w-24 object-contain" />
           <p className="mt-3" style={{ color: 'var(--nb-ink)' }}>
@@ -383,7 +426,7 @@ function Dashboard({
 
   return (
     <>
-      <InfoSlot />
+      <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} />
       <FloatingDesk installed={installed} onUninstall={onUninstall} />
     </>
   )
