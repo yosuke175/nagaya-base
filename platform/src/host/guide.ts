@@ -49,7 +49,10 @@ export async function askGuide(messages: GuideMessage[], context?: GuideContext)
     text?: string
     error?: string
     code?: string
+    timing?: { prepMs: number; ragMs: number; genMs: number; totalMs: number }
   }
+  // 実測: 1ターンの内訳（準備並列/RAG検索/生成/合計）を devtools で確認できる。
+  if (payload.timing) console.debug('[案内AI] timing(ms)', payload.timing)
   if (!response.ok) {
     const err = new Error(
       payload.error ?? `案内AI エラー (HTTP ${response.status})`,

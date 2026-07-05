@@ -155,15 +155,16 @@ async function buildStateTicket(env: Env, userId: string): Promise<string> {
     })
     return response.ok ? ((await response.json()) as unknown[]) : []
   }
-  const profiles = (await get(
-    `profiles?id=eq.${userId}&select=display_name,role,visit_count,last_visit_at`,
-  )) as Array<{ display_name: string; role: string; visit_count: number; last_visit_at: string | null }>
-  const installs = (await get(`installations?user_id=eq.${userId}&select=gadget_id`)) as Array<{
-    gadget_id: string
-  }>
-  const owned = (await get(
-    `gadgets?owner_id=eq.${userId}&status=eq.published&select=id`,
-  )) as Array<{ id: string }>
+  // 3件は互いに独立なので並列（直列だと3往復ぶん待つ）。
+  const [profiles, installs, owned] = (await Promise.all([
+    get(`profiles?id=eq.${userId}&select=display_name,role,visit_count,last_visit_at`),
+    get(`installations?user_id=eq.${userId}&select=gadget_id`),
+    get(`gadgets?owner_id=eq.${userId}&status=eq.published&select=id`),
+  ])) as [
+    Array<{ display_name: string; role: string; visit_count: number; last_visit_at: string | null }>,
+    Array<{ gadget_id: string }>,
+    Array<{ id: string }>,
+  ]
   const p = profiles[0]
   return [
     `- 呼び名: ${p?.display_name ?? '入居者'}（役割: ${p?.role ?? 'user'}）`,
@@ -211,17 +212,15 @@ async function retrieveChunks(
   }
 }
 
-async function buildGuideSystemPrompt(
-  env: Env,
-  userId: string,
+function buildGuideSystemPrompt(
+  state: string,
   chunks: Array<{ source_path: string; content: string }>,
   context?: {
     viewLabel?: string
     tools?: Array<{ gadget: string; gadgetName: string; name: string; description: string; kind: string }>
     persona?: { name?: string; personality?: string; userInfo?: string }
   },
-): Promise<string> {
-  const state = await buildStateTicket(env, userId)
+): string {
   // ペルソナ（性格・話し方）＋利用者の基本情報。長さは念のため制限。
   const clamp = (v: unknown, max: number): string =>
     typeof v === 'string' ? v.replace(/\s+$/g, '').slice(0, max) : ''
@@ -393,7 +392,16 @@ function callProvider(settings: StoredAiSettings, req: AiRequest): Promise<strin
   return callAnthropic(settings, req)
 }
 
-export const onRequest = async (context: { request: Request; env: Env }): Promise<Response> => {
+export const onRequest = async (context: {
+  request: Request
+  env: Env
+  waitUntil?: (promise: Promise<unknown>) => void
+}): Promise<Response> => {
+  // 応答をブロックせずに後片付け（利用記録など）を流す。無ければ単に投げっぱなし。
+  const background = (promise: Promise<unknown>): void => {
+    if (typeof context.waitUntil === 'function') context.waitUntil(promise)
+    else void promise
+  }
   const { request, env } = context
 
   if (request.method === 'GET') {
@@ -561,7 +569,17 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
       if (!aiRequest || !validMessages(aiRequest.messages)) {
         return json(400, { error: 'invalid ai request' }, MARKER)
       }
-      const settings = await loadSettings()
+      const t0 = Date.now()
+      const lastUser =
+        [...aiRequest.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+      // 準備は互いに独立なので並列化（旧: 直列で 設定/レート/埋め込み/状態票 を1つずつ待っていた）。
+      const [settings, recentCount, embedding, state] = await Promise.all([
+        loadSettings(),
+        countRecentUsage(env, userId),
+        embedQuery(env, lastUser),
+        buildStateTicket(env, userId),
+      ])
+      const tPrep = Date.now()
       if (!settings) {
         return json(
           400,
@@ -572,7 +590,7 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           MARKER,
         )
       }
-      if ((await countRecentUsage(env, userId)) >= AI_HOURLY_LIMIT) {
+      if (recentCount >= AI_HOURLY_LIMIT) {
         return json(
           429,
           {
@@ -582,27 +600,31 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
           MARKER,
         )
       }
-      // RAG: 直近のユーザー発話を埋め込み、長屋の .md から近いチャンクを取り出す。
-      // 埋め込みキー未設定/失敗時は RAG なしで続行（案内AIは動く）。
-      const lastUser =
-        [...aiRequest.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
-      const embedding = await embedQuery(env, lastUser)
+      // RAG: 近傍チャンク検索は埋め込み結果に依存（並列不可）。失敗時は RAG なしで続行。
       const chunks = embedding ? await retrieveChunks(env, embedding) : []
+      const tRag = Date.now()
       if (embedding) {
-        // 埋め込みは運営分（プラットフォームキー）として記録
-        await logUsage(env, userId, 'openai', EMBEDDING_MODEL, lastUser.length, 0, 'embed', 'platform')
+        // 埋め込みの利用記録（運営分）は応答をブロックしない（waitUntil）。
+        background(logUsage(env, userId, 'openai', EMBEDDING_MODEL, lastUser.length, 0, 'embed', 'platform'))
       }
-      const system = await buildGuideSystemPrompt(env, userId, chunks, body.context)
+      const system = buildGuideSystemPrompt(state, chunks, body.context)
       const maxTokens =
         typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
           ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)
           : 800
+      // 案内は根拠つきの短い応答なので fast tier（速い/安いモデル）で十分。生成を速くする。
+      const guideModel = TIER_MODEL.fast[settings.provider] ?? settings.model
+      const guideSettings: StoredAiSettings = { ...settings, model: guideModel }
       try {
-        const text = await callProvider(settings, { system, messages: aiRequest.messages, maxTokens })
+        const text = await callProvider(guideSettings, { system, messages: aiRequest.messages, maxTokens })
+        const tGen = Date.now()
         const inputChars =
           system.length + aiRequest.messages.reduce((sum, m) => sum + m.content.length, 0)
-        await logUsage(env, userId, settings.provider, settings.model, inputChars, text.length, 'guide')
-        return json(200, { text }, MARKER)
+        // 利用記録は応答をブロックしない。
+        background(logUsage(env, userId, settings.provider, guideModel, inputChars, text.length, 'guide'))
+        const timing = { prepMs: tPrep - t0, ragMs: tRag - tPrep, genMs: tGen - tRag, totalMs: tGen - t0 }
+        console.log('guide timing', JSON.stringify(timing))
+        return json(200, { text, timing }, MARKER)
       } catch (error) {
         return json(
           502,
