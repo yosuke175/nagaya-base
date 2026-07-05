@@ -265,8 +265,8 @@ export default function App() {
             {view === 'workshop' && (
               <WorkshopView
                 userId={auth.userId}
-                onOpenHelp={() => {
-                  setHelpArticle('05-ai')
+                onOpenHelp={(article) => {
+                  setHelpArticle(article ?? '05-ai')
                   setView('help')
                 }}
               />

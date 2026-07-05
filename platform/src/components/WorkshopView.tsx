@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { fetchCatalog, type CatalogEntry } from '../host/catalog'
-import { appConfig } from '../config'
 import { AiSettingsPanel } from './AiSettingsDialog'
 import { GadgetPreview } from './GadgetPreview'
 import { WizardDownloadButton, WizardWarningNote } from './WizardDownload'
@@ -65,7 +64,8 @@ export function WorkshopView({
   onOpenHelp,
 }: {
   userId: string | null
-  onOpenHelp: () => void
+  /** article 省略時は AI設定ヘルプ(05-ai)を開く（AiSettingsPanel 用） */
+  onOpenHelp: (article?: string) => void
 }) {
   const [mine, setMine] = useState<GadgetRecord[] | null>(null)
   const [catalog, setCatalog] = useState<CatalogEntry[]>([])
@@ -138,35 +138,21 @@ export function WorkshopView({
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-stone-600">
           道具づくりは AI にまかせるのがいちばん簡単です（Claude Code など）。
-          次の流れで進めます。くわしくは案内所の「道具の作り方」を。
+          <strong>GitHubのアカウント作成から</strong>順を追って説明した手順書を用意しました。
+          はじめての方は、まずこちらを開いてください。
         </p>
-        <ol className="mt-2 list-decimal pl-5 text-xs leading-relaxed text-stone-700">
-          <li>
-            GitHub に<strong>自分のコピー（Fork）</strong>を作る
-            <a
-              href={`${appConfig.repoUrl}/fork`}
-              target="_blank"
-              rel="noreferrer"
-              className="ml-1 underline"
-              style={{ color: 'var(--nb-terra)' }}
-            >
-              Fork を作る
-            </a>
-          </li>
-          <li>
-            そのコピーを<strong>クラウドの作業場</strong>で開いて、AIと会話しながら作る（
-            <a
-              href="https://github.com/codespaces/new"
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-              style={{ color: 'var(--nb-terra)' }}
-            >
-              GitHub Codespaces
-            </a>
-            、または Claude Code 等のツールで自分の fork を開く）
-          </li>
-          <li>できたら GitHub に push → 下の「新しい道具をつくる／あなたの道具」の指示文でAIと作り込む</li>
+        <button
+          type="button"
+          onClick={() => onOpenHelp('07-tsukuru-hajimete')}
+          className="btn-primary mt-2 rounded-lg px-4 py-2 text-sm font-medium"
+        >
+          はじめての道具づくり（手順書）を開く
+        </button>
+        <p className="mt-3 text-xs font-semibold text-stone-500">かんたんな流れ（詳しくは上の手順書）</p>
+        <ol className="mt-1 list-decimal pl-5 text-xs leading-relaxed text-stone-700">
+          <li>GitHub にアカウントを作る → 本家を<strong>自分のGitHubにコピー（Fork）</strong></li>
+          <li>そのコピーを<strong>クラウドの作業場</strong>（Codespaces / Claude Code 等）で開いてAIと作る</li>
+          <li>GitHub に push → 下の「新しい道具をつくる」の指示文でAIと作り込む</li>
           <li>
             <strong>「部屋で試運転」</strong>で動作確認（下） → よければ <strong>PR</strong> を出して公開申請 → 道具市へ
           </li>

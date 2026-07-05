@@ -16,6 +16,7 @@ const TOC: Array<{ file: string; title: string }> = [
   { file: 'progress', title: '長屋の歩み' },
   { file: '01-hajimete', title: 'はじめての方へ' },
   { file: '06-manabi', title: '学びの3段階' },
+  { file: '07-tsukuru-hajimete', title: 'はじめての道具づくり（手順）' },
   { file: '02-dougu', title: '道具の作り方' },
   { file: '05-ai', title: 'AIの使い方' },
   { file: '03-faq', title: 'よくある質問' },

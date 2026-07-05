@@ -12,6 +12,12 @@ function escapeHtml(source: string): string {
 
 function inline(text: string): string {
   return text
+    // 画像 ![alt](/img/... または https://...)。リンクより先に処理して `!` を取り込む。
+    // src は自サイトの絶対パス（/…）か https のみ許可（javascript: 等は不可）。
+    .replace(
+      /!\[([^\]]*)\]\((\/[^\s)]+|https:\/\/[^\s)]+)\)/g,
+      '<img src="$2" alt="$1" class="my-2 max-w-full rounded-lg border border-stone-200" />',
+    )
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(
