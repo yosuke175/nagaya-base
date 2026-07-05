@@ -1,0 +1,52 @@
+# セットアップウィザードを「クラウド上で」ビルドして、リリースに添付する。
+#   - Windows(.exe) は windows 実行環境、Mac(.dmg・universal) は macOS 実行環境でビルド。
+#     → Mac 実機が無くても GitHub のクラウド Mac ランナーで .dmg が作れる。
+#   - どちらも未署名（コード証明書なし）。初回起動は SmartScreen / Gatekeeper の警告が出る。
+#
+# 実行方法:
+#   - タグ push（v* 例: v0.1.0）で自動実行、または Actions から手動実行（tag を指定）。
+#   - 成果物は指定タグの Release に上書きアップロード（版なしの固定名なので入手ボタンのURLは不変）。
+name: build-wizard
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 添付先のリリースタグ（例: v0.1.0）
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write # リリースへの資産アップロードに必要
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false # 片方が失敗しても、もう片方はアップロードする
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist
+            artifact: tools/setup-wizard/dist/NagayaBaseSetup-portable.exe
+          - os: macos-latest
+            script: dist:mac
+            artifact: tools/setup-wizard/dist/NagayaBaseSetup-mac.dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: npm ci
+      - name: Build wizard
+        run: npm run ${{ matrix.script }} --workspace setup-wizard
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          gh release upload "$TAG" "${{ matrix.artifact }}" --clobber

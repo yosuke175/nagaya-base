@@ -2,6 +2,21 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（ウィザードの Mac 版をクラウド(CI)でビルド — 次の試用者=井上さんがMac）
+
+向井「次の試用者(井上さん)がMac。クラウド上でMac用ビルドできるでしょ」。→ その通り。GitHub Actions の
+macOS ランナーで .dmg を作る。Mac 実機不要。
+
+- `.github/workflows/build-wizard.yml`: matrix(windows-latest→.exe / macos-latest→.dmg)。
+  タグ push（v*）or 手動実行(tag指定)。`npm ci`→`npm run dist|dist:mac --workspace setup-wizard`→
+  `gh release upload <tag> ... --clobber`（版なし固定名なので入手URLは不変）。permissions: contents:write
+- Mac 設定（package.json build.mac）: `dmg`/`arch:universal`（Intel+Apple Silicon 両対応の単一dmg）/
+  `artifactName: NagayaBaseSetup-mac.dmg`/`identity:null`（未署名＝Gatekeeper警告は出るが実機不要でビルド可）
+- 入手UI: `WizardDownload.tsx` を OS判定式に（Windows/Mac を自動で主ボタン化＋他OSリンク）。
+  警告注記も Windows(SmartScreen)＋Mac(Gatekeeper: 右クリック→開く)の両対応に。config に wizardDownloadUrlMac 追加
+- 実行: main へ push 後 `gh workflow run build-wizard.yml -f tag=v0.1.0`。CI成功でdmgがリリースに付く
+- 注意: Mac も未署名（Apple Developer 証明書なし）→ 初回は「右クリック→開く」。署名/公証は要 Apple 有料アカ
+
 ## 2026-07-05（ウィザード入手を直接DL化＋SmartScreen注意をボタン下に）
 
 向井「入手ボタンがリリースページに飛ぶのは無意味。押したら直接ダウンロードでよい。警告の文言は

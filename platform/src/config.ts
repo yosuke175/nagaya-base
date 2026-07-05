@@ -15,9 +15,10 @@ export const appConfig = {
   /** Upstream repository (single place — the repo name is provisional too). */
   repoUrl,
   /**
-   * セットアップウィザード（Windows）の直接ダウンロードURL。常に最新リリースの資産を指す
+   * セットアップウィザードの直接ダウンロードURL（OS別）。常に最新リリースの資産を指す
    * （/releases/latest/download/...）。資産名は setup-wizard の electron-builder
-   * artifactName（版なし: NagayaBaseSetup-portable.exe）と一致させること。
+   * artifactName（版なし）と一致させること。ビルドは .github/workflows/build-wizard.yml。
    */
   wizardDownloadUrl: `${repoUrl}/releases/latest/download/NagayaBaseSetup-portable.exe`,
+  wizardDownloadUrlMac: `${repoUrl}/releases/latest/download/NagayaBaseSetup-mac.dmg`,
 } as const

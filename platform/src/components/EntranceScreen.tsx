@@ -82,9 +82,9 @@ export function CraftsmanGuide({ onClose }: { onClose: () => void }) {
           </p>
           <ol className="mt-3 list-decimal pl-5 text-sm leading-relaxed">
             <li>
-              下のボタンで<strong>セットアップウィザード</strong>（Windows）をダウンロード
+              下のボタンで<strong>セットアップウィザード</strong>をダウンロード（Windows / Mac 対応）
             </li>
-            <li>ダブルクリックで起動（初回は「詳細情報」→「実行」で警告を通過）</li>
+            <li>ダブルクリックで起動（初回だけ下記の警告を通過してください）</li>
             <li>ウィザードの「次へ」に従うだけで、最初の道具の雛形まで完成します</li>
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-2">
