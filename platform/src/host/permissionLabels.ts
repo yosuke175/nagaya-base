@@ -8,4 +8,5 @@ export const PERMISSION_LABELS: Record<GadgetPermission, string> = {
   profile: 'あなたの表示名を取得します',
   microphone: 'マイクを使用することがあります（音声入力）',
   ai: 'AI による文章生成を利用します（あなたが登録した AI の API キーの利用量を消費します）',
+  'ai-tools': '案内AIがこのガジェットを操作できます（あなたの承認のうえで実行。操作系は毎回確認します）',
 }

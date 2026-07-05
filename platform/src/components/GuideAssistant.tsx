@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { askGuide, type GuideError } from '../host/guide'
+import { askGuide, type GuideError, type GuideMessage } from '../host/guide'
 import { fetchAiStatus } from '../host/aiSettings'
 import { loadLayouts, saveLayout, type WinRect } from '../host/gadgetLayout'
-import { actionLabel, parseGuideReply, type GuideAction, type GuideView } from '../host/guideActions'
+import {
+  actionLabel,
+  parseGuideReply,
+  parseGuideToolCall,
+  type GuideAction,
+  type GuideToolCall,
+  type GuideView,
+} from '../host/guideActions'
 import { loadGadgetManifest } from '../host/gadgetHost'
+import { findTool, invokeGadgetTool, toolCatalog } from '../host/gadgetTools'
 
 interface GuideAssistantProps {
   onOpenAiSettings: () => void
@@ -17,10 +25,21 @@ interface GuideAssistantProps {
 }
 
 interface Msg {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'tool'
   content: string
+  /** モデルへ送る生テキスト（tool は結果JSONを添えた形。無ければ content） */
+  raw?: string
   action?: GuideAction | null
+  toolCall?: GuideToolCall | null
   done?: boolean
+}
+
+/** 表示メッセージ → 案内AIに送る会話（tool 結果は user 発話として渡す） */
+function toConvo(msgs: Msg[]): GuideMessage[] {
+  return msgs.map((m) => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.raw ?? m.content,
+  }))
 }
 
 // 案内AI（段1・ステートレス）: 下部常駐の単一窓。
@@ -30,6 +49,7 @@ interface Msg {
 //  - 生成はユーザーBYOK（/api/ai guide）。AIは任意: 未設定なら入口だけ表示
 
 const MAX_TURNS_SENT = 10
+const MAX_TOOL_STEPS = 3 // 1ユーザー発話あたりの自動ツール連鎖の上限（暴走防止）
 const GUIDE_ID = '__guide__' // レイアウト保存キー（gadgetLayout を流用）
 const MIN_W = 300
 const MIN_H = 240
@@ -139,6 +159,9 @@ export function GuideAssistant({
     if (rect) saveLayout(GUIDE_ID, rect)
   }
 
+  const scrollToEnd = () =>
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }))
+
   const runAction = (index: number, action: GuideAction) => {
     switch (action.type) {
       case 'install':
@@ -157,6 +180,63 @@ export function GuideAssistant({
     setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, done: true } : m)))
   }
 
+  // ADR-011: 1回のAI応答を処理。read ツールは自動実行して連鎖、act は承認待ちにする
+  const runFrom = async (working: Msg[], depth: number): Promise<void> => {
+    const reply = await askGuide(toConvo(working).slice(-MAX_TURNS_SENT), {
+      viewLabel,
+      tools: toolCatalog(),
+    })
+    setConfigured(true)
+    const { text: afterTool, toolCall } = parseGuideToolCall(reply)
+    const { text, action } = parseGuideReply(afterTool)
+    const withReply: Msg[] = [...working, { role: 'assistant', content: text, action, toolCall }]
+    setMessages(withReply)
+    scrollToEnd()
+    if (toolCall) {
+      const def = findTool(toolCall.gadget, toolCall.tool)
+      const needsConfirm = def?.kind === 'act' || def?.requiresConfirm
+      if (needsConfirm) return // act は承認ボタン待ち（confirmTool で続行）
+      if (depth < MAX_TOOL_STEPS) await execAndContinue(withReply, toolCall, depth) // read は自動
+    }
+  }
+
+  const execAndContinue = async (working: Msg[], toolCall: GuideToolCall, depth: number) => {
+    let resultText: string
+    try {
+      const result = await invokeGadgetTool(toolCall.gadget, toolCall.tool, toolCall.args)
+      resultText = JSON.stringify(result)
+    } catch (cause) {
+      resultText = `エラー: ${cause instanceof Error ? cause.message : String(cause)}`
+    }
+    const next: Msg[] = [
+      ...working,
+      {
+        role: 'tool',
+        content: `🔧 ${toolCall.gadget} の「${toolCall.tool}」を実行`,
+        raw: `[ツール結果 ${toolCall.gadget}.${toolCall.tool}] ${resultText}`,
+      },
+    ]
+    setMessages(next)
+    scrollToEnd()
+    await runFrom(next, depth + 1)
+  }
+
+  const confirmTool = async (index: number) => {
+    const msg = messages[index]
+    if (!msg?.toolCall || busy) return
+    const working = messages.map((m, i) => (i === index ? { ...m, done: true } : m))
+    setMessages(working)
+    setBusy(true)
+    try {
+      await execAndContinue(working, msg.toolCall, 0)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+      scrollToEnd()
+    }
+  }
+
   const send = async (preset?: string) => {
     const text = (preset ?? input).trim()
     if (!text || busy) return
@@ -166,22 +246,14 @@ export function GuideAssistant({
     setInput('')
     setBusy(true)
     try {
-      const reply = await askGuide(
-        next.slice(-MAX_TURNS_SENT).map((m) => ({ role: m.role, content: m.content })),
-        { viewLabel },
-      )
-      setConfigured(true)
-      const { text: replyText, action } = parseGuideReply(reply)
-      setMessages((prev) => [...prev, { role: 'assistant', content: replyText, action }])
+      await runFrom(next, 0)
     } catch (cause) {
       const code = (cause as GuideError).code
       if (code === 'ai_not_configured') setConfigured(false)
       else setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-      })
+      scrollToEnd()
     }
   }
 
@@ -283,41 +355,74 @@ export function GuideAssistant({
                 </div>
               </div>
             )}
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
-              >
+            {messages.map((message, index) => {
+              if (message.role === 'tool') {
+                return (
+                  <p key={index} className="text-center text-xs text-stone-400">
+                    {message.content}
+                  </p>
+                )
+              }
+              const toolDef = message.toolCall
+                ? findTool(message.toolCall.gadget, message.toolCall.tool)
+                : null
+              const needsConfirm =
+                message.role === 'assistant' &&
+                message.toolCall != null &&
+                (toolDef?.kind === 'act' || toolDef?.requiresConfirm)
+              return (
                 <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 ${
-                    message.role === 'user'
-                      ? 'btn-primary rounded-br-sm'
-                      : 'rounded-bl-sm bg-stone-100 text-stone-800'
-                  }`}
+                  key={index}
+                  className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
-                  {message.content}
-                </div>
-                {message.role === 'assistant' && message.action && (
-                  <div className="mt-1">
-                    {message.action.type === 'install' &&
-                    installed.includes(message.action.gadgetId) ? (
-                      <span className="text-xs text-stone-400">導入済み</span>
-                    ) : (
+                  {message.content && (
+                    <div
+                      className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 ${
+                        message.role === 'user'
+                          ? 'btn-primary rounded-br-sm'
+                          : 'rounded-bl-sm bg-stone-100 text-stone-800'
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                  )}
+                  {message.role === 'assistant' && message.action && (
+                    <div className="mt-1">
+                      {message.action.type === 'install' &&
+                      installed.includes(message.action.gadgetId) ? (
+                        <span className="text-xs text-stone-400">導入済み</span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={message.done}
+                          onClick={() => runAction(index, message.action!)}
+                          className="rounded-lg border border-[color:var(--nb-terra)] px-3 py-1 text-xs font-medium disabled:opacity-40"
+                          style={{ color: 'var(--nb-terra)' }}
+                        >
+                          {message.done ? '実行しました' : `▶ ${actionLabel(message.action)}`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {needsConfirm && (
+                    <div className="mt-1">
                       <button
                         type="button"
-                        disabled={message.done}
-                        onClick={() => runAction(index, message.action!)}
+                        disabled={message.done || busy}
+                        onClick={() => void confirmTool(index)}
                         className="rounded-lg border border-[color:var(--nb-terra)] px-3 py-1 text-xs font-medium disabled:opacity-40"
                         style={{ color: 'var(--nb-terra)' }}
                       >
-                        {message.done ? '実行しました' : `▶ ${actionLabel(message.action)}`}
+                        {message.done
+                          ? '実行しました'
+                          : `▶ ${message.toolCall!.gadget} に「${message.toolCall!.tool}」を実行`}
                       </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-            {busy && <p className="text-xs text-stone-400">考え中…</p>}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {busy && <p className="text-xs text-stone-400">道具・案内を確認しています…</p>}
             {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
           </div>
           <div className="flex items-end gap-2 border-t border-stone-100 p-2">

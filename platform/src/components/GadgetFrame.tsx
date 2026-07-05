@@ -13,6 +13,7 @@ import {
   gadgetEntryUrl,
   loadGadgetManifest,
 } from '../host/gadgetHost'
+import { registerGadgetTools, unregisterGadgetTools } from '../host/gadgetTools'
 
 const SIZE_CLASSES: Record<GadgetSize, string> = {
   small: 'col-span-1 min-h-48',
@@ -70,8 +71,21 @@ export function GadgetFrame({
     const host = createGadgetHost(iframe, manifest, {
       onRequestSetup: (service) => setSetupService(service),
     })
-    return () => host.dispose()
-  }, [manifest, approved])
+    // ADR-011: aiTools を宣言し permission 'ai-tools' が承認済みなら、案内AIに開放
+    const exposesTools = (manifest.aiTools?.length ?? 0) > 0 && manifest.permissions.includes('ai-tools')
+    if (exposesTools) {
+      registerGadgetTools({
+        gadgetDir,
+        name: manifest.name,
+        tools: manifest.aiTools ?? [],
+        invoke: (tool, args) => host.invokeTool(tool, args),
+      })
+    }
+    return () => {
+      if (exposesTools) unregisterGadgetTools(gadgetDir)
+      host.dispose()
+    }
+  }, [manifest, approved, gadgetDir])
 
   if (error) {
     return (

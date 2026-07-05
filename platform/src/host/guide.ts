@@ -17,6 +17,14 @@ export interface GuideError extends Error {
 export interface GuideContext {
   /** 今ユーザーが見ている画面の表示名（例: 道具市） */
   viewLabel?: string
+  /** ADR-011: 今操作できるガジェットのツール一覧（棚に開いているもの） */
+  tools?: Array<{
+    gadget: string
+    gadgetName: string
+    name: string
+    description: string
+    kind: 'read' | 'act'
+  }>
 }
 
 /** 直近ターン（messages）＋文脈を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。 */

@@ -73,6 +73,39 @@ export function parseGuideReply(reply: string): { text: string; action: GuideAct
   return { text, action }
 }
 
+/** 案内AIが提案するガジェットのツール呼び出し（ADR-011） */
+export interface GuideToolCall {
+  gadget: string
+  tool: string
+  args: Record<string, unknown>
+}
+
+/**
+ * 回答から ```nagaya-tool {...}``` ブロックを取り出す。gadget/tool が妥当なら toolCall を返す。
+ * 表示用テキストはブロック除去済み。
+ */
+export function parseGuideToolCall(reply: string): { text: string; toolCall: GuideToolCall | null } {
+  const match = reply.match(/```nagaya-tool\s*([\s\S]*?)```/)
+  if (!match) return { text: reply.trim(), toolCall: null }
+  const text = reply.replace(match[0], '').trim()
+  let toolCall: GuideToolCall | null = null
+  try {
+    const raw = JSON.parse(match[1].trim()) as Record<string, unknown>
+    if (
+      raw &&
+      typeof raw.gadget === 'string' &&
+      typeof raw.tool === 'string' &&
+      GADGET_ID_RE.test(raw.gadget)
+    ) {
+      const args = raw.args && typeof raw.args === 'object' ? (raw.args as Record<string, unknown>) : {}
+      toolCall = { gadget: raw.gadget, tool: raw.tool, args }
+    }
+  } catch {
+    toolCall = null
+  }
+  return { text, toolCall }
+}
+
 /** 確認ボタンのラベル（world-view 語彙で表示） */
 export function actionLabel(action: GuideAction): string {
   switch (action.type) {

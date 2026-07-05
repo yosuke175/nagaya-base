@@ -15,7 +15,24 @@ export const PROTOCOL_VERSION = 1;
 // Protocol types (also imported by the platform-side host)
 // ---------------------------------------------------------------------------
 
-export type GadgetPermission = 'storage' | 'notify' | 'profile' | 'microphone' | 'ai';
+export type GadgetPermission =
+  | 'storage'
+  | 'notify'
+  | 'profile'
+  | 'microphone'
+  | 'ai'
+  | 'ai-tools';
+
+/** AIに開ける「道具（ツール）」の宣言（spec §9 / ADR-011）。read=読み取り専用 / act=操作。 */
+export interface GadgetAiTool {
+  name: string;
+  description: string;
+  kind: 'read' | 'act';
+  /** 引数の最小スキーマ（型と必須）。省略可 */
+  params?: Record<string, { type: 'string' | 'number' | 'boolean'; required?: boolean }>;
+  /** act は既定で承認必須。read も明示的に承認を求めたいとき true */
+  requiresConfirm?: boolean;
+}
 
 export type GadgetSize = 'small' | 'medium' | 'large' | 'full';
 
@@ -59,12 +76,38 @@ export interface GadgetManifest {
   size: { default: GadgetSize; supported: GadgetSize[] };
   permissions: GadgetPermission[];
   externalServices?: GadgetExternalService[];
+  /** 案内AIに開けるツール（spec §9 / ADR-011）。宣言＋permission 'ai-tools' ＋ユーザー承認で有効 */
+  aiTools?: GadgetAiTool[];
 }
 
 export const MSG_HANDSHAKE = 'gadget:handshake';
 export const MSG_HANDSHAKE_ACK = 'platform:handshake-ack';
 export const MSG_RPC_REQUEST = 'gadget:rpc-request';
 export const MSG_RPC_RESPONSE = 'platform:rpc-response';
+// ホスト→ガジェットのツール実行（ADR-011）。案内AIの判断でホストが呼び、ガジェットが応答する。
+export const MSG_TOOL_INVOKE = 'platform:tool-invoke';
+export const MSG_TOOL_RESULT = 'gadget:tool-result';
+
+export interface ToolInvokeMessage {
+  type: typeof MSG_TOOL_INVOKE;
+  id: number;
+  tool: string;
+  args: Record<string, unknown>;
+}
+
+export interface ToolResultMessage {
+  type: typeof MSG_TOOL_RESULT;
+  id: number;
+  ok: boolean;
+  result?: unknown;
+  error?: { message: string };
+}
+
+/** onToolInvoke に渡される呼び出し内容 */
+export interface ToolInvocation {
+  name: string;
+  args: Record<string, unknown>;
+}
 
 export interface HandshakeMessage {
   type: typeof MSG_HANDSHAKE;
@@ -193,6 +236,12 @@ export interface GadgetAi {
    * (ADR-001). Returns the generated text only.
    */
   complete(request: AiCompleteRequest): Promise<string>;
+  /**
+   * 案内AIからのツール実行に応答するハンドラを登録する（ADR-011）。
+   * manifest.aiTools で宣言したツールが呼ばれる。戻り値は JSON 化できる値。
+   * 1つ登録すれば全ツールをここで name で分岐して処理する。
+   */
+  onToolInvoke(handler: (call: ToolInvocation) => Promise<unknown> | unknown): void;
 }
 
 export function validateAiRequest(request: unknown): asserts request is AiCompleteRequest {
@@ -236,7 +285,32 @@ export async function createGadget(): Promise<Gadget> {
     );
   }
   const { port } = await performHandshake();
-  const call = createRpcClient(port);
+  const { call, handleResponse } = createRpcClient(port);
+
+  // 案内AIからのツール実行ハンドラ（onToolInvoke で登録）
+  let toolHandler: ((call: ToolInvocation) => Promise<unknown> | unknown) | null = null;
+  const handleToolInvoke = async (msg: ToolInvokeMessage): Promise<void> => {
+    let result: unknown;
+    let error: { message: string } | undefined;
+    try {
+      if (!toolHandler) throw new Error('このガジェットはツールに応答しません（onToolInvoke 未登録）');
+      result = await toolHandler({ name: msg.tool, args: msg.args ?? {} });
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : String(e) };
+    }
+    const response: ToolResultMessage = { type: MSG_TOOL_RESULT, id: msg.id, ok: !error, result, error };
+    port.postMessage(response);
+  };
+
+  // gadget→host の応答と、host→gadget のツール実行を1つのハンドラで捌く
+  port.onmessage = (event: MessageEvent) => {
+    const data = event.data as { type?: string } | undefined;
+    if (data?.type === MSG_TOOL_INVOKE) {
+      void handleToolInvoke(event.data as ToolInvokeMessage);
+      return;
+    }
+    handleResponse(event.data as Partial<RpcResponseMessage>);
+  };
 
   return {
     storage: {
@@ -278,6 +352,9 @@ export async function createGadget(): Promise<Gadget> {
           AI_CALL_TIMEOUT_MS,
         );
         return String(result ?? '');
+      },
+      onToolInvoke(handler: (call: ToolInvocation) => Promise<unknown> | unknown): void {
+        toolHandler = handler;
       },
     },
   };
@@ -334,11 +411,10 @@ function createRpcClient(port: MessagePort) {
     { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: number }
   >();
 
-  port.onmessage = (event: MessageEvent) => {
-    const data = event.data as Partial<RpcResponseMessage> | undefined;
-    if (!data || data.type !== MSG_RPC_RESPONSE || typeof data.id !== 'number') {
-      return;
-    }
+  // gadget→host 呼び出しの応答を処理する（port.onmessage は createGadget 側で
+  // ツール実行(host→gadget)と併せて一本化するため、ここでは関数として返す）。
+  const handleResponse = (data: Partial<RpcResponseMessage> | undefined): void => {
+    if (!data || data.type !== MSG_RPC_RESPONSE || typeof data.id !== 'number') return;
     const entry = pending.get(data.id);
     if (!entry) return;
     pending.delete(data.id);
@@ -350,7 +426,7 @@ function createRpcClient(port: MessagePort) {
     }
   };
 
-  return (
+  const call = (
     method: string,
     params: Record<string, unknown>,
     timeoutMs: number = CALL_TIMEOUT_MS,
@@ -370,4 +446,6 @@ function createRpcClient(port: MessagePort) {
       };
       port.postMessage(message);
     });
+
+  return { call, handleResponse };
 }

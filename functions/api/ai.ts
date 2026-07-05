@@ -215,9 +215,28 @@ async function buildGuideSystemPrompt(
   env: Env,
   userId: string,
   chunks: Array<{ source_path: string; content: string }>,
-  context?: { viewLabel?: string },
+  context?: {
+    viewLabel?: string
+    tools?: Array<{ gadget: string; gadgetName: string; name: string; description: string; kind: string }>
+  },
 ): Promise<string> {
   const state = await buildStateTicket(env, userId)
+  const tools = Array.isArray(context?.tools) ? context.tools.slice(0, 30) : []
+  const toolSection = tools.length
+    ? [
+        '# 使える道具のツール（ADR-011）',
+        '必要なとき、回答の最後に「1つだけ」ツール呼び出しを書ける。形式:',
+        '```nagaya-tool',
+        '{"gadget":"<道具ID>","tool":"<ツール名>","args":{...}}',
+        '```',
+        '- read のツールは結果を受け取ってから回答する。act のツールはユーザー承認後に実行される。',
+        '- 一覧に無いツールは呼ばない。呼ぶ前に本文で一言添える（例:「予定を確認します」）。',
+        '- ツール結果が `[ツール結果 ...]` として渡されたら、それを使って回答を完成させる。',
+        ...tools.map(
+          (t) => `・${t.gadget}.${t.name}（${t.kind}）: ${t.description}〔道具:${t.gadgetName}〕`,
+        ),
+      ].join('\n')
+    : ''
   const docs = chunks.length
     ? [
         '# 長屋の資料（関連する箇所。まずここから答える。該当が無ければ「案内所」を案内する）',
@@ -244,6 +263,8 @@ async function buildGuideSystemPrompt(
     '  ```',
     '- 使える type: install(gadgetId=道具ID) / open(view=部屋・道具市・入居者・案内所・工房・回覧板・長屋暦) / help(article=記事ID 例05-ai) / ai-settings。',
     '- 該当しなければ書かない。**あなたは実行しない**。ユーザーが承認ボタンを押して初めて実行される。提案は本文でも一言添える（例:「道具市を開きますか？」）。',
+    '- nagaya-action（画面/インストール）と nagaya-tool（道具のツール）は、1回の返答でどちらか1つだけにする。',
+    toolSection,
     now,
     '# 利用者の状態（システムが毎回渡す。あなたは会話を記憶しない＝このセッション内だけ覚えている）',
     state,
@@ -372,7 +393,10 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     apiKey?: string
     model?: string
     request?: { system?: string; messages?: unknown; maxTokens?: number; tier?: 'fast' | 'smart' }
-    context?: { viewLabel?: string }
+    context?: {
+      viewLabel?: string
+      tools?: Array<{ gadget: string; gadgetName: string; name: string; description: string; kind: string }>
+    }
   }
   try {
     body = (await request.json()) as typeof body

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actionLabel, parseGuideReply } from './guideActions'
+import { actionLabel, parseGuideReply, parseGuideToolCall } from './guideActions'
 
 describe('parseGuideReply', () => {
   it('returns null action when no block', () => {
@@ -41,5 +41,33 @@ describe('parseGuideReply', () => {
   it('labels actions in the world-view vocabulary', () => {
     expect(actionLabel({ type: 'open', view: 'catalog' })).toBe('道具市を開く')
     expect(actionLabel({ type: 'ai-settings' })).toBe('AI設定を開く')
+  })
+})
+
+describe('parseGuideToolCall', () => {
+  it('returns null when no tool block', () => {
+    expect(parseGuideToolCall('予定を確認しますね').toolCall).toBeNull()
+  })
+
+  it('extracts a gadget tool call and strips the block', () => {
+    const reply =
+      '予定を見てみます。\n```nagaya-tool\n{"gadget":"schedule-secretary","tool":"list_events","args":{"days":7}}\n```'
+    const r = parseGuideToolCall(reply)
+    expect(r.toolCall).toEqual({
+      gadget: 'schedule-secretary',
+      tool: 'list_events',
+      args: { days: 7 },
+    })
+    expect(r.text).toBe('予定を見てみます。')
+  })
+
+  it('defaults args to {} and rejects bad gadget ids / malformed json', () => {
+    expect(
+      parseGuideToolCall('```nagaya-tool\n{"gadget":"todo","tool":"add"}\n```').toolCall,
+    ).toEqual({ gadget: 'todo', tool: 'add', args: {} })
+    expect(
+      parseGuideToolCall('```nagaya-tool\n{"gadget":"BAD ID","tool":"x"}\n```').toolCall,
+    ).toBeNull()
+    expect(parseGuideToolCall('```nagaya-tool\n{oops}\n```').toolCall).toBeNull()
   })
 })

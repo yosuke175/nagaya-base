@@ -3,6 +3,8 @@ import {
   MSG_HANDSHAKE_ACK,
   MSG_RPC_REQUEST,
   MSG_RPC_RESPONSE,
+  MSG_TOOL_INVOKE,
+  MSG_TOOL_RESULT,
   PROTOCOL_VERSION,
   STORAGE_QUOTA_BYTES,
   validateStorageKey,
@@ -12,6 +14,8 @@ import {
   type HandshakeAckMessage,
   type RpcRequestMessage,
   type RpcResponseMessage,
+  type ToolInvokeMessage,
+  type ToolResultMessage,
 } from 'gadget-sdk'
 import { validateAiRequest, type AiCompleteRequest } from 'gadget-sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -180,7 +184,11 @@ export const credentialStore = {
 
 export interface GadgetHost {
   dispose(): void
+  /** 案内AI（ADR-011）がガジェットのツールを実行する。gadget 側 onToolInvoke が応答。 */
+  invokeTool(tool: string, args: Record<string, unknown>): Promise<unknown>
 }
+
+const TOOL_INVOKE_TIMEOUT_MS = 20_000
 
 export interface GadgetRpcHandlerOptions {
   /** Called when the gadget asks to open the credential settings UI. */
@@ -205,6 +213,12 @@ export function createGadgetHost(
   // The SDK re-sends the handshake until acked, so more than one can arrive;
   // each gets its own channel and stale ports simply go unused.
   const ports: MessagePort[] = []
+  let activePort: MessagePort | null = null
+  let nextInvokeId = 1
+  const pendingInvokes = new Map<
+    number,
+    { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: number }
+  >()
 
   const onWindowMessage = (event: MessageEvent) => {
     // Only accept messages coming from this frame's own window.
@@ -213,12 +227,28 @@ export function createGadgetHost(
     if (data?.type !== MSG_HANDSHAKE) return
 
     const channel = new MessageChannel()
-    channel.port1.onmessage = (rpcEvent: MessageEvent) => {
-      const request = rpcEvent.data as RpcRequestMessage | undefined
-      if (request?.type !== MSG_RPC_REQUEST) return
-      void handleRpc(request).then((response) => channel.port1.postMessage(response))
+    channel.port1.onmessage = (portEvent: MessageEvent) => {
+      const message = portEvent.data as { type?: string } | undefined
+      // gadget→host RPC 要求
+      if (message?.type === MSG_RPC_REQUEST) {
+        void handleRpc(portEvent.data as RpcRequestMessage).then((response) =>
+          channel.port1.postMessage(response),
+        )
+        return
+      }
+      // host→gadget ツール実行の結果（ADR-011）
+      if (message?.type === MSG_TOOL_RESULT) {
+        const result = portEvent.data as ToolResultMessage
+        const entry = pendingInvokes.get(result.id)
+        if (!entry) return
+        pendingInvokes.delete(result.id)
+        window.clearTimeout(entry.timer)
+        if (result.ok) entry.resolve(result.result)
+        else entry.reject(new Error(result.error?.message ?? 'tool error'))
+      }
     }
     ports.push(channel.port1)
+    activePort = channel.port1
 
     const ack: HandshakeAckMessage = {
       type: MSG_HANDSHAKE_ACK,
@@ -235,6 +265,28 @@ export function createGadgetHost(
       window.removeEventListener('message', onWindowMessage)
       for (const port of ports) port.close()
       ports.length = 0
+      activePort = null
+      for (const entry of pendingInvokes.values()) {
+        window.clearTimeout(entry.timer)
+        entry.reject(new Error('gadget closed'))
+      }
+      pendingInvokes.clear()
+    },
+    invokeTool(tool: string, args: Record<string, unknown>): Promise<unknown> {
+      return new Promise((resolve, reject) => {
+        if (!activePort) {
+          reject(new Error('ガジェットが接続されていません'))
+          return
+        }
+        const id = nextInvokeId++
+        const timer = window.setTimeout(() => {
+          pendingInvokes.delete(id)
+          reject(new Error(`ツール実行がタイムアウトしました: ${tool}`))
+        }, TOOL_INVOKE_TIMEOUT_MS)
+        pendingInvokes.set(id, { resolve, reject, timer })
+        const message: ToolInvokeMessage = { type: MSG_TOOL_INVOKE, id, tool, args }
+        activePort.postMessage(message)
+      })
     },
   }
 }
