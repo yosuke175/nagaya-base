@@ -2,6 +2,21 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（セットアップウィザードを初リリース v0.1.0 — 空のリリースページ解消）
+
+向井「工房の『セットアップウィザードを入手』を押すと空のリリースページ（There aren't any releases here）」。
+原因: 入手ボタンは `${repoUrl}/releases` を開くが、リリース未公開だった（ウィザードはソースのみ）。
+向井の判断で今すぐ Windows 版をビルドして公開。
+
+- ビルド: `tools/setup-wizard` を `npm run dist`（electron-builder --win portable）。
+  詰まり: electron が workspace ルートに hoist され版が範囲(^43)で解決できず失敗 → build 設定に
+  `electronVersion: "43.0.0"` を明示して解決。既存の dist（7/4 01:11）は renderer 改修・ナビ修正・
+  watercolor・electron更新より前で陳腐化していたため作り直し
+- 公開: GitHub Release `v0.1.0` に `NagayaBaseSetup-0.1.0-portable.exe`（約93MB）を添付。repo は Public のため
+  members がDL可。exe は .gitignore 済み（リポジトリには入れない・リリース添付のみ）
+- 注意（未解決・任意）: 未署名のため初回に Windows SmartScreen 警告が出る（「詳細情報」→「実行」）。
+  実機での通しE2Eは TESTING.md に沿って要実施。各画面に手動続行の逃げ道あり
+
 ## 2026-07-05（案内AIの挨拶＋PWAの更新を確実化〔古いキャッシュ対策〕）
 
 向井「ログインしたら案内AIが声かけを」「reload/ログインで最新がロードされるべき（今は古い状態が開く）」を反映。

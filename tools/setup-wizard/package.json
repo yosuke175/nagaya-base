@@ -18,6 +18,7 @@
   "build": {
     "appId": "jp.studioricordi.gadget-setup-wizard",
     "productName": "NagayaBaseSetup",
+    "electronVersion": "43.0.0",
     "files": [
       "main.js",
       "preload.js",
