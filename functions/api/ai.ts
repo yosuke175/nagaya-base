@@ -392,6 +392,127 @@ function callProvider(settings: StoredAiSettings, req: AiRequest): Promise<strin
   return callAnthropic(settings, req)
 }
 
+// --- streaming（案内AI用・#17）: 生成トークンを届き次第クライアントへ流す ------------
+
+type StreamOpen =
+  | { ok: true; body: ReadableStream<Uint8Array> }
+  | { ok: false; status: number; message: string }
+
+/** 1本の SSE `data:` 行から本文デルタを取り出す（プロバイダ差を吸収）。 */
+function extractDelta(provider: Provider, dataJson: string): string {
+  try {
+    const obj = JSON.parse(dataJson) as {
+      choices?: Array<{ delta?: { content?: string } }>
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+      type?: string
+      delta?: { type?: string; text?: string }
+    }
+    if (provider === 'openai') return obj.choices?.[0]?.delta?.content ?? ''
+    if (provider === 'google')
+      return (obj.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('')
+    // anthropic: content_block_delta の text_delta だけを拾う
+    if (obj.type === 'content_block_delta' && obj.delta?.type === 'text_delta') return obj.delta.text ?? ''
+    return ''
+  } catch {
+    return ''
+  }
+}
+
+/** プロバイダの SSE ストリームを「本文テキストのデルタ」だけの ReadableStream に変換。 */
+function sseToText(
+  provider: Provider,
+  upstream: ReadableStream<Uint8Array>,
+  onDone?: (chars: number) => void,
+): ReadableStream<Uint8Array> {
+  const reader = upstream.getReader()
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+  let buffer = ''
+  let total = 0
+  const emit = (controller: ReadableStreamDefaultController<Uint8Array>, raw: string) => {
+    const line = raw.trim()
+    if (!line.startsWith('data:')) return
+    const payload = line.slice(5).trim()
+    if (!payload || payload === '[DONE]') return
+    const text = extractDelta(provider, payload)
+    if (text) {
+      total += text.length
+      controller.enqueue(encoder.encode(text))
+    }
+  }
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (done) {
+        if (buffer.trim()) emit(controller, buffer) // 末尾の未処理行を流し切る
+        onDone?.(total)
+        controller.close()
+        return
+      }
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const raw of lines) emit(controller, raw)
+    },
+    cancel() {
+      onDone?.(total)
+      void reader.cancel()
+    },
+  })
+}
+
+/** 生成をストリーミングで開始。最初の応答が失敗なら error を返す（本文開始前にJSONで返せる）。 */
+async function openProviderStream(
+  s: StoredAiSettings,
+  req: AiRequest,
+  onDone?: (chars: number) => void,
+): Promise<StreamOpen> {
+  let url: string
+  let headers: Record<string, string>
+  let body: string
+  if (s.provider === 'openai') {
+    const messages = req.system ? [{ role: 'system', content: req.system }, ...req.messages] : req.messages
+    url = 'https://api.openai.com/v1/chat/completions'
+    headers = { 'content-type': 'application/json', authorization: `Bearer ${s.apiKey}` }
+    body = JSON.stringify({ model: s.model, max_tokens: req.maxTokens, messages, stream: true })
+  } else if (s.provider === 'google') {
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      s.model,
+    )}:streamGenerateContent?alt=sse&key=${encodeURIComponent(s.apiKey)}`
+    headers = { 'content-type': 'application/json' }
+    body = JSON.stringify({
+      ...(req.system ? { systemInstruction: { parts: [{ text: req.system }] } } : {}),
+      contents: req.messages.map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      })),
+      generationConfig: { maxOutputTokens: req.maxTokens },
+    })
+  } else {
+    url = 'https://api.anthropic.com/v1/messages'
+    headers = { 'content-type': 'application/json', 'x-api-key': s.apiKey, 'anthropic-version': '2023-06-01' }
+    body = JSON.stringify({
+      model: s.model,
+      max_tokens: req.maxTokens,
+      ...(req.system ? { system: req.system } : {}),
+      messages: req.messages,
+      stream: true,
+    })
+  }
+  const response = await fetch(url, { method: 'POST', headers, body })
+  if (!response.ok || !response.body) {
+    let message = `AI API エラー (HTTP ${response.status})`
+    try {
+      const d = (await response.json()) as { error?: { message?: string } }
+      if (d.error?.message) message = d.error.message
+    } catch {
+      // ignore
+    }
+    return { ok: false, status: response.status, message }
+  }
+  return { ok: true, body: sseToText(s.provider, response.body, onDone) }
+}
+
 export const onRequest = async (context: {
   request: Request
   env: Env
@@ -615,23 +736,31 @@ export const onRequest = async (context: {
       // 案内は根拠つきの短い応答なので fast tier（速い/安いモデル）で十分。生成を速くする。
       const guideModel = TIER_MODEL.fast[settings.provider] ?? settings.model
       const guideSettings: StoredAiSettings = { ...settings, model: guideModel }
-      try {
-        const text = await callProvider(guideSettings, { system, messages: aiRequest.messages, maxTokens })
-        const tGen = Date.now()
-        const inputChars =
-          system.length + aiRequest.messages.reduce((sum, m) => sum + m.content.length, 0)
-        // 利用記録は応答をブロックしない。
-        background(logUsage(env, userId, settings.provider, guideModel, inputChars, text.length, 'guide'))
-        const timing = { prepMs: tPrep - t0, ragMs: tRag - tPrep, genMs: tGen - tRag, totalMs: tGen - t0 }
-        console.log('guide timing', JSON.stringify(timing))
-        return json(200, { text, timing }, MARKER)
-      } catch (error) {
-        return json(
-          502,
-          { error: error instanceof Error ? error.message : 'AI API エラー', code: 'ai_error' },
-          MARKER,
-        )
+      const inputChars =
+        system.length + aiRequest.messages.reduce((sum, m) => sum + m.content.length, 0)
+      // 生成はストリーミング（文字が届き次第クライアントへ流す＝体感TTFT改善・#17）。
+      // 出力の利用記録は、流し終えた時点の文字数で（best-effort・応答をブロックしない）。
+      const opened = await openProviderStream(
+        guideSettings,
+        { system, messages: aiRequest.messages, maxTokens },
+        (chars) => void logUsage(env, userId, settings.provider, guideModel, inputChars, chars, 'guide'),
+      )
+      if (!opened.ok) {
+        return json(502, { error: opened.message, code: 'ai_error' }, MARKER)
       }
+      console.log(
+        'guide timing(pre-stream)',
+        JSON.stringify({ prepMs: tPrep - t0, ragMs: tRag - tPrep, toStreamMs: Date.now() - t0 }),
+      )
+      // text/plain のストリームで返す（クライアントは逐次受信して表示）。
+      return new Response(opened.body, {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-cache',
+          [MARKER]: '1',
+        },
+      })
     }
   } catch {
     return json(502, { error: 'storage error' }, MARKER)

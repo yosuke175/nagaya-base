@@ -36,29 +36,48 @@ export interface GuideContext {
   }
 }
 
-/** 直近ターン（messages）＋文脈を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。 */
-export async function askGuide(messages: GuideMessage[], context?: GuideContext): Promise<string> {
+/**
+ * 直近ターン（messages）＋文脈を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。
+ * 生成はサーバー側でストリーミング（text/plain）。onDelta が届いた分を逐次受け取り、
+ * 戻り値は最終的な全文（呼び出し側は全文でツール/操作タグを解析する）。
+ */
+export async function askGuide(
+  messages: GuideMessage[],
+  context?: GuideContext,
+  onDelta?: (chunk: string) => void,
+): Promise<string> {
   const token = await getAccessToken()
   if (!token) throw new Error('ログインが必要です')
+  const t0 = Date.now()
   const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify({ action: 'guide', request: { messages }, context }),
   })
-  const payload = (await response.json().catch(() => ({}))) as {
-    text?: string
-    error?: string
-    code?: string
-    timing?: { prepMs: number; ragMs: number; genMs: number; totalMs: number }
-  }
-  // 実測: 1ターンの内訳（準備並列/RAG検索/生成/合計）を devtools で確認できる。
-  if (payload.timing) console.debug('[案内AI] timing(ms)', payload.timing)
   if (!response.ok) {
-    const err = new Error(
-      payload.error ?? `案内AI エラー (HTTP ${response.status})`,
-    ) as GuideError
+    const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string }
+    const err = new Error(payload.error ?? `案内AI エラー (HTTP ${response.status})`) as GuideError
     err.code = payload.code
     throw err
   }
-  return payload.text ?? ''
+  if (!response.body) return (await response.text().catch(() => '')) ?? ''
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let full = ''
+  let firstAt = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const chunk = decoder.decode(value, { stream: true })
+    if (!chunk) continue
+    if (!firstAt) {
+      firstAt = Date.now()
+      // 実測: 最初の文字が出るまで（TTFT）。ストリーミングの体感速度の指標。
+      console.debug('[案内AI] TTFT(ms)', firstAt - t0)
+    }
+    full += chunk
+    onDelta?.(chunk)
+  }
+  console.debug('[案内AI] total(ms)', Date.now() - t0)
+  return full
 }

@@ -241,16 +241,38 @@ export function GuideAssistant({
 
   // ADR-011: 1回のAI応答を処理。read ツールは自動実行して連鎖、act は承認待ちにする
   const runFrom = async (working: Msg[], depth: number): Promise<void> => {
-    const reply = await askGuide(toConvo(working).slice(-MAX_TURNS_SENT), {
-      viewLabel,
-      tools: toolCatalog(),
-      persona: {
-        name: persona.label,
-        personality: prefs.personality,
-        userInfo: prefs.userInfo,
-      },
-    })
+    // ストリーミング: まず空の吹き出しを置き、届いた文字を逐次追記して見せる。
+    const streamIndex = working.length
+    setMessages([...working, { role: 'assistant', content: '' }])
+    let reply: string
+    try {
+      reply = await askGuide(
+        toConvo(working).slice(-MAX_TURNS_SENT),
+        {
+          viewLabel,
+          tools: toolCatalog(),
+          persona: {
+            name: persona.label,
+            personality: prefs.personality,
+            userInfo: prefs.userInfo,
+          },
+        },
+        (chunk) => {
+          setMessages((prev) => {
+            const copy = [...prev]
+            const m = copy[streamIndex]
+            if (m && m.role === 'assistant') copy[streamIndex] = { ...m, content: (m.content ?? '') + chunk }
+            return copy
+          })
+          scrollToEnd()
+        },
+      )
+    } catch (cause) {
+      setMessages(working) // 失敗したら空の吹き出しを取り消す
+      throw cause
+    }
     readyRef.current = true
+    // 全文が揃ったら、ツール/操作タグを解析して最終形（タグ除去済み）に置き換える。
     const { text: afterTool, toolCall } = parseGuideToolCall(reply)
     const { text, action } = parseGuideReply(afterTool)
     const withReply: Msg[] = [...working, { role: 'assistant', content: text, action, toolCall }]

@@ -2,6 +2,20 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-06（案内AIをストリーミング表示に＝文字が届き次第出す。体感TTFT改善）
+
+向井「ストリーミングって文字が1行ずつ出るやつでは？今は6秒でいっぺんに出る」。→ その通り。案内AIの生成を
+ストリーミング化した（#17 の一部）。
+- サーバー: `/api/ai` guide を JSON一括 → **text/plain のストリーム**に。`openProviderStream`＋`sseToText`＋
+  `extractDelta` で anthropic(content_block_delta)/openai(choices[].delta.content)/google(alt=sse) の SSE を
+  本文デルタだけに変換して流す。設定/レート/生成開始失敗は本文開始前に JSON エラーで返す。出力の利用記録は
+  流し終えた文字数で best-effort。事前段階(prep/rag)の時間は console に出す
+- クライアント: `askGuide(messages, ctx, onDelta)` が `response.body` を逐次読み、TTFT/total を console.debug。
+  GuideAssistant は空の吹き出しを置いて届いた文字を追記表示→全文が揃ったらツール/操作タグを解析して最終形に置換
+  （タグは末尾なので体感クリーン。失敗時は空吹き出しを取消）
+- 検証: build＋69テスト緑、ai.ts 型クリーン。**ストリーミングは Cloudflare Functions 上でのみ動く**（vite dev では
+  /api/ai が無いので不可）→ 実挙動はデプロイ後に確認。tier=fast・並列prep と併せて体感短縮の想定
+
 ## 2026-07-06（夜間バッチ: 全操作マニュアル＋各所リンク＋速報/入居者→道具市＋案内AI遅延の計測/高速化）
 
 向井「店子→職人→大家の順で全操作マニュアルを画像なし（文章＋図）で作り、各局面からマニュアルへ飛べる
