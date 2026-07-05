@@ -276,6 +276,7 @@ export default function App() {
                 onNavigate={setView}
                 onOpenGadget={openCatalogGadget}
                 onUninstall={handleUninstall}
+                userName={auth.profile?.displayName}
               />
             )}
             {view === 'catalog' && (
@@ -390,12 +391,14 @@ function Dashboard({
   onNavigate,
   onOpenGadget,
   onUninstall,
+  userName,
 }: {
   installed: string[]
   onOpenCatalog: () => void
   onNavigate: (view: View) => void
   onOpenGadget: (dir: string) => void
   onUninstall: (dir: string) => void
+  userName?: string | null
 }) {
   // `npm run dev:gadget <dir>` pins the dashboard to one gadget for development
   if (appConfig.devGadgetDir) {
@@ -414,7 +417,7 @@ function Dashboard({
   if (installed.length === 0) {
     return (
       <>
-        <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} />
+        <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} userName={userName} />
         <div className="nb-panel p-10 text-center text-sm">
           <img src={IMG.objects.well} alt="" className="mx-auto h-24 w-24 object-contain" />
           <p className="mt-3" style={{ color: 'var(--nb-ink)' }}>
@@ -437,7 +440,7 @@ function Dashboard({
 
   return (
     <>
-      <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} />
+      <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} userName={userName} />
       <FloatingDesk installed={installed} onUninstall={onUninstall} />
     </>
   )

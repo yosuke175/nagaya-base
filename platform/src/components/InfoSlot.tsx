@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   infoLayerAvailable,
   listAnnouncements,
@@ -19,15 +19,19 @@ type InfoView = 'announcements' | 'calendar' | 'help'
 export function InfoSlot({
   onNavigate,
   onOpenGadget,
+  userName,
+  roomNo,
 }: {
   onNavigate?: (view: InfoView) => void
   /** 速報！の各項目（道具公開）から、道具市の該当ガジェットへ飛ぶ */
   onOpenGadget?: (dir: string) => void
+  /** 部屋トップの表示名・部屋番号 */
+  userName?: string | null
+  roomNo?: number | null
 }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [nextEvent, setNextEvent] = useState<EventItem | null>(null)
-  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     if (!infoLayerAvailable()) return
@@ -36,90 +40,112 @@ export function InfoSlot({
         setAnnouncements(latestAnnouncements)
         setFeed(latestFeed)
         setNextEvent(upcoming[0] ?? null)
-        setLoaded(true)
       })
-      .catch(() => setLoaded(false)) // 情報系は取れなくても棚の邪魔をしない
+      .catch(() => undefined) // 情報系は取れなくても部屋の帯（背景＋ようこそ）は出す
   }, [])
 
-  if (!infoLayerAvailable() || !loaded) return null
-  if (announcements.length === 0 && feed.length === 0 && !nextEvent) return null
+  const fmtEvent = (iso: string) =>
+    new Intl.DateTimeFormat('ja-JP', {
+      month: 'numeric',
+      day: 'numeric',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(iso))
 
+  // ニュースは中央〜右に最大2つ（速報！→回覧板→次の予定 の優先で先頭2件）
+  const news: ReactNode[] = []
+  if (feed.length > 0) {
+    const item = feed[0]
+    const dir = item.type === 'gadget_published' && item.target ? item.target : null
+    news.push(
+      <NewsCard
+        key="feed"
+        label="速報！"
+        labelColor="var(--nb-terra)"
+        text={item.summary}
+        onClick={() => (dir && onOpenGadget ? onOpenGadget(dir) : onNavigate?.('help'))}
+      />,
+    )
+  }
+  if (announcements.length > 0) {
+    news.push(
+      <NewsCard
+        key="ann"
+        label="回覧板"
+        text={announcements[0].title}
+        onClick={() => onNavigate?.('announcements')}
+      />,
+    )
+  }
+  if (nextEvent) {
+    news.push(
+      <NewsCard
+        key="ev"
+        label="次の予定"
+        text={`${nextEvent.title}（${fmtEvent(nextEvent.starts_at)}）`}
+        onClick={() => onNavigate?.('calendar')}
+      />,
+    )
+  }
+
+  // 「自分の部屋」トップの帯（高さ120px・背景はテーマの roomBg）。左=ようこそ窓、右=ニュース最大2。
   return (
-    <div className="mb-4 grid gap-3 sm:grid-cols-3">
-      {announcements.length > 0 && (
-        <button
-          type="button"
-          onClick={() => onNavigate?.('announcements')}
-          className="nb-panel p-3 text-left hover:opacity-90"
-        >
-          <p className="text-xs font-semibold text-stone-500">回覧板</p>
-          {announcements.map((item) => (
-            <p key={item.id} className="mt-1 truncate text-sm">
-              {item.importance === 'important' && (
-                <span
-                  className="mr-1 rounded px-1 text-xs font-bold text-white"
-                  style={{ backgroundColor: 'var(--nb-terra)' }}
-                >
-                  重要
-                </span>
-              )}
-              {item.title}
-            </p>
-          ))}
-        </button>
-      )}
-      {feed.length > 0 && (
-        <div className="nb-panel p-3">
-          <p className="text-xs font-semibold" style={{ color: 'var(--nb-terra)' }}>
-            速報！
+    <div
+      className="mb-4 overflow-hidden rounded-xl border border-stone-200 bg-stone-100"
+      style={{
+        backgroundImage: 'var(--nb-room-bg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className="flex h-[120px] items-stretch gap-2 p-2">
+        <div className="flex shrink-0 flex-col justify-center rounded-lg bg-white/85 px-4 py-2 shadow-sm backdrop-blur-sm">
+          <p className="text-[11px] text-stone-500">ようこそ</p>
+          <p className="text-base font-bold leading-tight" style={{ color: 'var(--nb-navy)' }}>
+            {userName || '入居者'}
+            <span className="text-xs font-normal text-stone-500"> さん</span>
           </p>
-          {feed.map((item) => {
-            // 道具公開の速報は、その道具（target=道具ID＝道具市のdir）へ飛べる
-            const dir = item.type === 'gadget_published' && item.target ? item.target : null
-            return dir && onOpenGadget ? (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onOpenGadget(dir)}
-                className="mt-1 block w-full truncate text-left text-sm underline-offset-2 hover:underline"
-                title="道具市でこの道具を見る"
-              >
-                {item.summary}
-              </button>
-            ) : (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onNavigate?.('help')}
-                className="mt-1 block w-full truncate text-left text-sm"
-              >
-                {item.summary}
-              </button>
-            )
-          })}
+          {roomNo != null && <p className="text-[11px] text-stone-400">{roomNo}号室</p>}
         </div>
-      )}
-      {nextEvent && (
-        <button
-          type="button"
-          onClick={() => onNavigate?.('calendar')}
-          className="nb-panel p-3 text-left hover:opacity-90"
-        >
-          <p className="text-xs font-semibold text-stone-500">次の予定（長屋暦）</p>
-          <p className="mt-1 text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
-            {nextEvent.title}
-          </p>
-          <p className="text-xs text-stone-500">
-            {new Intl.DateTimeFormat('ja-JP', {
-              month: 'numeric',
-              day: 'numeric',
-              weekday: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            }).format(new Date(nextEvent.starts_at))}
-          </p>
-        </button>
-      )}
+        {news.length > 0 && (
+          <div className="ml-auto flex min-w-0 items-stretch gap-2">
+            {news.slice(0, 2).map((card, i) => (
+              // 2つ目は狭い画面では隠す（最大2・中央〜右）
+              <div key={i} className={i === 1 ? 'hidden sm:contents' : 'contents'}>
+                {card}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+function NewsCard({
+  label,
+  labelColor,
+  text,
+  onClick,
+}: {
+  label: string
+  labelColor?: string
+  text: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-40 flex-col justify-center rounded-lg bg-white/85 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-white sm:w-48"
+    >
+      <p className="text-[11px] font-semibold" style={{ color: labelColor ?? '#78716c' }}>
+        {label}
+      </p>
+      <p className="truncate text-sm" style={{ color: 'var(--nb-ink)' }}>
+        {text}
+      </p>
+    </button>
   )
 }

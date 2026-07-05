@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { compressImageToDataUrl } from '../lib/imageCompress'
 import { useClickOutside } from '../lib/useClickOutside'
 import {
+  ROOM_SAMPLES,
   THEME_COLOR_FIELDS,
   THEME_PRESETS,
   loadTheme,
@@ -15,6 +16,9 @@ import {
 
 const TEXTURE_MAX_DIM = 600
 const TEXTURE_MAX_BYTES = 120 * 1024
+// 部屋トップ背景（横長の帯）は幅を活かすので大きめに許容
+const ROOM_MAX_DIM = 1800
+const ROOM_MAX_BYTES = 200 * 1024
 
 // --- 色変換（HSL <-> HEX）: 自前カラーピッカー用 -----------------------------
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
@@ -177,6 +181,7 @@ export function ThemeEditor() {
   const [theme, setTheme] = useState<ThemePrefs>(() => loadTheme())
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const roomFileRef = useRef<HTMLInputElement>(null)
 
   // 変更は即座に適用＆保存（プレビューしながら調整できる）
   const update = (patch: Partial<ThemePrefs>) => {
@@ -194,6 +199,19 @@ export function ThemeEditor() {
       setError(cause instanceof Error ? cause.message : String(cause))
     }
   }
+
+  const pickRoomBg = async (file: File) => {
+    setError(null)
+    try {
+      const { dataUrl } = await compressImageToDataUrl(file, ROOM_MAX_DIM, ROOM_MAX_BYTES)
+      update({ roomBg: dataUrl })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+  // 既定サンプル（未設定時）と、選択中サンプルの判定
+  const roomSelected = (id: string) =>
+    theme.roomBg === `sample:${id}` || (!theme.roomBg && id === ROOM_SAMPLES[0].id)
 
   return (
     <div className="nb-panel mt-4 grid gap-4 p-5 text-sm">
@@ -309,6 +327,72 @@ export function ThemeEditor() {
           />
           <span className="w-12 text-right text-stone-400">{theme.textureSize}px</span>
         </label>
+      </div>
+
+      {/* 自分の部屋のトップ背景（高さ120pxの帯） */}
+      <div className="grid gap-2">
+        <p className="text-xs text-stone-600">自分の部屋のトップ背景</p>
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          {ROOM_SAMPLES.map((sample) => (
+            <button
+              key={sample.id}
+              type="button"
+              title={sample.label}
+              onClick={() => update({ roomBg: `sample:${sample.id}` })}
+              className={`overflow-hidden rounded-lg border ${
+                roomSelected(sample.id)
+                  ? 'border-2 border-[var(--nb-navy)]'
+                  : 'border-stone-200 hover:border-stone-400'
+              }`}
+            >
+              <img src={`/img/room/${sample.id}.webp`} alt={sample.label} className="h-8 w-full object-cover" />
+              <span className="block truncate py-0.5 text-[10px] text-stone-500">{sample.label}</span>
+            </button>
+          ))}
+        </div>
+        <input
+          ref={roomFileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void pickRoomBg(file)
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => roomFileRef.current?.click()}
+            className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs"
+          >
+            自分の画像を使う
+          </button>
+          <button
+            type="button"
+            onClick={() => update({ roomBg: 'none' })}
+            className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs"
+          >
+            背景なし
+          </button>
+          <button
+            type="button"
+            onClick={() => update({ roomBg: undefined })}
+            className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs"
+          >
+            既定に戻す
+          </button>
+        </div>
+        <p className="text-xs text-stone-400">
+          現在:{' '}
+          {theme.roomBg === 'none'
+            ? '背景なし'
+            : theme.roomBg?.startsWith('data:')
+              ? 'アップロード画像'
+              : theme.roomBg?.startsWith('sample:')
+                ? (ROOM_SAMPLES.find((s) => `sample:${s.id}` === theme.roomBg)?.label ?? 'サンプル')
+                : '既定'}
+        </p>
       </div>
 
       {error && <p className="text-xs text-red-700">{error}</p>}

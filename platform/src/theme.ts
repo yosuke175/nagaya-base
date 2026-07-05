@@ -21,6 +21,40 @@ export interface ThemePrefs {
   texture?: string
   /** テクスチャの表示サイズ(px) */
   textureSize: number
+  /**
+   * 自分の部屋のトップ背景（高さ120pxの帯）。
+   * 未設定=既定サンプル / 'none'=無し / 'sample:<id>'=同梱サンプル / data-URL=アップロード画像
+   */
+  roomBg?: string
+}
+
+/** 部屋トップ背景の同梱サンプル（public/img/room/<id>.webp）。 */
+export const ROOM_SAMPLES: { id: string; label: string }[] = [
+  { id: 'nagaya-rouka01', label: '長屋の廊下①' },
+  { id: 'nagaya-rouka02', label: '長屋の廊下②' },
+  { id: 'nagaya-gaikan01', label: '長屋の外観①' },
+  { id: 'nagaya-gaikan02', label: '長屋の外観②' },
+  { id: 'tanako01', label: '店子①' },
+  { id: 'tanako02', label: '店子②' },
+  { id: 'tanako03', label: '店子③' },
+  { id: 'tanako04', label: '店子④' },
+  { id: 'syokunin01', label: '職人①' },
+  { id: 'syokunin02', label: '職人②' },
+  { id: 'syokunin03', label: '職人③' },
+  { id: 'syokunin04', label: '職人④' },
+  { id: 'ooya01', label: '大家①' },
+  { id: 'ooya02', label: '大家②' },
+]
+
+const DEFAULT_ROOM_SAMPLE = 'nagaya-rouka01'
+
+/** roomBg 値 → CSS の background-image 値（url(...) または none）。 */
+export function roomBgImage(roomBg?: string): string {
+  if (roomBg === 'none') return 'none'
+  if (typeof roomBg === 'string' && roomBg.startsWith('data:')) return `url('${roomBg}')`
+  if (typeof roomBg === 'string' && roomBg.startsWith('sample:'))
+    return `url('/img/room/${roomBg.slice('sample:'.length)}.webp')`
+  return `url('/img/room/${DEFAULT_ROOM_SAMPLE}.webp')` // 未設定 = 既定サンプル
 }
 
 export const DEFAULT_THEME: ThemePrefs = {
@@ -81,6 +115,13 @@ export function loadTheme(): ThemePrefs {
     if (parsed.texture === 'none' || (typeof parsed.texture === 'string' && parsed.texture.startsWith('data:'))) {
       theme.texture = parsed.texture
     }
+    if (
+      parsed.roomBg === 'none' ||
+      (typeof parsed.roomBg === 'string' &&
+        (parsed.roomBg.startsWith('sample:') || parsed.roomBg.startsWith('data:')))
+    ) {
+      theme.roomBg = parsed.roomBg
+    }
     return theme
   } catch {
     return { ...DEFAULT_THEME }
@@ -97,6 +138,8 @@ export function applyTheme(theme: ThemePrefs): void {
   style.setProperty('--nb-cream', theme.cream)
   style.setProperty('--nb-ink', theme.ink)
   style.setProperty('--nb-texture-size', `${theme.textureSize}px`)
+  // 自分の部屋のトップ背景（InfoSlot 帯が var(--nb-room-bg) で参照）
+  style.setProperty('--nb-room-bg', roomBgImage(theme.roomBg))
   if (theme.texture === 'none') {
     style.setProperty('--nb-texture', 'none')
   } else if (typeof theme.texture === 'string' && theme.texture.startsWith('data:')) {
