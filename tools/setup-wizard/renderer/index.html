@@ -17,8 +17,7 @@
         <li data-step="2">環境診断</li>
         <li data-step="3">GitHub連携</li>
         <li data-step="4">長屋に入る</li>
-        <li data-step="5">最初の道具</li>
-        <li data-step="6">完成</li>
+        <li data-step="5">完成</li>
       </ol>
     </header>
 
@@ -31,7 +30,8 @@
         </p>
         <ul class="plain">
           <li>⏱ 所要時間: 約 <span id="estimated-minutes">15</span> 分</li>
-          <li>🧰 やること: 環境チェック → GitHub 連携 → リポジトリの取得 → 自分のガジェットの雛形作成</li>
+          <li>🧰 やること: 環境チェック → GitHub 連携 → リポジトリの取得 → 開発サーバの起動</li>
+          <li>🛠 道具（ガジェット）づくりは、起動後の長屋の「工房」で行います（お題とAI指示文が用意してあります）</li>
           <li>💡 途中で失敗しても大丈夫。各画面に「手動で続行する方法」があります</li>
         </ul>
         <div class="nav"><button class="primary" data-next>次へ</button></div>
@@ -130,83 +130,29 @@ npm install</pre>
         </details>
       </section>
 
-      <!-- 5. 最初の道具に取りかかる -->
+      <!-- 5. 完成 -->
       <section class="step" data-step="5" hidden>
-        <h2>最初の道具に取りかかる</h2>
-        <p>
-          あなたの最初の道具（ガジェット）の雛形を作ります。
-          お題を選ぶと迷いません（あとで何にでも作り替えられます）。
-        </p>
+        <h2>🎉 準備完了！</h2>
+        <p>開発サーバを起動して、長屋（NAGAYA-BASE）をこのPCのブラウザで開きます。</p>
         <div class="box">
-          <span style="font-size: 13px; color: #57534e">お題を選ぶ（任意）</span>
-          <div class="theme-cards" id="theme-cards">
-            <button type="button" class="theme-card" data-theme="omikuji" data-idea="ボタンを押すと今日の運勢とひとことアドバイスを表示するおみくじ">
-              <span class="t-name">おみくじ</span>
-              <span class="t-desc">押すと今日の運勢が出る</span>
-            </button>
-            <button type="button" class="theme-card" data-theme="today-three" data-idea="今日やることを3つだけ書いて、終えたら消せる小さなToDo">
-              <span class="t-name">今日の3つ</span>
-              <span class="t-desc">今日やる3つだけのToDo</span>
-            </button>
-            <button type="button" class="theme-card" data-theme="prompt-book" data-idea="お気に入りのAIプロンプトを保存して、ワンタップでコピーできるプロンプト帳">
-              <span class="t-name">プロンプト帳</span>
-              <span class="t-desc">推しプロンプトを保存</span>
-            </button>
-            <button type="button" class="theme-card" data-theme="unit-convert" data-idea="坪⇔平米、寸⇔cmなど、よく使う単位をさっと変換する道具">
-              <span class="t-name">単位変換</span>
-              <span class="t-desc">坪⇔m² などをさっと変換</span>
-            </button>
-            <button type="button" class="theme-card" data-theme="blank" data-idea="">
-              <span class="t-name">白紙</span>
-              <span class="t-desc">自分のアイデアで作る</span>
-            </button>
-          </div>
-          <label>道具のID（半角英小文字・数字・ハイフン、3〜40文字。自動で入ります）
-            <input id="gadget-id" placeholder="例: my-first-gadget" spellcheck="false" />
-          </label>
-          <p id="gadget-id-feedback" class="hint"></p>
-          <label>表示名（日本語OK。カタログに表示されます）
-            <input id="gadget-name" placeholder="例: はじめてのガジェット" />
-          </label>
-          <button class="primary" id="gadget-create" disabled>雛形をコピーして道具をつくる</button>
-          <p id="gadget-done" class="ok" hidden></p>
-        </div>
-        <div class="error" id="error-5" hidden></div>
-        <div class="nav">
-          <button data-back>戻る</button>
-          <button class="primary" id="gadget-next" data-next disabled>次へ</button>
-        </div>
-        <details class="manual">
-          <summary>手動で続行する場合</summary>
-          <p>ターミナルでリポジトリのフォルダに入り:</p>
-          <pre>cp -r gadgets/_template gadgets/&lt;あなたのID&gt;
-（Windows: xcopy /E /I gadgets\_template gadgets\&lt;あなたのID&gt;）</pre>
-          <p>その後 <code>gadgets/&lt;ID&gt;/manifest.json</code> の <code>id</code> をフォルダ名と同じに、
-            <code>name</code> を表示名に書き換えてください。</p>
-        </details>
-      </section>
-
-      <!-- 6. 完成 -->
-      <section class="step" data-step="6" hidden>
-        <h2>🎉 完成！</h2>
-        <p>開発サーバを起動して、あなたのガジェットをブラウザで表示します。</p>
-        <div class="box">
-          <button class="primary" id="dev-run">開発サーバを起動してブラウザで開く</button>
+          <button class="primary" id="dev-run">開発サーバを起動して長屋を開く</button>
           <p id="dev-status" class="hint" hidden></p>
           <p class="hint">
             ⚠ このウィザードを閉じると開発サーバも止まります。次からはターミナルで
-            <code id="dev-cmd">npm run dev:gadget &lt;ID&gt;</code>
+            <code id="dev-cmd">npm run dev</code>
             <button id="copy-dev-cmd" class="small">コピー</button> を実行してください。
           </p>
         </div>
         <div class="box">
-          <p><strong>次の一歩: AI にガジェットを作らせる</strong></p>
-          <p class="hint">お使いの AI ツール（Claude 等）に貼り付ける最初の指示文:</p>
-          <pre id="ai-prompt" class="log"></pre>
-          <button id="copy-ai-prompt">指示文をコピー</button>
+          <p><strong>次の一歩: 長屋の「工房」で最初の道具をつくる</strong></p>
+          <p class="hint">
+            開いた長屋にログインし、上のメニュー「工房」を開いてください。
+            「新しい道具をつくる」に<strong>お題とAIへの指示文</strong>が用意してあります。
+            指示文をコピーして、お使いのAI（Claude Code 等）に貼り付ければ、会話しながら作れます。
+          </p>
         </div>
         <pre id="dev-log" class="log" hidden></pre>
-        <div class="error" id="error-6" hidden></div>
+        <div class="error" id="error-5" hidden></div>
         <div class="nav">
           <button data-back>戻る</button>
         </div>

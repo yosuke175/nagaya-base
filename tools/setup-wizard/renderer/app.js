@@ -25,8 +25,7 @@ const STEP_BACKGROUNDS = {
   2: 'img/workshop-tools.webp', // 工房で道具を揃える
   3: 'img/workshop-lantern.webp',
   4: 'img/workshop-lantern.webp',
-  5: 'img/desk-code.webp',
-  6: 'img/marketplace.webp', // 賑わいへ
+  5: 'img/marketplace.webp', // 賑わいへ（完成）
 }
 
 function goTo(step) {
@@ -41,12 +40,6 @@ function goTo(step) {
     item.classList.toggle('done', n < step)
   })
   if (step === 2) void runEnvCheck()
-  if (step === 5 && !gadgetIdInput.value) {
-    // 迷わせない: IDは自動命名で埋めておく（変更可）
-    gadgetIdInput.value = 'my-first-gadget'
-    gadgetIdInput.dispatchEvent(new Event('input'))
-  }
-  if (step === 6) prepareFinish()
 }
 
 function showError(step, error, extra) {
@@ -228,74 +221,10 @@ $('#use-existing').addEventListener('click', async () => {
   $('#setup-next').disabled = false
 })
 
-// ---- step 5: create gadget ---------------------------------------------------------
-
-const gadgetIdInput = $('#gadget-id')
-
-// お題カード: 選ぶと表示名を提案し、完成画面のAI指示文に反映される
-document.querySelectorAll('.theme-card').forEach((card) => {
-  card.addEventListener('click', () => {
-    document.querySelectorAll('.theme-card').forEach((other) => other.classList.remove('selected'))
-    card.classList.add('selected')
-    state.theme = {
-      key: card.dataset.theme,
-      idea: card.dataset.idea,
-      name: card.querySelector('.t-name').textContent,
-    }
-    const nameInput = $('#gadget-name')
-    if (state.theme.key !== 'blank' && !nameInput.value.trim()) {
-      nameInput.value = state.theme.name
-    }
-  })
-})
-gadgetIdInput.addEventListener('input', async () => {
-  const id = gadgetIdInput.value.trim()
-  const feedback = $('#gadget-id-feedback')
-  if (!id) {
-    feedback.textContent = ''
-    $('#gadget-create').disabled = true
-    return
-  }
-  const result = await window.wizard.validateGadgetId({ clonePath: state.clonePath, id })
-  feedback.textContent = result.ok ? '✓ 使えるIDです' : `✗ ${result.reason}`
-  feedback.style.color = result.ok ? '#166534' : '#b91c1c'
-  $('#gadget-create').disabled = !result.ok
-})
-
-$('#gadget-create').addEventListener('click', async () => {
-  clearError(5)
-  const id = gadgetIdInput.value.trim()
-  const name = $('#gadget-name').value.trim()
-  try {
-    const result = await window.wizard.createGadget({ clonePath: state.clonePath, id, name })
-    state.gadgetId = id
-    const done = $('#gadget-done')
-    done.textContent = `✓ ${result.gadgetDir} を作成しました`
-    show(done)
-    $('#gadget-next').disabled = false
-  } catch (error) {
-    showError(5, error, `リポジトリ: ${state.clonePath ?? '未設定'}\nガジェットはまだ作成されていません。`)
-  }
-})
-
-// ---- step 6: finish ------------------------------------------------------------------
-
-function prepareFinish() {
-  const id = state.gadgetId ?? '<あなたのID>'
-  const idea = state.theme && state.theme.idea ? state.theme.idea : '（ここに作りたいものを書く）'
-  $('#dev-cmd').textContent = `npm run dev:gadget ${id}`
-  $('#ai-prompt').textContent =
-    `docs/gadget-spec.md と gadgets/${id}/ の雛形を読んでください。\n` +
-    'この雛形を、次のアイデアのガジェット（道具）に改造してください。\n\n' +
-    `アイデア: ${idea}\n\n` +
-    '制約: gadget-spec.md の仕様を厳守すること\n' +
-    '- プラットフォームとの通信は gadget-sdk（postMessage API）のみ\n' +
-    '- manifest.json で宣言した permissions 以外の SDK 機能は使わない\n' +
-    '- 外部サービスと通信する場合は externalServices の宣言が必要'
-}
+// ---- step 5: finish（開発サーバ起動。道具づくりは長屋の「工房」で） ---------------
 
 $('#dev-run').addEventListener('click', async () => {
-  clearError(6)
+  clearError(5)
   const logBox = $('#dev-log')
   logBox.textContent = ''
   show(logBox)
@@ -303,26 +232,23 @@ $('#dev-run').addEventListener('click', async () => {
   status.textContent = '起動中…（初回は少し時間がかかります）'
   show(status)
   try {
-    await window.wizard.runDev({ clonePath: state.clonePath, id: state.gadgetId })
+    await window.wizard.runDev({ clonePath: state.clonePath })
   } catch (error) {
-    showError(6, error, `ターミナルで ${state.clonePath} に移動し、手動で起動できます: npm run dev:gadget ${state.gadgetId}`)
+    showError(5, error, `ターミナルで ${state.clonePath} に移動し、手動で起動できます: npm run dev`)
   }
 })
 
 window.wizard.onDevReady((url) => {
-  $('#dev-status').textContent = `✓ 起動しました: ${url}（ブラウザを開きました）`
+  $('#dev-status').textContent = `✓ 起動しました: ${url}（ブラウザで長屋を開きました）`
 })
 window.wizard.onDevExit((code) => {
   if (code !== 0 && code !== null) {
-    showError(6, new Error(`開発サーバが終了しました (exit ${code})`), 'ログ（黒い枠）を確認してください。')
+    showError(5, new Error(`開発サーバが終了しました (exit ${code})`), 'ログ（黒い枠）を確認してください。')
   }
 })
 
 $('#copy-dev-cmd').addEventListener('click', () => {
   void navigator.clipboard.writeText($('#dev-cmd').textContent)
-})
-$('#copy-ai-prompt').addEventListener('click', () => {
-  void navigator.clipboard.writeText($('#ai-prompt').textContent)
 })
 
 void init()

@@ -312,15 +312,15 @@ ipcMain.handle('gadget:create', async (_event, { clonePath, id, name }) => {
 
 // --- Dev server ----------------------------------------------------------------
 
-ipcMain.handle('dev:run', (_event, { clonePath, id }) => {
+ipcMain.handle('dev:run', (_event, { clonePath }) => {
   if (devServer) {
     try {
       devServer.kill()
     } catch {}
     devServer = null
   }
-  log(`$ npm run dev:gadget ${id}`)
-  devServer = spawn(`npm run dev:gadget ${id}`, { cwd: clonePath, shell: true, windowsHide: true })
+  log('$ npm run dev')
+  devServer = spawn('npm run dev', { cwd: clonePath, shell: true, windowsHide: true })
   let opened = false
   const onData = (buffer) => {
     const text = stripAnsi(buffer.toString())
