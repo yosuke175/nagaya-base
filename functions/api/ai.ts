@@ -76,6 +76,13 @@ const PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
 }
 const EMBEDDING_MODEL = 'text-embedding-3-small'
 const DEFAULT_PRICE = { in: 1, out: 5 }
+
+// 用途ヒント(tier) → 各プロバイダの具体モデル（ガジェットはモデル名を握らない・#17/ADR-008）。
+// 値はすべて ALLOWED_MODELS に含める。tier 省略時はユーザー設定のモデルを使う。
+const TIER_MODEL: Record<'fast' | 'smart', Record<Provider, string>> = {
+  fast: { anthropic: 'claude-haiku-4-5', openai: 'gpt-4o-mini', google: 'gemini-2.0-flash' },
+  smart: { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', google: 'gemini-1.5-pro' },
+}
 // 文字数からの粗いトークン換算（日英混在の中間値）。あくまで「概算」。
 const CHARS_PER_TOKEN = 4
 
@@ -364,7 +371,7 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     provider?: string
     apiKey?: string
     model?: string
-    request?: { system?: string; messages?: unknown; maxTokens?: number }
+    request?: { system?: string; messages?: unknown; maxTokens?: number; tier?: 'fast' | 'smart' }
     context?: { viewLabel?: string }
   }
   try {
@@ -478,8 +485,13 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
         typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
           ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)
           : 1000
+      // 用途ヒント(tier)があれば、ユーザーのプロバイダに合う具体モデルへ差し替える
+      const tier = aiRequest.tier === 'fast' || aiRequest.tier === 'smart' ? aiRequest.tier : undefined
+      const effective: StoredAiSettings = tier
+        ? { ...settings, model: TIER_MODEL[tier][settings.provider] ?? settings.model }
+        : settings
       try {
-        const text = await callProvider(settings, {
+        const text = await callProvider(effective, {
           system: aiRequest.system,
           messages: aiRequest.messages,
           maxTokens,
@@ -487,7 +499,7 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
         const inputChars =
           (aiRequest.system?.length ?? 0) +
           aiRequest.messages.reduce((sum, m) => sum + m.content.length, 0)
-        await logUsage(env, userId, settings.provider, settings.model, inputChars, text.length)
+        await logUsage(env, userId, effective.provider, effective.model, inputChars, text.length)
         return json(200, { text }, MARKER)
       } catch (error) {
         return json(

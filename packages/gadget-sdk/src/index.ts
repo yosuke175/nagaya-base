@@ -176,6 +176,14 @@ export interface AiCompleteRequest {
   system?: string;
   messages: AiMessage[];
   maxTokens?: number;
+  /**
+   * 用途ヒント（spec v1.6+）。モデル名は指定しない: プラットフォームが
+   * `tier × ユーザーのプロバイダ` を具体モデルに解決する（提供元非依存）。
+   *   'fast'  … 速い/安い（オートコンプリート等）
+   *   'smart' … 賢い（要約・推論等）
+   * 省略時はユーザーが AI設定 で選んだモデルを使う。
+   */
+  tier?: 'fast' | 'smart';
 }
 
 export interface GadgetAi {
@@ -210,6 +218,9 @@ export function validateAiRequest(request: unknown): asserts request is AiComple
     (typeof candidate.maxTokens !== 'number' || candidate.maxTokens <= 0)
   ) {
     throw new Error('maxTokens must be a positive number');
+  }
+  if (candidate.tier !== undefined && candidate.tier !== 'fast' && candidate.tier !== 'smart') {
+    throw new Error("tier must be 'fast' or 'smart'");
   }
 }
 
@@ -256,7 +267,14 @@ export async function createGadget(): Promise<Gadget> {
         validateAiRequest(request);
         const result = await call(
           'ai.complete',
-          { request: { system: request.system, messages: request.messages, maxTokens: request.maxTokens } },
+          {
+            request: {
+              system: request.system,
+              messages: request.messages,
+              maxTokens: request.maxTokens,
+              tier: request.tier,
+            },
+          },
           AI_CALL_TIMEOUT_MS,
         );
         return String(result ?? '');
