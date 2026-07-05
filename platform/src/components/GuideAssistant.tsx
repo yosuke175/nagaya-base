@@ -76,7 +76,9 @@ export function GuideAssistant({
   const [open, setOpen] = useState(false)
   const [narrow, setNarrow] = useState(false)
   const [rect, setRect] = useState<WinRect | null>(null)
-  const [configured, setConfigured] = useState<boolean | null>(null)
+  // AI設定（BYOK）済みか。未設定なら案内AIの窓自体を出さない（費用は各自負担のため）
+  const [aiReady, setAiReady] = useState<boolean | null>(null)
+  const readyRef = useRef(false)
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -95,14 +97,25 @@ export function GuideAssistant({
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // AI設定済みかを確認（マウント時＋画面移動のたび、設定が済むまで）。
+  // 済んだら readyRef で以後は問い合わせない。工房でAI設定→移動すると窓が出る。
+  useEffect(() => {
+    if (readyRef.current) return
+    void fetchAiStatus()
+      .then((status) => {
+        if (status.registered) {
+          readyRef.current = true
+          setAiReady(true)
+        } else {
+          setAiReady(false)
+        }
+      })
+      .catch(() => setAiReady(false))
+  }, [viewLabel])
+
   const openPanel = () => {
     setOpen(true)
     if (!rect) setRect(loadLayouts()[GUIDE_ID] ?? defaultRect())
-    if (configured === null) {
-      void fetchAiStatus()
-        .then((status) => setConfigured(status.registered))
-        .catch(() => setConfigured(false))
-    }
     // 導入済み道具のうち「連携設定が要る」ものを拾い、設定方法チップの候補にする
     void (async () => {
       const found: Array<{ id: string; name: string }> = []
@@ -186,7 +199,7 @@ export function GuideAssistant({
       viewLabel,
       tools: toolCatalog(),
     })
-    setConfigured(true)
+    readyRef.current = true
     const { text: afterTool, toolCall } = parseGuideToolCall(reply)
     const { text, action } = parseGuideReply(afterTool)
     const withReply: Msg[] = [...working, { role: 'assistant', content: text, action, toolCall }]
@@ -249,13 +262,19 @@ export function GuideAssistant({
       await runFrom(next, 0)
     } catch (cause) {
       const code = (cause as GuideError).code
-      if (code === 'ai_not_configured') setConfigured(false)
-      else setError(cause instanceof Error ? cause.message : String(cause))
+      if (code === 'ai_not_configured') {
+        // 途中でキーが外れた等 → 窓ごと隠す（次に設定すれば再表示）
+        readyRef.current = false
+        setAiReady(false)
+      } else setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
       scrollToEnd()
     }
   }
+
+  // AI未設定なら案内AIは出さない（費用は各自のBYOK負担のため、動かせない窓は見せない）
+  if (aiReady !== true) return null
 
   if (!open) {
     return (
@@ -301,27 +320,7 @@ export function GuideAssistant({
         </button>
       </header>
 
-      {configured === false ? (
-        <div className="grid gap-3 p-4 text-sm">
-          <p className="text-stone-600">
-            AIを設定すると、長屋の使い方や道具のインストールを案内します（任意）。
-            <br />
-            未設定でも長屋のすべての機能は使えます。
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false)
-              onOpenAiSettings()
-            }}
-            className="btn-primary justify-self-start rounded-lg px-4 py-2 text-xs font-medium"
-          >
-            AI設定へ（工房）
-          </button>
-        </div>
-      ) : (
-        <>
-          <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+      <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {messages.length === 0 && (
               <div className="grid gap-2">
                 <p className="rounded-lg bg-stone-50 p-3 text-xs text-stone-500">
@@ -448,8 +447,6 @@ export function GuideAssistant({
               送信
             </button>
           </div>
-        </>
-      )}
 
       {/* PCのみ: 右下リサイズハンドル */}
       {floating && (
