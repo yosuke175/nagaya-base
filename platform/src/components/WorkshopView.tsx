@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchCatalog, type CatalogEntry } from '../host/catalog'
-import { appConfig } from '../config'
 import { AiSettingsPanel } from './AiSettingsDialog'
+import { WizardDownloadButton, WizardWarningNote } from './WizardDownload'
 import {
   listMyGadgets,
   registerGadget,
@@ -32,7 +32,6 @@ export function WorkshopView({
   const [mine, setMine] = useState<GadgetRecord[] | null>(null)
   const [catalog, setCatalog] = useState<CatalogEntry[]>([])
   const [error, setError] = useState<string | null>(null)
-  const releasesUrl = `${appConfig.repoUrl}/releases`
 
   const reload = () => {
     if (!userId) return
@@ -87,16 +86,9 @@ export function WorkshopView({
           セットアップウィザードで雛形を用意し、AIに読ませて会話しながら作れます。
           くわしくは案内所の「道具の作り方」を。
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <a
-            href={releasesUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-            style={{ backgroundColor: 'var(--nb-terra)' }}
-          >
-            セットアップウィザードを入手
-          </a>
+        <div className="mt-3">
+          <WizardDownloadButton />
+          <WizardWarningNote />
         </div>
       </div>
 

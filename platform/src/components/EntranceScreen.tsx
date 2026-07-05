@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { IMG } from '../assets'
 import { appConfig } from '../config'
+import { WizardDownloadButton, WizardWarningNote } from './WizardDownload'
 
 // 入口分岐（指示書④ STEP 2）。選択は「行動の分岐」だけで、ステータスや権限は
 // 一切変わらない（2026-07-04 決定: 自己申告の着せ替え。ロールは admin 付与のみ）。
@@ -64,7 +65,6 @@ export function EntranceScreen({ onSelect }: { onSelect: (choice: EntranceChoice
 /** 職人を選んだ人向け: セットアップウィザードのダウンロード案内 */
 export function CraftsmanGuide({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false)
-  const releasesUrl = `${appConfig.repoUrl}/releases`
 
   return (
     <div
@@ -82,33 +82,25 @@ export function CraftsmanGuide({ onClose }: { onClose: () => void }) {
           </p>
           <ol className="mt-3 list-decimal pl-5 text-sm leading-relaxed">
             <li>
-              下のボタンから配布ページを開き、<strong>セットアップウィザード</strong>
-              （NagayaBaseSetup-…-portable.exe）をダウンロード
+              下のボタンで<strong>セットアップウィザード</strong>（Windows）をダウンロード
             </li>
             <li>ダブルクリックで起動（初回は「詳細情報」→「実行」で警告を通過）</li>
             <li>ウィザードの「次へ」に従うだけで、最初の道具の雛形まで完成します</li>
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <a
-              href={releasesUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-              style={{ backgroundColor: 'var(--nb-terra)' }}
-            >
-              ウィザードの配布ページを開く
-            </a>
+            <WizardDownloadButton />
             <button
               type="button"
               onClick={() => {
-                void navigator.clipboard.writeText(releasesUrl)
+                void navigator.clipboard.writeText(appConfig.wizardDownloadUrl)
                 setCopied(true)
               }}
               className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
             >
-              {copied ? 'コピーしました' : 'URLをコピー'}
+              {copied ? 'コピーしました' : 'ダウンロードURLをコピー'}
             </button>
           </div>
+          <WizardWarningNote />
           <p className="mt-3 text-xs" style={{ color: 'var(--nb-ink)' }}>
             PCの準備はあとでもOK。まずは長屋の中を見て回れます。
           </p>

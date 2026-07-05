@@ -28,7 +28,7 @@
     ],
     "win": {
       "target": "portable",
-      "artifactName": "${productName}-${version}-portable.${ext}"
+      "artifactName": "${productName}-portable.${ext}"
     },
     "mac": {
       "target": "dmg"

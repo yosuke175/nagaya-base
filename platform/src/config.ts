@@ -1,5 +1,7 @@
 // All branding comes from configuration — the project name is provisional
 // and must not be hardcoded anywhere in code (docs/requirements.md §0).
+const repoUrl = 'https://github.com/yosuke175/nagaya-base'
+
 export const appConfig = {
   appName: import.meta.env.VITE_APP_NAME ?? 'Gadget Platform (dev)',
   /**
@@ -11,5 +13,11 @@ export const appConfig = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
   /** Upstream repository (single place — the repo name is provisional too). */
-  repoUrl: 'https://github.com/yosuke175/nagaya-base',
+  repoUrl,
+  /**
+   * セットアップウィザード（Windows）の直接ダウンロードURL。常に最新リリースの資産を指す
+   * （/releases/latest/download/...）。資産名は setup-wizard の electron-builder
+   * artifactName（版なし: NagayaBaseSetup-portable.exe）と一致させること。
+   */
+  wizardDownloadUrl: `${repoUrl}/releases/latest/download/NagayaBaseSetup-portable.exe`,
 } as const

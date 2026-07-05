@@ -2,6 +2,20 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（ウィザード入手を直接DL化＋SmartScreen注意をボタン下に）
+
+向井「入手ボタンがリリースページに飛ぶのは無意味。押したら直接ダウンロードでよい。警告の文言は
+ボタンの下に。Macは？（環境非依存の話だったのでは）」を反映。
+
+- 直接DL: `artifactName` を版なし `NagayaBaseSetup-portable.exe` に変更→再ビルド→リリース資産を差し替え。
+  `config.ts` に `wizardDownloadUrl = ${repoUrl}/releases/latest/download/NagayaBaseSetup-portable.exe`
+  （常に最新リリースの資産・302で解決を確認）。工房と入口のボタンを `<a download>` 直DLに
+- SmartScreen注意: 共通コンポーネント `WizardDownload.tsx`（`WizardDownloadButton`／`WizardWarningNote`）を
+  新設し、工房(WorkshopView)と入口(CraftsmanGuide)のボタン直下に常設。リリースページには依存しない
+- Mac について（回答）: ウィザードは Electron のデスクトップアプリ＝OSごとにビルドが必要。"環境非依存"は
+  「利用者の開発環境の差を吸収して雛形まで導く」意味で、単一バイナリが全OSで動く意ではない。Mac版(.dmg)は
+  Mac実機でのビルド/署名が要るため保留（backlog 既知）。当面 Windows のみと明記。全員Windowsなら不要
+
 ## 2026-07-05（セットアップウィザードを初リリース v0.1.0 — 空のリリースページ解消）
 
 向井「工房の『セットアップウィザードを入手』を押すと空のリリースページ（There aren't any releases here）」。
