@@ -25,6 +25,15 @@ export interface GuideContext {
     description: string
     kind: 'read' | 'act'
   }>
+  /** ペルソナ（見た目に合わせた性格・話し方）＋利用者の基本情報 */
+  persona?: {
+    /** 呼び名（例: 女中） */
+    name?: string
+    /** 性格・話し方 */
+    personality?: string
+    /** 利用者の基本情報（名前・呼ばれ方・してほしいこと等） */
+    userInfo?: string
+  }
 }
 
 /** 直近ターン（messages）＋文脈を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。 */

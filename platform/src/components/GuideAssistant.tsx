@@ -12,6 +12,16 @@ import {
 } from '../host/guideActions'
 import { loadGadgetManifest } from '../host/gadgetHost'
 import { findTool, invokeGadgetTool, toolCatalog } from '../host/gadgetTools'
+import {
+  PERSONAS,
+  personaById,
+  loadAssistantPrefs,
+  saveAssistantPrefs,
+  toPersonaDataUrl,
+  USER_INFO_MAX,
+  PERSONALITY_MAX,
+  type AssistantPrefs,
+} from '../host/persona'
 
 interface GuideAssistantProps {
   onOpenAiSettings: () => void
@@ -85,7 +95,36 @@ export function GuideAssistant({
   const [error, setError] = useState<string | null>(null)
   // 段2 伴走: 連携設定が要る（externalServices を持つ）導入済み道具 → 設定方法チップを出す
   const [setupGadgets, setSetupGadgets] = useState<Array<{ id: string; name: string }>>([])
+  // ペルソナ（見た目＋性格・話し方）＋利用者の基本情報。端末ローカル保存。
+  const [prefs, setPrefs] = useState<AssistantPrefs>(() => loadAssistantPrefs())
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [imgError, setImgError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const persona = personaById(prefs.personaId)
+  const avatarSrc = prefs.customImage || persona.img
+
+  const updatePrefs = (patch: Partial<AssistantPrefs>) => {
+    setPrefs((prev) => {
+      const next = { ...prev, ...patch }
+      saveAssistantPrefs(next)
+      return next
+    })
+  }
+  // ペルソナを選ぶと、その既定の「性格・話し方」をセットする（自作画像は解除）
+  const choosePersona = (id: string) => {
+    updatePrefs({ personaId: id, personality: personaById(id).personality, customImage: '' })
+  }
+  const onPickImage = async (file: File | undefined) => {
+    if (!file) return
+    setImgError(null)
+    try {
+      const dataUrl = await toPersonaDataUrl(file)
+      updatePrefs({ customImage: dataUrl })
+    } catch (cause) {
+      setImgError(cause instanceof Error ? cause.message : '画像を読み込めませんでした')
+    }
+  }
 
   const drag = useRef<null | { mode: 'move' | 'resize'; sx: number; sy: number; orig: WinRect }>(null)
   const [active, setActive] = useState<null | 'move' | 'resize'>(null)
@@ -198,6 +237,11 @@ export function GuideAssistant({
     const reply = await askGuide(toConvo(working).slice(-MAX_TURNS_SENT), {
       viewLabel,
       tools: toolCatalog(),
+      persona: {
+        name: persona.label,
+        personality: prefs.personality,
+        userInfo: prefs.userInfo,
+      },
     })
     readyRef.current = true
     const { text: afterTool, toolCall } = parseGuideToolCall(reply)
@@ -308,18 +352,144 @@ export function GuideAssistant({
         }`}
         style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 70%, white)' }}
       >
-        <p className="text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
-          案内AI <span className="text-xs font-normal text-stone-400">β・記憶しません</span>
+        <p className="min-w-0 truncate text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
+          案内AI<span className="ml-1 font-normal text-stone-500">・{persona.label}</span>{' '}
+          <span className="text-xs font-normal text-stone-400">β</span>
         </p>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="rounded border border-stone-200 px-2 py-0.5 text-xs text-stone-500 hover:bg-stone-50"
-        >
-          閉じる
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((v) => !v)}
+            title="案内AIの見た目・性格を変える"
+            aria-pressed={settingsOpen}
+            className={`rounded border px-2 py-0.5 text-xs hover:bg-stone-50 ${
+              settingsOpen
+                ? 'border-stone-400 bg-stone-100 text-stone-700'
+                : 'border-stone-200 text-stone-500'
+            }`}
+          >
+            ⚙ 設定
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="rounded border border-stone-200 px-2 py-0.5 text-xs text-stone-500 hover:bg-stone-50"
+          >
+            閉じる
+          </button>
+        </div>
       </header>
 
+      {/* ペルソナのすがた（案内AIの上に表示。ウインドウ幅に応じて伸縮） */}
+      <button
+        type="button"
+        onClick={() => setSettingsOpen((v) => !v)}
+        title="タップで見た目・性格を変える"
+        className="block w-full shrink-0 overflow-hidden border-b border-stone-100"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 55%, white)' }}
+      >
+        <img
+          src={avatarSrc}
+          alt={`案内AI（${persona.label}）`}
+          className="mx-auto object-contain"
+          style={{ height: 'clamp(72px, 20vh, 132px)', maxWidth: '100%' }}
+        />
+      </button>
+
+      {settingsOpen ? (
+        <div className="flex-1 space-y-4 overflow-y-auto p-3 text-sm">
+          <section>
+            <p className="mb-1.5 text-xs font-semibold text-stone-500">すがたを選ぶ</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {PERSONAS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => choosePersona(p.id)}
+                  title={p.blurb}
+                  className={`overflow-hidden rounded-lg border text-center ${
+                    !prefs.customImage && prefs.personaId === p.id
+                      ? 'border-2 border-[var(--nb-navy)]'
+                      : 'border-stone-200 hover:border-stone-400'
+                  }`}
+                >
+                  <img src={p.img} alt={p.label} className="h-14 w-full object-cover" />
+                  <span className="block py-0.5 text-[11px] text-stone-600">{p.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <p className="mb-1.5 text-xs font-semibold text-stone-500">自分の画像を使う</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="cursor-pointer rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50">
+                画像を選ぶ
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => void onPickImage(e.target.files?.[0])}
+                />
+              </label>
+              {prefs.customImage && (
+                <button
+                  type="button"
+                  onClick={() => updatePrefs({ customImage: '' })}
+                  className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs hover:bg-stone-50"
+                >
+                  選んだすがたに戻す
+                </button>
+              )}
+            </div>
+            {imgError && <p className="mt-1 text-xs text-red-600">{imgError}</p>}
+          </section>
+
+          <section>
+            <label className="mb-1.5 block text-xs font-semibold text-stone-500">
+              基本情報（あなたのこと・してほしいこと）
+            </label>
+            <textarea
+              value={prefs.userInfo}
+              maxLength={USER_INFO_MAX}
+              onChange={(e) => updatePrefs({ userInfo: e.target.value })}
+              rows={3}
+              placeholder="例：私の名前は山田。「山田さん」と呼んで。専門用語は控えめに、結論から短く教えて。"
+              className="w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm"
+            />
+          </section>
+
+          <section>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-semibold text-stone-500">性格・話し方</label>
+              <button
+                type="button"
+                onClick={() => updatePrefs({ personality: persona.personality })}
+                className="text-xs text-stone-500 underline hover:text-stone-700"
+              >
+                このすがたの標準に戻す
+              </button>
+            </div>
+            <textarea
+              value={prefs.personality}
+              maxLength={PERSONALITY_MAX}
+              onChange={(e) => updatePrefs({ personality: e.target.value })}
+              rows={4}
+              placeholder="案内AIの性格や話し方を自由に書けます。"
+              className="w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm"
+            />
+          </section>
+
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(false)}
+            className="btn-primary w-full rounded-lg px-3 py-2 text-sm font-medium"
+          >
+            会話に戻る
+          </button>
+        </div>
+      ) : (
+        <>
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {messages.length === 0 && (
               <div className="grid gap-2">
@@ -447,6 +617,8 @@ export function GuideAssistant({
               送信
             </button>
           </div>
+        </>
+      )}
 
       {/* PCのみ: 右下リサイズハンドル */}
       {floating && (
