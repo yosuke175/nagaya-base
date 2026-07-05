@@ -2,6 +2,19 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（案内AIの既定オープン・全幅バナー・縮小表示・AI設定モデルをプルダウン化）
+
+向井の4点の指摘を反映:
+- **AI設定済みなら案内AIを既定で開く**: aiReady が true になった1回だけ `openPanel()`。
+  ユーザーが閉じたらそのまま（ボタンだけの状態にしない）
+- **ペルソナ画像を窓の全幅表示**: `mx-auto object-contain`（左右に隙間）→ 幅100%コンテナ＋
+  `aspect-ratio 2/1`＋`object-cover`。窓を広げると縦横比を保って拡大
+- **縮小⇔標準ボタン**（⚙設定の左）: `compact` を AssistantPrefs に追加。縮小時は
+  `aspect-ratio 5/1`＋`object-position center 17%` で中央帯（上1割・下半分を削った高さ4割）だけ表示
+- **AI設定のモデルを文字入力→プルダウン**: `aiSettings.ts` に `AI_MODELS`（ALLOWED_MODELS と同期・
+  fast/smart ラベル付き）を追加、AiSettingsPanel の input を select に。tier で自動切替する旨を注記。
+  ※fast/smart のモデル切替はサーバー定数（TIER_MODEL）で自動、AI設定の1個は「tier指定が無い時の既定」
+
 ## 2026-07-05（案内AIにペルソナ〔見た目＋性格・話し方〕＋基本情報）
 
 向井「naviai の画像10種を案内AIに実装。上に表示、選択可、性格・話し方も設定、

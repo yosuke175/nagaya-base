@@ -170,6 +170,13 @@ export function GuideAssistant({
     })()
   }
 
+  // AI設定済みなら既定で開いておく（ボタンだけの状態にしない）。
+  // aiReady が true になった1回だけ開く。ユーザーが閉じたら閉じたまま。
+  useEffect(() => {
+    if (aiReady === true) openPanel()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiReady])
+
   // --- ドラッグ / リサイズ（PCのみ） ---
   const startMove = (e: ReactPointerEvent) => {
     if (narrow || !rect) return
@@ -359,6 +366,14 @@ export function GuideAssistant({
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
+            onClick={() => updatePrefs({ compact: !prefs.compact })}
+            title="ペルソナ画像の表示サイズ（縮小⇔標準）"
+            className="rounded border border-stone-200 px-2 py-0.5 text-xs text-stone-500 hover:bg-stone-50"
+          >
+            {prefs.compact ? '標準' : '縮小'}
+          </button>
+          <button
+            type="button"
             onClick={() => setSettingsOpen((v) => !v)}
             title="案内AIの見た目・性格を変える"
             aria-pressed={settingsOpen}
@@ -380,7 +395,8 @@ export function GuideAssistant({
         </div>
       </header>
 
-      {/* ペルソナのすがた（案内AIの上に表示。ウインドウ幅に応じて伸縮） */}
+      {/* ペルソナのすがた（案内AIの上・窓幅いっぱいに表示。窓を広げると縦横比を保って拡大）。
+          縮小時は中央の帯だけ（上1割・下半分を削って高さ4割＝5:1）を見せる。 */}
       <button
         type="button"
         onClick={() => setSettingsOpen((v) => !v)}
@@ -388,12 +404,14 @@ export function GuideAssistant({
         className="block w-full shrink-0 overflow-hidden border-b border-stone-100"
         style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 55%, white)' }}
       >
-        <img
-          src={avatarSrc}
-          alt={`案内AI（${persona.label}）`}
-          className="mx-auto object-contain"
-          style={{ height: 'clamp(72px, 20vh, 132px)', maxWidth: '100%' }}
-        />
+        <div className="w-full overflow-hidden" style={{ aspectRatio: prefs.compact ? '5 / 1' : '2 / 1' }}>
+          <img
+            src={avatarSrc}
+            alt={`案内AI（${persona.label}）`}
+            className="h-full w-full object-cover"
+            style={{ objectPosition: prefs.compact ? 'center 17%' : 'center' }}
+          />
+        </div>
       </button>
 
       {settingsOpen ? (

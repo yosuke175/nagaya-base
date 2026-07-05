@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  AI_MODELS,
   AI_PROVIDERS,
   DEFAULT_AI_MODEL,
   fetchAiStatus,
@@ -49,12 +50,11 @@ export function AiSettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
     }
   }, [])
 
-  // プロバイダを変えたら、モデル欄が既定値のままなら新プロバイダの既定に追従
+  // プロバイダを変えたら、選択中モデルが新プロバイダに無ければ既定モデルに切り替える
   const changeProvider = (next: AiProvider) => {
     setProvider(next)
     setSaved(null)
-    const isDefaultModel = Object.values(DEFAULT_AI_MODEL).includes(model)
-    if (!model || isDefaultModel) setModel(DEFAULT_AI_MODEL[next])
+    if (!AI_MODELS[next].some((m) => m.id === model)) setModel(DEFAULT_AI_MODEL[next])
   }
 
   const save = async () => {
@@ -138,15 +138,29 @@ export function AiSettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
             />
           </label>
           <label className="mt-2 grid gap-1">
-            <span className="text-stone-600">モデル（既定: {DEFAULT_AI_MODEL[provider]}）</span>
-            <input
+            <span className="text-stone-600">モデル</span>
+            <select
               value={model}
               onChange={(e) => {
                 setModel(e.target.value)
                 setSaved(null)
               }}
-              className="rounded-lg border border-stone-300 p-2 font-mono"
-            />
+              className="rounded-lg border border-stone-300 p-2"
+            >
+              {/* 保存済みモデルが一覧に無い場合も失わないよう先頭に出す */}
+              {!AI_MODELS[provider].some((m) => m.id === model) && model && (
+                <option value={model}>{model}（現在の設定）</option>
+              )}
+              {AI_MODELS[provider].map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-stone-400">
+              「速い・安い」＝素早い応答／「高性能・深い思考」＝じっくり考える用。
+              道具が処理に応じて自動で切り替えることもあり、ここは指定が無いときの既定です。
+            </span>
           </label>
           <div className="mt-3 flex items-center gap-2">
             <button

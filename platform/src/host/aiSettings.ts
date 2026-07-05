@@ -21,6 +21,35 @@ export const DEFAULT_AI_MODEL: Record<AiProvider, string> = {
   google: 'gemini-2.0-flash',
 }
 
+export interface AiModelOption {
+  id: string
+  label: string
+  /** 速度/性能の目安。道具が tier で切り替える際の対応イメージ */
+  tier: 'fast' | 'smart'
+}
+
+// 選べるモデル一覧（プルダウン用）。id は functions/api/ai.ts の ALLOWED_MODELS と一致させること。
+// ※道具が complete({tier:'fast'|'smart'}) を指定したときはサーバー側で自動的にモデルが
+//   切り替わる（TIER_MODEL）。ここで選ぶのは tier 指定が無いときの「既定モデル」。
+export const AI_MODELS: Record<AiProvider, AiModelOption[]> = {
+  anthropic: [
+    { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 — 速い・安い', tier: 'fast' },
+    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5 — 高性能・深い思考', tier: 'smart' },
+    { id: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku — 速い', tier: 'fast' },
+    { id: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet — 高性能', tier: 'smart' },
+  ],
+  openai: [
+    { id: 'gpt-4o-mini', label: 'GPT-4o mini — 速い・安い', tier: 'fast' },
+    { id: 'gpt-4o', label: 'GPT-4o — 高性能', tier: 'smart' },
+    { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini — 速い', tier: 'fast' },
+  ],
+  google: [
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash — 速い・安い', tier: 'fast' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash — 速い', tier: 'fast' },
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro — 高性能・深い思考', tier: 'smart' },
+  ],
+}
+
 /** Hard cap applied to gadget-requested maxTokens. */
 export const AI_MAX_TOKENS_LIMIT = 2000
 

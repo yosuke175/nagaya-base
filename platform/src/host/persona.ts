@@ -112,6 +112,8 @@ export interface AssistantPrefs {
   userInfo: string
   /** 性格・話し方（ペルソナ選択で既定が入る。編集可） */
   personality: string
+  /** 画像を縮小表示するか（true=中央の帯だけ・4割の高さ / false=標準・全体） */
+  compact: boolean
 }
 
 const STORAGE_KEY = 'nb.assistant.persona.v1'
@@ -124,6 +126,7 @@ export function defaultPrefs(): AssistantPrefs {
     customImage: '',
     userInfo: '',
     personality: personaById(DEFAULT_PERSONA_ID).personality,
+    compact: false,
   }
 }
 
@@ -142,6 +145,7 @@ export function loadAssistantPrefs(): AssistantPrefs {
         typeof parsed.personality === 'string' && parsed.personality
           ? parsed.personality.slice(0, PERSONALITY_MAX)
           : base.personality,
+      compact: typeof parsed.compact === 'boolean' ? parsed.compact : false,
     }
   } catch {
     return defaultPrefs()
