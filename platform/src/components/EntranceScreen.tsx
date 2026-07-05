@@ -77,32 +77,54 @@ export function CraftsmanGuide({ onClose }: { onClose: () => void }) {
             ようこそ、職人さん。工房の準備をしましょう
           </h1>
           <p className="mt-3 text-sm leading-relaxed">
-            道具（ガジェット）づくりは、あなたのPCの「工房」で行います。
-            準備はセットアップウィザード（約15分）が案内します。
+            道具（ガジェット）づくりは、<strong>PCへのインストール不要</strong>で、
+            クラウド上で AI（Claude Code など）と会話しながら進められます。流れはこうです:
           </p>
           <ol className="mt-3 list-decimal pl-5 text-sm leading-relaxed">
             <li>
-              下のボタンで<strong>セットアップウィザード</strong>をダウンロード（Windows / Mac 対応）
+              GitHub に<strong>自分のコピー（Fork）</strong>を作る（
+              <a
+                href={`${appConfig.repoUrl}/fork`}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+                style={{ color: 'var(--nb-terra)' }}
+              >
+                Fork を作る
+              </a>
+              ）
             </li>
-            <li>ダブルクリックで起動（初回だけ下記の警告を通過してください）</li>
-            <li>ウィザードの「次へ」に従うだけで、最初の道具の雛形まで完成します</li>
+            <li>そのコピーをクラウドの作業場（GitHub Codespaces や Claude Code 等）で開き、AIと作る</li>
+            <li>できたら GitHub に push → 長屋の「工房 → 部屋で試運転」で動作確認</li>
+            <li>よければ PR（変更の申請）→ マージ → 道具市に公開</li>
           </ol>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <WizardDownloadButton />
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard.writeText(appConfig.wizardDownloadUrl)
-                setCopied(true)
-              }}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-            >
-              {copied ? 'コピーしました' : 'ダウンロードURLをコピー'}
-            </button>
-          </div>
-          <WizardWarningNote />
+          <p className="mt-2 text-xs" style={{ color: 'var(--nb-ink)' }}>
+            くわしい手順・AIへの指示文は、ログイン後の「工房」に用意してあります。
+          </p>
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-semibold" style={{ color: 'var(--nb-navy)' }}>
+              自分のPC（ローカル）で作りたい場合はこちら
+            </summary>
+            <p className="mt-2 text-sm leading-relaxed">
+              セットアップウィザードが、clone・必要な部品の用意・起動までを自動で案内します（Windows / Mac）。
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <WizardDownloadButton />
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(appConfig.wizardDownloadUrl)
+                  setCopied(true)
+                }}
+                className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              >
+                {copied ? 'コピーしました' : 'ダウンロードURLをコピー'}
+              </button>
+            </div>
+            <WizardWarningNote />
+          </details>
           <p className="mt-3 text-xs" style={{ color: 'var(--nb-ink)' }}>
-            PCの準備はあとでもOK。まずは長屋の中を見て回れます。
+            準備はあとでもOK。まずは長屋の中を見て回れます。
           </p>
           <button
             type="button"

@@ -2,6 +2,26 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-06（ADR-012 Phase 0/1/2 第一版: クラウド編集導線＋部屋プレビュー実装）
+
+向井「Phase 0＋1＋2 まで全部やって」。案1（クラウド編集＋部屋プレビュー）を段階実装。
+- **Phase 2（部屋プレビュー・方式A gitベース）**: `functions/preview/[[path]].ts` が本人 fork の
+  `gadgets/<id>/` を `/preview/<owner>/<branch>/<id>/...` で自オリジン中継。**安全性の肝＝HTML応答に
+  `Content-Security-Policy: sandbox allow-scripts` を付与**し、iframe内でもURL直開きでも不透明オリジン化
+  → 未レビューの fork コードがプラットフォームのセッション/localStorage(Supabaseトークン)に触れられない。
+  別オリジン/署名トークンを新設せず同一オリジン配信の危険を封じる。GET限定・本家リポ名のみ・gadgets配下のみ
+  （open-proxy/traversal 防止）。`_parse.ts`＋単体テスト13件。`gadgetHost` の manifest/entry に base 引数、
+  `GadgetFrame` に `basePath`、工房に `GadgetPreview`（GitHubユーザー/ブランチ/道具ID→全画面で本番同等試運転）
+- **Phase 1（オンボーディング）**: 工房「道具をつくる」と入口を**クラウド編集主体**に（Fork→Codespaces/ツール→
+  push→部屋で試運転→PR）。ローカル（ウィザード）は details 内の任意手段へ降格。**ウィザード本体は据え置き**
+  （＝ローカル派向けの選択肢として整合。再ビルド不要）
+- **Phase 0（ズレ解消）**: 案内所「道具の作り方」を新フロー＋プレビュー＋「公開CIは準備中(予定)」に更新。
+  RAG再索引はCIが .md push で実行
+- 判断: 方式Aを採用（git履歴/CLAと整合・保管掃除不要）。sandbox-CSP で安全側。GitHubユーザー名は工房フォーム＋
+  localStorage（DBマイグレーション回避）
+- 検証: build＋69テスト緑、preview Function は standalone tsc 通過。**実機E2E（デプロイ後・実fork・ログイン）は要確認**。
+  残: 実機確認／公開CI（Phase 3）／プレビューのfidelity（未インストール道具の storage RLS 等）は実機で詰める
+
 ## 2026-07-06（道具市の空ガジェット混入バグ＋根本原因の可視化フィルタ修正）
 
 向井「道具市に中身が空のガジェット(dentaku/電卓)が出ている＝明確なバグ」。3エージェントの並行調査で確定。
