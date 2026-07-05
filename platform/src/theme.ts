@@ -48,13 +48,18 @@ export const ROOM_SAMPLES: { id: string; label: string }[] = [
 
 const DEFAULT_ROOM_SAMPLE = 'nagaya-rouka01'
 
-/** roomBg 値 → CSS の background-image 値（url(...) または none）。 */
+/**
+ * roomBg 値 → CSS の background-image 値（url(...) または none）。
+ * サンプルは「ミラータイル」(<id>-tile.webp = 元画像＋左右反転を横に連結) を使い、
+ * `background-repeat: repeat-x` で任意の幅を端から反転しながらシームレスに埋める。
+ * アップロード画像(data-URL)も、保存時にミラータイル化済みの前提。
+ */
 export function roomBgImage(roomBg?: string): string {
   if (roomBg === 'none') return 'none'
   if (typeof roomBg === 'string' && roomBg.startsWith('data:')) return `url('${roomBg}')`
   if (typeof roomBg === 'string' && roomBg.startsWith('sample:'))
-    return `url('/img/room/${roomBg.slice('sample:'.length)}.webp')`
-  return `url('/img/room/${DEFAULT_ROOM_SAMPLE}.webp')` // 未設定 = 既定サンプル
+    return `url('/img/room/${roomBg.slice('sample:'.length)}-tile.webp')`
+  return `url('/img/room/${DEFAULT_ROOM_SAMPLE}-tile.webp')` // 未設定 = 既定サンプル
 }
 
 export const DEFAULT_THEME: ThemePrefs = {

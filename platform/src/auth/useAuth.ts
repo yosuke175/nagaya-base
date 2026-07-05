@@ -5,6 +5,8 @@ import { supabase } from './supabaseClient'
 export interface AuthProfile {
   displayName: string
   role: string
+  avatar: string | null
+  roomNo: number | null
 }
 
 /** 'disabled' = Supabase not configured → no-login local dev mode. */
@@ -54,11 +56,16 @@ export function useAuth(): Auth {
       // (匿名→guest / メール登録→user、20260704020000_auth_roles.sql)
       const { data } = await client
         .from('profiles')
-        .select('display_name, role')
+        .select('display_name, role, avatar, room_no')
         .eq('id', session.user.id)
         .single()
       if (!cancelled && data) {
-        setProfile({ displayName: data.display_name, role: data.role })
+        setProfile({
+          displayName: data.display_name,
+          role: data.role,
+          avatar: data.avatar ?? null,
+          roomNo: data.room_no ?? null,
+        })
       }
     }
 

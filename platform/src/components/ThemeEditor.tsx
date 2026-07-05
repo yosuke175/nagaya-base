@@ -16,9 +16,27 @@ import {
 
 const TEXTURE_MAX_DIM = 600
 const TEXTURE_MAX_BYTES = 120 * 1024
-// 部屋トップ背景（横長の帯）は幅を活かすので大きめに許容
-const ROOM_MAX_DIM = 1800
-const ROOM_MAX_BYTES = 200 * 1024
+
+/** アップロード画像を「元＋左右反転」の横連結タイル(webp data-URL)にする（ミラー repeat-x 用）。 */
+async function mirrorTileDataUrl(file: File, targetH = 140): Promise<string> {
+  const bitmap = await createImageBitmap(file)
+  const scale = targetH / bitmap.height
+  const w = Math.max(1, Math.round(bitmap.width * scale))
+  const h = Math.max(1, Math.round(bitmap.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = w * 2
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('画像を処理できませんでした')
+  ctx.drawImage(bitmap, 0, 0, w, h) // 左: 元画像
+  ctx.save() // 右: 左右反転
+  ctx.translate(w * 2, 0)
+  ctx.scale(-1, 1)
+  ctx.drawImage(bitmap, 0, 0, w, h)
+  ctx.restore()
+  bitmap.close()
+  return canvas.toDataURL('image/webp', 0.82)
+}
 
 // --- 色変換（HSL <-> HEX）: 自前カラーピッカー用 -----------------------------
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
@@ -203,7 +221,9 @@ export function ThemeEditor() {
   const pickRoomBg = async (file: File) => {
     setError(null)
     try {
-      const { dataUrl } = await compressImageToDataUrl(file, ROOM_MAX_DIM, ROOM_MAX_BYTES)
+      // アップロード画像も「ミラータイル」(元＋左右反転を横連結)にして、
+      // repeat-x で端から反転しながらブラウザ幅いっぱいに敷けるようにする。
+      const dataUrl = await mirrorTileDataUrl(file)
       update({ roomBg: dataUrl })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))

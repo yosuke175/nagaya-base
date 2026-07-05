@@ -21,13 +21,15 @@ export function InfoSlot({
   onOpenGadget,
   userName,
   roomNo,
+  avatar,
 }: {
   onNavigate?: (view: InfoView) => void
   /** 速報！の各項目（道具公開）から、道具市の該当ガジェットへ飛ぶ */
   onOpenGadget?: (dir: string) => void
-  /** 部屋トップの表示名・部屋番号 */
+  /** 部屋トップの表示名・部屋番号・アイコン */
   userName?: string | null
   roomNo?: number | null
+  avatar?: string | null
 }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
@@ -89,33 +91,38 @@ export function InfoSlot({
     )
   }
 
-  // 「自分の部屋」トップの帯（高さ120px・背景はテーマの roomBg）。左=ようこそ窓、右=ニュース最大2。
+  // 「自分の部屋」トップの帯（高さ120px）。背景=roomBg のミラータイルを repeat-x で
+  // ブラウザ幅いっぱいに（端から反転）。左=名前チップ（アイコン＋名前＋部屋番号）、
+  // 右=ニュース最大2（縦に積む）。中身は本文と同じ中央カラム幅にそろえる。
   return (
     <div
-      className="mb-4 overflow-hidden rounded-xl border border-stone-200 bg-stone-100"
+      className="relative mb-4 h-[120px] overflow-hidden bg-stone-100"
       style={{
+        width: '100vw',
+        marginLeft: 'calc(50% - 50vw)',
         backgroundImage: 'var(--nb-room-bg)',
-        backgroundSize: 'cover',
+        backgroundRepeat: 'repeat-x',
+        backgroundSize: 'auto 120px',
         backgroundPosition: 'center',
       }}
     >
-      <div className="flex h-[120px] items-stretch gap-2 p-2">
-        <div className="flex shrink-0 flex-col justify-center rounded-lg bg-white/85 px-4 py-2 shadow-sm backdrop-blur-sm">
-          <p className="text-[11px] text-stone-500">ようこそ</p>
-          <p className="text-base font-bold leading-tight" style={{ color: 'var(--nb-navy)' }}>
-            {userName || '入居者'}
-            <span className="text-xs font-normal text-stone-500"> さん</span>
-          </p>
-          {roomNo != null && <p className="text-[11px] text-stone-400">{roomNo}号室</p>}
+      <div className="mx-auto flex h-full max-w-5xl items-center gap-3 px-4">
+        {/* 名前チップ（アイコン＋名前＋部屋番号）。横は内容の長さ、縦はコンパクト */}
+        <div className="flex shrink-0 items-center gap-2 rounded-lg bg-white/85 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-stone-200 bg-white text-lg text-stone-400">
+            {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : '🙂'}
+          </span>
+          <div className="leading-tight">
+            <p className="text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
+              {userName || '入居者'}
+            </p>
+            {roomNo != null && <p className="text-[11px] text-stone-400">{roomNo}号室</p>}
+          </div>
         </div>
+        {/* ニュース最大2（縦積み・中央〜右） */}
         {news.length > 0 && (
-          <div className="ml-auto flex min-w-0 items-stretch gap-2">
-            {news.slice(0, 2).map((card, i) => (
-              // 2つ目は狭い画面では隠す（最大2・中央〜右）
-              <div key={i} className={i === 1 ? 'hidden sm:contents' : 'contents'}>
-                {card}
-              </div>
-            ))}
+          <div className="ml-auto flex w-52 flex-col gap-1 sm:w-72">
+            {news.slice(0, 2)}
           </div>
         )}
       </div>
@@ -138,14 +145,14 @@ function NewsCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-40 flex-col justify-center rounded-lg bg-white/85 px-3 py-2 text-left shadow-sm backdrop-blur-sm hover:bg-white sm:w-48"
+      className="flex items-baseline gap-1.5 rounded-md bg-white/85 px-2.5 py-1 text-left shadow-sm backdrop-blur-sm hover:bg-white"
     >
-      <p className="text-[11px] font-semibold" style={{ color: labelColor ?? '#78716c' }}>
+      <span className="shrink-0 text-[10px] font-semibold" style={{ color: labelColor ?? '#78716c' }}>
         {label}
-      </p>
-      <p className="truncate text-sm" style={{ color: 'var(--nb-ink)' }}>
+      </span>
+      <span className="truncate text-xs" style={{ color: 'var(--nb-ink)' }}>
         {text}
-      </p>
+      </span>
     </button>
   )
 }

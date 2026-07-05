@@ -156,8 +156,11 @@ export default function App() {
     auth.status === 'disabled' ||
     (auth.profile !== null && roleAtLeast(auth.profile.role, 'user'))
 
+  // 「整列する」で棚の配置と一緒に案内AIの窓も初期位置へ戻すためのシグナル
+  const [layoutResetKey, setLayoutResetKey] = useState(0)
+
   return (
-    <div className="nb-washi min-h-screen" style={{ color: 'var(--nb-ink)' }}>
+    <div className="nb-washi min-h-screen overflow-x-hidden" style={{ color: 'var(--nb-ink)' }}>
       <header
         className="accent-topbar border-b border-stone-200 px-4 py-3 shadow-sm"
         style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 80%, white)' }}
@@ -168,29 +171,19 @@ export default function App() {
             <button
               type="button"
               onClick={() => setView('dashboard')}
-              className="flex items-center gap-2.5 text-left"
+              className="flex items-center gap-3 text-left"
               title="自分の部屋（ホーム）へ"
             >
               <img
                 src="/img/logo.png"
                 alt=""
-                className="h-9 w-9 shrink-0"
-                width={36}
-                height={36}
+                className="h-11 w-11 shrink-0"
+                width={44}
+                height={44}
               />
-              <div>
-                <h1 className="text-lg font-bold" style={{ color: 'var(--nb-navy)' }}>
-                  {appConfig.appName}
-                  <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-xs font-normal text-amber-800">
-                    仮称
-                  </span>
-                </h1>
-                <p className="text-xs text-stone-500">
-                  {auth.status === 'disabled'
-                    ? 'Phase 1・ログインなしローカル開発モード'
-                    : 'Phase 1'}
-                </p>
-              </div>
+              <h1 className="text-2xl font-bold leading-none" style={{ color: 'var(--nb-navy)' }}>
+                {appConfig.appName}
+              </h1>
             </button>
             {/* メニューはタイトルの右に一列（指定の並び順: 部屋/入居者/道具市/回覧板/
                 長屋暦/案内所/工房）。「部屋」は主画面(dashboard)の表示名。歩みは案内所内、
@@ -277,6 +270,9 @@ export default function App() {
                 onOpenGadget={openCatalogGadget}
                 onUninstall={handleUninstall}
                 userName={auth.profile?.displayName}
+                avatar={auth.profile?.avatar}
+                roomNo={auth.profile?.roomNo}
+                onTidy={() => setLayoutResetKey((k) => k + 1)}
               />
             )}
             {view === 'catalog' && (
@@ -356,6 +352,7 @@ export default function App() {
             setHelpArticle(article)
             setView('help')
           }}
+          resetSignal={layoutResetKey}
         />
       )}
     </div>
@@ -392,6 +389,9 @@ function Dashboard({
   onOpenGadget,
   onUninstall,
   userName,
+  avatar,
+  roomNo,
+  onTidy,
 }: {
   installed: string[]
   onOpenCatalog: () => void
@@ -399,6 +399,9 @@ function Dashboard({
   onOpenGadget: (dir: string) => void
   onUninstall: (dir: string) => void
   userName?: string | null
+  avatar?: string | null
+  roomNo?: number | null
+  onTidy: () => void
 }) {
   // `npm run dev:gadget <dir>` pins the dashboard to one gadget for development
   if (appConfig.devGadgetDir) {
@@ -417,7 +420,7 @@ function Dashboard({
   if (installed.length === 0) {
     return (
       <>
-        <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} userName={userName} />
+        <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} userName={userName} avatar={avatar} roomNo={roomNo} />
         <div className="nb-panel p-10 text-center text-sm">
           <img src={IMG.objects.well} alt="" className="mx-auto h-24 w-24 object-contain" />
           <p className="mt-3" style={{ color: 'var(--nb-ink)' }}>
@@ -440,8 +443,8 @@ function Dashboard({
 
   return (
     <>
-      <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} userName={userName} />
-      <FloatingDesk installed={installed} onUninstall={onUninstall} />
+      <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} userName={userName} avatar={avatar} roomNo={roomNo} />
+      <FloatingDesk installed={installed} onUninstall={onUninstall} onTidy={onTidy} />
     </>
   )
 }
@@ -450,9 +453,11 @@ function Dashboard({
 function FloatingDesk({
   installed,
   onUninstall,
+  onTidy,
 }: {
   installed: string[]
   onUninstall: (dir: string) => void
+  onTidy: () => void
 }) {
   const deskRef = useRef<HTMLDivElement>(null)
   const [deskWidth, setDeskWidth] = useState(0)
@@ -488,8 +493,9 @@ function FloatingDesk({
   }
   const bringToFront = (id: string) => setOrder((prev) => [...prev.filter((x) => x !== id), id])
   const tidy = () => {
-    clearLayouts()
+    clearLayouts() // 棚の各窓＋案内AI（__guide__）の保存位置をまとめて消す
     setLayouts({})
+    onTidy() // 案内AIの窓も初期位置へ戻す
   }
 
   const deskHeight = Math.max(
@@ -504,7 +510,13 @@ function FloatingDesk({
   const narrow = deskWidth > 0 && deskWidth < 640
 
   return (
-    <div ref={deskRef}>
+    // 棚はブラウザ幅いっぱいに（案内AIと同様、道具を左右どこにでも置けるように）。
+    // full-bleed: 中央寄せの親(max-w-5xl)から抜けてビューポート全幅にする。
+    <div
+      ref={deskRef}
+      style={narrow ? undefined : { width: '100vw', marginLeft: 'calc(50% - 50vw)' }}
+      className={narrow ? undefined : 'px-4'}
+    >
       {narrow ? (
         <div className="grid grid-cols-1 gap-4">
           {installed.map((id) => (
@@ -514,7 +526,7 @@ function FloatingDesk({
       ) : (
         <>
           <div className="mb-2 flex items-center justify-end gap-2 text-xs text-stone-500">
-            <span>道具の枠は自由に動かせます（見出しをドラッグ／右下でサイズ変更）</span>
+            <span>道具の枠は自由に動かせます（見出しをドラッグで移動／縁や角のハンドルでサイズ変更）</span>
             <button
               type="button"
               onClick={tidy}
