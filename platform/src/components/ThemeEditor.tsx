@@ -17,22 +17,36 @@ import {
 const TEXTURE_MAX_DIM = 600
 const TEXTURE_MAX_BYTES = 120 * 1024
 
-/** アップロード画像を「元＋左右反転」の横連結タイル(webp data-URL)にする（ミラー repeat-x 用）。 */
+/**
+ * アップロード画像を、オリジナルを中央に置いたミラータイル(webp data-URL)にする。
+ * タイル(2w) = [左半分の反転 | オリジナル(w) | 右半分の反転]。background-position:center ＋
+ * repeat-x で、中央にオリジナル・両側へ端から反転延長、という見え方になる。
+ */
 async function mirrorTileDataUrl(file: File, targetH = 140): Promise<string> {
   const bitmap = await createImageBitmap(file)
   const scale = targetH / bitmap.height
-  const w = Math.max(1, Math.round(bitmap.width * scale))
+  const w = Math.max(2, Math.round(bitmap.width * scale))
   const h = Math.max(1, Math.round(bitmap.height * scale))
+  const bw = bitmap.width
+  const bh = bitmap.height
   const canvas = document.createElement('canvas')
   canvas.width = w * 2
   canvas.height = h
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('画像を処理できませんでした')
-  ctx.drawImage(bitmap, 0, 0, w, h) // 左: 元画像
-  ctx.save() // 右: 左右反転
+  // 中央: オリジナル [w/2, 3w/2]
+  ctx.drawImage(bitmap, w / 2, 0, w, h)
+  // 左 [0, w/2]: オリジナル左半分を反転
+  ctx.save()
+  ctx.translate(w / 2, 0)
+  ctx.scale(-1, 1)
+  ctx.drawImage(bitmap, 0, 0, bw / 2, bh, 0, 0, w / 2, h)
+  ctx.restore()
+  // 右 [3w/2, 2w]: オリジナル右半分を反転
+  ctx.save()
   ctx.translate(w * 2, 0)
   ctx.scale(-1, 1)
-  ctx.drawImage(bitmap, 0, 0, w, h)
+  ctx.drawImage(bitmap, bw / 2, 0, bw / 2, bh, 0, 0, w / 2, h)
   ctx.restore()
   bitmap.close()
   return canvas.toDataURL('image/webp', 0.82)

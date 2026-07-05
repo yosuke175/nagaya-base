@@ -525,7 +525,7 @@ function FloatingDesk({
         </div>
       ) : (
         <>
-          <div className="mb-2 flex items-center justify-end gap-2 text-xs text-stone-500">
+          <div className="mx-auto mb-2 flex max-w-5xl items-center justify-end gap-2 text-xs text-stone-500">
             <span>道具の枠は自由に動かせます（見出しをドラッグで移動／縁や角のハンドルでサイズ変更）</span>
             <button
               type="button"
@@ -554,12 +554,19 @@ function FloatingDesk({
   )
 }
 
-/** 保存された配置が無い窓の既定位置・サイズ（棚幅に応じてゆるくグリッド配置） */
+/**
+ * 保存された配置が無い窓の既定位置・サイズ。
+ * 基本の整列範囲は「中央 1024px」の帯（ヘッダー/本文と同じ中央カラム）に収める。
+ * 帯より広いブラウザでは中央寄せ。窓は後から自由に帯の外へも動かせる。
+ */
+const CENTER_BAND = 1024
 function defaultRect(index: number, deskWidth: number): WinRect {
-  const w = Math.min(400, Math.max(260, deskWidth - 24))
+  const band = Math.min(CENTER_BAND, deskWidth)
+  const offset = Math.max(0, (deskWidth - band) / 2)
+  const w = Math.min(400, Math.max(260, band - 24))
   const h = 340
-  const cols = Math.max(1, Math.floor(deskWidth / (w + 16)))
+  const cols = Math.max(1, Math.floor(band / (w + 16)))
   const col = index % cols
   const row = Math.floor(index / cols)
-  return { x: col * (w + 16), y: row * (h + 16), w, h }
+  return { x: offset + col * (w + 16), y: row * (h + 16), w, h }
 }
