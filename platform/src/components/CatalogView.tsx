@@ -4,7 +4,7 @@ import { fetchCatalog, type CatalogEntry } from '../host/catalog'
 import { PERMISSION_LABELS } from '../host/permissionLabels'
 import { compressImageToDataUrl } from '../lib/imageCompress'
 import { listPresentations, savePresentation, type GadgetPresentation } from '../host/gadgetPresentation'
-import { listGadgetVisibility, type GadgetRecord } from '../host/workshop'
+import { listGadgetVisibility, workshopAvailable, type GadgetRecord } from '../host/workshop'
 
 const COVER_MAX_DIM = 800
 const COVER_MAX_BYTES = 150 * 1024
@@ -39,10 +39,14 @@ export function CatalogView({
   const [error, setError] = useState<string | null>(null)
   const [presentations, setPresentations] = useState<Map<string, GadgetPresentation>>(new Map())
   const [records, setRecords] = useState<Map<string, GadgetRecord>>(new Map())
+  const [recordsReady, setRecordsReady] = useState(false)
 
   const reloadOverrides = () => {
     void listPresentations().then(setPresentations)
-    void listGadgetVisibility().then(setRecords)
+    void listGadgetVisibility().then((map) => {
+      setRecords(map)
+      setRecordsReady(true)
+    })
   }
 
   useEffect(() => {
@@ -67,19 +71,27 @@ export function CatalogView({
       </p>
     )
   }
-  if (!entries) {
+  // カタログ本体（ファイル由来）と、表示可否を決める状態（DB由来）の両方が揃うまで待つ。
+  // 揃う前に描くと、未登録の道具が一瞬みんなに見えてしまう（旧バグの再発）。
+  if (!entries || !recordsReady) {
     return <p className="p-4 text-sm text-stone-400">読み込み中…</p>
   }
+
+  const dbConfigured = workshopAvailable()
 
   const canManage = (dir: string) => {
     const rec = records.get(dir)
     return isAdmin || (!!currentUserId && !!rec && rec.owner_id === currentUserId)
   }
-  // 構築中（未公開）は道具市に出さない。ただし owner と admin には見える。
+  // 道具市に出すのは「明示的に公開(published)された道具」だけ。
+  //  - DB行があり published → 一般公開
+  //  - DB行があるが未公開(draft/in_review/suspended) → owner と admin だけに見せる
+  //  - DB行が無い（＝一度も登録・公開していない作りかけ）→ 本番では出さない（owner/admin のみ）。
+  //    ただし Supabase 未設定のローカルdev では、確認用に全件見せる（DBが無いので判定できないため）。
   const isVisible = (dir: string) => {
     const rec = records.get(dir)
-    if (!rec || rec.status === 'published') return true
-    return canManage(dir)
+    if (rec) return rec.status === 'published' || canManage(dir)
+    return !dbConfigured || canManage(dir)
   }
 
   // 職人（作者）別にグループ化して表示
