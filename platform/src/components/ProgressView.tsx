@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { IMG } from '../assets'
 import {
   infoLayerAvailable,
   listFeed,
@@ -7,20 +6,30 @@ import {
   type FeedItem,
   type PublishedGadget,
 } from '../host/infoLayer'
+import { listResidents } from '../host/residents'
 
 // 長屋の歩み（指示書⑦-5）: 公開の記録を自動生成で淡々と見せる。
 // ランキング化・競争煽りはしない（職人別の数字は五十音等でなく公開順のまま）。
+// 各要素は押すと該当画面へ飛ぶ（道具→道具市 / 職人→その人のプロフ / 入居者→入居者一覧）。
 
-export function ProgressView() {
+interface ProgressViewProps {
+  onNavigate?: (view: 'catalog' | 'residents') => void
+  onOpenGadget?: (dir: string) => void
+  onOpenResident?: (name: string) => void
+}
+
+export function ProgressView({ onNavigate, onOpenGadget, onOpenResident }: ProgressViewProps) {
   const [feed, setFeed] = useState<FeedItem[] | null>(null)
   const [gadgets, setGadgets] = useState<PublishedGadget[]>([])
+  const [residentCount, setResidentCount] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([listFeed(100), listPublishedGadgets()])
-      .then(([feedItems, published]) => {
+    Promise.all([listFeed(100), listPublishedGadgets(), listResidents().catch(() => [])])
+      .then(([feedItems, published, residents]) => {
         setFeed(feedItems)
         setGadgets(published)
+        setResidentCount(residents.length)
       })
       .catch((cause: Error) => setError(cause.message))
   }, [])
@@ -40,13 +49,15 @@ export function ProgressView() {
     byOwner.set(key, (byOwner.get(key) ?? 0) + 1)
   }
 
-  // タイムライン: フィードがまだ薄い初期は公開済み一覧で補完する
+  // タイムライン: フィードがまだ薄い初期は公開済み一覧で補完する。
+  // dir（道具ID＝道具市の並び）を持たせ、押すと道具市の該当ガジェットへ飛ぶ。
   const timeline =
     feed && feed.length > 0
       ? feed.map((item) => ({
           key: `feed-${item.id}`,
           date: item.created_at,
           text: item.summary,
+          dir: item.type === 'gadget_published' && item.target ? item.target : null,
         }))
       : gadgets
           .slice()
@@ -55,7 +66,22 @@ export function ProgressView() {
             key: `gadget-${gadget.id}`,
             date: gadget.created_at,
             text: `${gadget.ownerName ?? '職人'}さんの「${gadget.name ?? gadget.id}」が公開されています`,
+            dir: gadget.id,
           }))
+
+  const statCard = (value: number | string, label: string, color: string, to?: 'catalog' | 'residents') => (
+    <button
+      type="button"
+      onClick={() => to && onNavigate?.(to)}
+      disabled={!to}
+      className="nb-panel p-4 text-center enabled:hover:opacity-90"
+    >
+      <p className="text-2xl font-bold" style={{ color }}>
+        {value}
+      </p>
+      <p className="text-xs text-stone-500">{label}</p>
+    </button>
+  )
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -65,22 +91,9 @@ export function ProgressView() {
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="nb-panel p-4 text-center">
-          <p className="text-2xl font-bold" style={{ color: 'var(--nb-navy)' }}>
-            {gadgets.length}
-          </p>
-          <p className="text-xs text-stone-500">公開中の道具</p>
-        </div>
-        <div className="nb-panel p-4 text-center">
-          <p className="text-2xl font-bold" style={{ color: 'var(--nb-terra)' }}>
-            {thisMonth}
-          </p>
-          <p className="text-xs text-stone-500">今月の新着</p>
-        </div>
-        <div className="nb-panel hidden p-4 text-center sm:block">
-          <img src={IMG.objects.riceBarrel} alt="" className="mx-auto h-12 w-12 object-contain" />
-          <p className="text-xs text-stone-500">こつこつ貯まる</p>
-        </div>
+        {statCard(gadgets.length, '公開中の道具', 'var(--nb-navy)', 'catalog')}
+        {statCard(thisMonth, '今月の新着', 'var(--nb-terra)', 'catalog')}
+        {statCard(residentCount ?? '—', '入居者総数', 'var(--nb-sage)', 'residents')}
       </div>
 
       {byOwner.size > 0 && (
@@ -89,7 +102,20 @@ export function ProgressView() {
           <ul className="grid gap-1">
             {[...byOwner.entries()].map(([name, count]) => (
               <li key={name}>
-                {name} — {count}件
+                {onOpenResident ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenResident(name)}
+                    className="text-left underline-offset-2 hover:underline"
+                    title="この職人のプロフィールを見る"
+                  >
+                    {name} — {count}件
+                  </button>
+                ) : (
+                  <span>
+                    {name} — {count}件
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -98,14 +124,32 @@ export function ProgressView() {
 
       {feed === null && <p className="text-sm text-stone-400">読み込み中…</p>}
       <ol className="grid gap-2">
-        {timeline.map((item) => (
-          <li key={item.key} className="nb-panel flex items-baseline gap-3 px-4 py-2 text-sm">
+        {timeline.map((item) => {
+          const dir = item.dir
+          const date = (
             <span className="shrink-0 text-xs text-stone-400">
               {new Date(item.date).toLocaleDateString('ja-JP')}
             </span>
-            <span>{item.text}</span>
-          </li>
-        ))}
+          )
+          return dir && onOpenGadget ? (
+            <li key={item.key}>
+              <button
+                type="button"
+                onClick={() => onOpenGadget(dir)}
+                className="nb-panel flex w-full items-baseline gap-3 px-4 py-2 text-left text-sm hover:opacity-90"
+                title="道具市でこの道具を見る"
+              >
+                {date}
+                <span>{item.text}</span>
+              </button>
+            </li>
+          ) : (
+            <li key={item.key} className="nb-panel flex items-baseline gap-3 px-4 py-2 text-sm">
+              {date}
+              <span>{item.text}</span>
+            </li>
+          )
+        })}
         {timeline.length === 0 && (
           <li className="nb-panel p-6 text-center text-sm text-stone-500">
             歩みはこれから。最初の一歩は、あなたの道具かもしれません。

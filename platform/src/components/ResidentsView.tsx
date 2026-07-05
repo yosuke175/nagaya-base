@@ -19,9 +19,19 @@ interface ResidentsViewProps {
   onInstall: (dir: string) => void
   /** 道具名クリックで道具市の該当ガジェットへ */
   onOpenGadget?: (dir: string) => void
+  /** 長屋の歩み等から「この職人のプロフを開く」で来たときの対象（表示名） */
+  focusName?: string | null
+  onFocusHandled?: () => void
 }
 
-export function ResidentsView({ installed, canInstall, onInstall, onOpenGadget }: ResidentsViewProps) {
+export function ResidentsView({
+  installed,
+  canInstall,
+  onInstall,
+  onOpenGadget,
+  focusName,
+  onFocusHandled,
+}: ResidentsViewProps) {
   const [residents, setResidents] = useState<ResidentEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ResidentEntry | null>(null)
@@ -32,6 +42,14 @@ export function ResidentsView({ installed, canInstall, onInstall, onOpenGadget }
       .then(setResidents)
       .catch((cause: Error) => setError(cause.message))
   }, [])
+
+  // 「職人べつ」等から表示名指定で来たら、その入居者の紹介を自動で開く
+  useEffect(() => {
+    if (!focusName || !residents) return
+    const match = residents.find((r) => r.display_name === focusName)
+    if (match) setSelected(match)
+    onFocusHandled?.()
+  }, [focusName, residents, onFocusHandled])
 
   if (!residentsAvailable()) {
     return <p className="p-4 text-sm text-stone-500">入居者一覧はログイン環境でのみ表示されます。</p>

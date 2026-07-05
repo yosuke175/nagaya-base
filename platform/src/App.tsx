@@ -74,6 +74,12 @@ export default function App() {
     setFocusGadget(dir)
     setView('catalog')
   }
+  // 長屋の歩みの「職人べつ」から、その職人（入居者）のプロフへ
+  const [residentFocus, setResidentFocus] = useState<string | null>(null)
+  const openResident = (name: string) => {
+    setResidentFocus(name)
+    setView('residents')
+  }
   // 「この画面の使い方」→ 各画面に対応する案内所の記事
   const openViewHelp = () => {
     setHelpArticle(VIEW_HELP[view])
@@ -293,6 +299,9 @@ export default function App() {
                 key={helpArticle ?? 'default'}
                 initialArticle={helpArticle}
                 onOpenGuide={(guide) => setOverlay(guide)}
+                onNavigate={setView}
+                onOpenGadget={openCatalogGadget}
+                onOpenResident={openResident}
               />
             )}
             {view === 'residents' && (
@@ -301,6 +310,8 @@ export default function App() {
                 canInstall={canInstall}
                 onInstall={handleInstall}
                 onOpenGadget={openCatalogGadget}
+                focusName={residentFocus}
+                onFocusHandled={() => setResidentFocus(null)}
               />
             )}
             {view === 'workshop' && (

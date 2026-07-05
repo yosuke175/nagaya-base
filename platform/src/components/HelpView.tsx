@@ -50,9 +50,16 @@ function articleSource(file: string): string {
 export function HelpView({
   initialArticle,
   onOpenGuide,
+  onNavigate,
+  onOpenGadget,
+  onOpenResident,
 }: {
   initialArticle?: string
   onOpenGuide: (guide: 'entrance' | 'craftsman-guide' | 'tutorial') => void
+  // 長屋の歩みの各要素からの遷移
+  onNavigate?: (view: 'catalog' | 'residents') => void
+  onOpenGadget?: (dir: string) => void
+  onOpenResident?: (name: string) => void
 }) {
   const [current, setCurrent] = useState(
     initialArticle && TOC.some((t) => t.file === initialArticle) ? initialArticle : TOC[0].file,
@@ -103,7 +110,11 @@ export function HelpView({
       </nav>
       {current === 'progress' ? (
         <div className="min-w-0 flex-1">
-          <ProgressView />
+          <ProgressView
+            onNavigate={onNavigate}
+            onOpenGadget={onOpenGadget}
+            onOpenResident={onOpenResident}
+          />
         </div>
       ) : (
         <article

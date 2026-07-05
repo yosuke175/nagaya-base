@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { GadgetFrame } from './GadgetFrame'
+import { ResizeHandles, computeResize, cursorForDir, type ResizeDir } from './resizeHandles'
 import type { WinRect } from '../host/gadgetLayout'
 
-// 棚のフローティング窓。ヘッダーをドラッグで移動、右下ハンドルでリサイズ。
+// 棚のフローティング窓。ヘッダーをドラッグで移動、4辺4角のハンドルでリサイズ。
 // ドラッグ/リサイズ中は全面シールドを敷いて iframe にイベントを奪われないようにする。
 
 const MIN_W = 240
@@ -27,8 +28,10 @@ export function FloatingWindow({
   // 親がレイアウトをリセット（整列）したら追従する
   useEffect(() => setLocal(rect), [rect.x, rect.y, rect.w, rect.h])
 
-  const drag = useRef<null | { mode: 'move' | 'resize'; sx: number; sy: number; orig: WinRect }>(null)
-  const [active, setActive] = useState<null | 'move' | 'resize'>(null)
+  const drag = useRef<
+    null | { mode: 'move' | 'resize'; dir?: ResizeDir; sx: number; sy: number; orig: WinRect }
+  >(null)
+  const [active, setActive] = useState<null | 'move' | ResizeDir>(null)
 
   const startMove = (e: ReactPointerEvent) => {
     // ヘッダー内のボタン（アンインストール等）を押したときはドラッグしない
@@ -38,12 +41,12 @@ export function FloatingWindow({
     drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig: local }
     setActive('move')
   }
-  const startResize = (e: ReactPointerEvent) => {
+  const startResize = (dir: ResizeDir, e: ReactPointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
     onFocus()
-    drag.current = { mode: 'resize', sx: e.clientX, sy: e.clientY, orig: local }
-    setActive('resize')
+    drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig: local }
+    setActive(dir)
   }
   const onShieldMove = (e: ReactPointerEvent) => {
     const d = drag.current
@@ -52,8 +55,8 @@ export function FloatingWindow({
     const dy = e.clientY - d.sy
     if (d.mode === 'move') {
       setLocal({ ...d.orig, x: Math.max(0, d.orig.x + dx), y: Math.max(0, d.orig.y + dy) })
-    } else {
-      setLocal({ ...d.orig, w: Math.max(MIN_W, d.orig.w + dx), h: Math.max(MIN_H, d.orig.h + dy) })
+    } else if (d.dir) {
+      setLocal(computeResize(d.orig, d.dir, dx, dy, MIN_W, MIN_H))
     }
   }
   const endDrag = () => {
@@ -75,21 +78,13 @@ export function FloatingWindow({
         onUninstall={onUninstall}
         onHeaderPointerDown={startMove}
       />
-      {/* 右下のリサイズハンドル */}
-      <div
-        onPointerDown={startResize}
-        title="サイズ変更"
-        className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize"
-        style={{
-          background:
-            'linear-gradient(135deg, transparent 55%, var(--nb-navy) 55%, var(--nb-navy) 65%, transparent 65%, transparent 75%, var(--nb-navy) 75%, var(--nb-navy) 85%, transparent 85%)',
-        }}
-      />
+      {/* 4辺4角のリサイズハンドル */}
+      <ResizeHandles onStart={startResize} />
       {/* ドラッグ/リサイズ中の全面シールド（iframe のイベント奪取を防ぐ） */}
       {active && (
         <div
           className="fixed inset-0 z-[9999]"
-          style={{ cursor: active === 'resize' ? 'nwse-resize' : 'move' }}
+          style={{ cursor: active === 'move' ? 'move' : cursorForDir(active) }}
           onPointerMove={onShieldMove}
           onPointerUp={endDrag}
           onPointerLeave={endDrag}
