@@ -7,7 +7,7 @@
 // - The renderer runs with contextIsolation and talks through preload.js.
 'use strict'
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
-const { spawn } = require('node:child_process')
+const { spawn, exec } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -21,8 +21,12 @@ let devServer = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 820,
-    height: 680,
+    // 一番内容が多い画面（GitHub連携・完成）でもスクロールなしで収まる高さにしておく。
+    // リサイズ可（既定）。小さくし過ぎないよう最小サイズも指定。
+    width: 900,
+    height: 880,
+    minWidth: 680,
+    minHeight: 640,
     title: `${config.appName} セットアップ`,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -49,6 +53,10 @@ const send = (channel, payload) => {
 }
 const log = (line) => send('wizard:log', line)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// ターミナル出力の色コード（ANSI）を除去。これが付いたままだと URL 検出の正規表現が
+// `localhost:` と番号の間で切れて一致せず、ブラウザが開かない原因になる。
+// eslint-disable-next-line no-control-regex
+const stripAnsi = (s) => s.replace(/\[[0-9;]*[A-Za-z]/g, '')
 
 async function gh(method, apiPath, body) {
   const response = await fetch(`https://api.github.com${apiPath}`, {
@@ -73,7 +81,7 @@ function spawnLogged(command, cwd) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, { cwd, shell: true, windowsHide: true })
     const onData = (buffer) => {
-      for (const line of buffer.toString().split(/\r?\n/)) {
+      for (const line of stripAnsi(buffer.toString()).split(/\r?\n/)) {
         if (line.trim()) log(line)
       }
     }
@@ -315,7 +323,7 @@ ipcMain.handle('dev:run', (_event, { clonePath, id }) => {
   devServer = spawn(`npm run dev:gadget ${id}`, { cwd: clonePath, shell: true, windowsHide: true })
   let opened = false
   const onData = (buffer) => {
-    const text = buffer.toString()
+    const text = stripAnsi(buffer.toString())
     for (const line of text.split(/\r?\n/)) {
       if (line.trim()) log(line)
     }

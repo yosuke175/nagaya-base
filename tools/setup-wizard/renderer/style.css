@@ -16,8 +16,8 @@ body {
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.6;
 }
 header {
   background: var(--nb-navy);
@@ -41,15 +41,17 @@ header h1 { font-size: 16px; margin: 0 0 8px; }
 }
 #steps-nav li.active { background: #fafaf9; color: #1c1917; font-weight: 700; }
 #steps-nav li.done { background: #166534; color: #fff; }
-main { padding: 20px 24px 40px; max-width: 760px; margin: 0 auto; }
-/* 各ステップは cream の半透明パネル（背景の水彩が透ける） */
+main { padding: 16px 24px 28px; max-width: 680px; margin: 0 auto; }
+/* 各ステップは cream の半透明パネル（背景の水彩が透ける）。
+   透過を強めて背景の水彩を見せつつ、blur で文字の可読性は保つ。 */
 main .step {
-  background: color-mix(in srgb, var(--nb-cream) 92%, white);
+  background: rgb(241 238 227 / 0.82);
+  backdrop-filter: blur(3px);
   border-radius: 12px;
-  padding: 18px 22px;
-  box-shadow: 0 2px 14px rgb(45 42 38 / 0.18);
+  padding: 14px 20px;
+  box-shadow: 0 2px 14px rgb(45 42 38 / 0.2);
 }
-h2 { font-size: 20px; margin: 8px 0 12px; color: var(--nb-navy); }
+h2 { font-size: 18px; margin: 4px 0 10px; color: var(--nb-navy); }
 /* お題カード（最初の道具のテーマ選び） */
 .theme-cards { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .theme-card {
@@ -65,11 +67,11 @@ h2 { font-size: 20px; margin: 8px 0 12px; color: var(--nb-navy); }
 .theme-card .t-desc { font-size: 11px; color: #78716c; }
 .theme-card.selected { border-color: var(--nb-terra); background: #fdf3f1; }
 .box {
-  background: #fff;
+  background: rgb(255 255 255 / 0.92);
   border: 1px solid #e7e5e4;
   border-radius: 10px;
-  padding: 14px 16px;
-  margin: 12px 0;
+  padding: 11px 14px;
+  margin: 10px 0;
 }
 button {
   font: inherit;
@@ -87,7 +89,7 @@ button.primary { background: #292524; border-color: #292524; color: #fff; }
 button.primary:hover:not(:disabled) { background: #44403c; }
 button.small { padding: 2px 10px; font-size: 12px; }
 /* 左から右へ進む: 戻る(左) / 中間ボタン / 次へ(右・大) */
-.nav { margin-top: 18px; display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.nav { margin-top: 14px; display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .nav [data-back] { margin-right: auto; } /* 戻るは左端 */
 .nav .primary { padding: 10px 28px; font-size: 15px; font-weight: 700; } /* 次へを大きく（右端） */
 .hint { font-size: 12.5px; color: #78716c; }
