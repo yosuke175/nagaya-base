@@ -32,8 +32,15 @@ const REQUIRED_MANIFEST_FIELDS = [
   'permissions',
 ] as const
 
-export async function loadGadgetManifest(gadgetDir: string): Promise<GadgetManifest> {
-  const response = await fetch(`/gadgets/${gadgetDir}/manifest.json`)
+// 既定は本番配信の /gadgets/。ADR-012 Phase 2 のプレビューでは /preview/<owner>/<branch>/
+// を渡して、本人 fork の作りかけソースを同じホストで動かす。base は必ず "/" 終わり。
+const GADGET_BASE = '/gadgets/'
+
+export async function loadGadgetManifest(
+  gadgetDir: string,
+  base: string = GADGET_BASE,
+): Promise<GadgetManifest> {
+  const response = await fetch(`${base}${gadgetDir}/manifest.json`)
   if (!response.ok) {
     throw new Error(`manifest.json の取得に失敗しました (HTTP ${response.status})`)
   }
@@ -46,8 +53,12 @@ export async function loadGadgetManifest(gadgetDir: string): Promise<GadgetManif
   return manifest
 }
 
-export function gadgetEntryUrl(gadgetDir: string, manifest: GadgetManifest): string {
-  return `/gadgets/${gadgetDir}/${manifest.entry}`
+export function gadgetEntryUrl(
+  gadgetDir: string,
+  manifest: GadgetManifest,
+  base: string = GADGET_BASE,
+): string {
+  return `${base}${gadgetDir}/${manifest.entry}`
 }
 
 class RpcError extends Error {

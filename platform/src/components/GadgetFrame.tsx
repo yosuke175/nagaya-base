@@ -25,6 +25,11 @@ const SIZE_CLASSES: Record<GadgetSize, string> = {
 interface GadgetFrameProps {
   /** Directory name under gadgets/ */
   gadgetDir: string
+  /**
+   * 配信元のベースパス（既定 /gadgets/）。ADR-012 Phase 2 のプレビューでは
+   * /preview/<owner>/<branch>/ を渡し、本人 fork の作りかけを同じホストで動かす。
+   */
+  basePath?: string
   /** 棚での「アンインストール」ボタン用（渡されたときだけ表示） */
   onUninstall?: (dir: string) => void
   /** 棚のフローティング窓の中で使うとき: 枠いっぱいに広げ、ヘッダーをドラッグ用にする */
@@ -34,6 +39,7 @@ interface GadgetFrameProps {
 
 export function GadgetFrame({
   gadgetDir,
+  basePath,
   onUninstall,
   floating,
   onHeaderPointerDown,
@@ -49,7 +55,7 @@ export function GadgetFrame({
     setManifest(null)
     setError(null)
     setApproved(false)
-    loadGadgetManifest(gadgetDir)
+    loadGadgetManifest(gadgetDir, basePath)
       .then(async (loaded) => {
         if (cancelled) return
         setManifest(loaded)
@@ -63,7 +69,7 @@ export function GadgetFrame({
     return () => {
       cancelled = true
     }
-  }, [gadgetDir])
+  }, [gadgetDir, basePath])
 
   useEffect(() => {
     const iframe = iframeRef.current
@@ -156,7 +162,7 @@ export function GadgetFrame({
       */}
       <iframe
         ref={iframeRef}
-        src={gadgetEntryUrl(gadgetDir, manifest)}
+        src={gadgetEntryUrl(gadgetDir, manifest, basePath)}
         sandbox="allow-scripts"
         allow={manifest.permissions.includes('microphone') ? 'microphone' : undefined}
         title={manifest.name}

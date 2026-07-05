@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fetchCatalog, type CatalogEntry } from '../host/catalog'
+import { appConfig } from '../config'
 import { AiSettingsPanel } from './AiSettingsDialog'
+import { GadgetPreview } from './GadgetPreview'
 import { WizardDownloadButton, WizardWarningNote } from './WizardDownload'
 import {
   GADGET_IDEAS,
@@ -129,20 +131,58 @@ export function WorkshopView({
       </h2>
       {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
-      {/* つくる：入口 */}
+      {/* つくる：入口（クラウド編集が主・ローカルは任意。ADR-012 Phase 1） */}
       <div className="nb-panel mb-4 p-5 text-sm">
         <h3 className="font-bold" style={{ color: 'var(--nb-navy)' }}>
-          道具をつくる
+          道具をつくる（クラウドで・PCへのインストール不要）
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-stone-600">
           道具づくりは AI にまかせるのがいちばん簡単です（Claude Code など）。
-          セットアップウィザードで雛形を用意し、AIに読ませて会話しながら作れます。
-          くわしくは案内所の「道具の作り方」を。
+          次の流れで進めます。くわしくは案内所の「道具の作り方」を。
         </p>
-        <div className="mt-3">
-          <WizardDownloadButton />
-          <WizardWarningNote />
-        </div>
+        <ol className="mt-2 list-decimal pl-5 text-xs leading-relaxed text-stone-700">
+          <li>
+            GitHub に<strong>自分のコピー（Fork）</strong>を作る
+            <a
+              href={`${appConfig.repoUrl}/fork`}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-1 underline"
+              style={{ color: 'var(--nb-terra)' }}
+            >
+              Fork を作る
+            </a>
+          </li>
+          <li>
+            そのコピーを<strong>クラウドの作業場</strong>で開いて、AIと会話しながら作る（
+            <a
+              href="https://github.com/codespaces/new"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+              style={{ color: 'var(--nb-terra)' }}
+            >
+              GitHub Codespaces
+            </a>
+            、または Claude Code 等のツールで自分の fork を開く）
+          </li>
+          <li>できたら GitHub に push → 下の「新しい道具をつくる／あなたの道具」の指示文でAIと作り込む</li>
+          <li>
+            <strong>「部屋で試運転」</strong>で動作確認（下） → よければ <strong>PR</strong> を出して公開申請 → 道具市へ
+          </li>
+        </ol>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-semibold text-stone-500">
+            自分のPC（ローカル）で作りたい場合はこちら
+          </summary>
+          <p className="mt-1 text-xs text-stone-500">
+            セットアップウィザードで、clone・必要な部品の用意・起動までを自動で案内します。
+          </p>
+          <div className="mt-2">
+            <WizardDownloadButton />
+            <WizardWarningNote />
+          </div>
+        </details>
       </div>
 
       {/* あなたの道具 */}
@@ -292,6 +332,14 @@ export function WorkshopView({
             <PromptBox text={newToolPrompt(newId.trim(), newIdea)} />
           </>
         )}
+      </div>
+
+      {/* 部屋で試運転（ADR-012 Phase 2・プレビュー）。新しい道具をつくるとAI設定の間 */}
+      <h3 className="mb-2 text-sm font-bold" style={{ color: 'var(--nb-navy)' }}>
+        部屋で試運転（プレビュー）
+      </h3>
+      <div className="nb-panel mb-6 p-5">
+        <GadgetPreview />
       </div>
 
       {/* AI設定（道具でAIを使うためのキー登録）。あなたの道具の下に配置 */}
