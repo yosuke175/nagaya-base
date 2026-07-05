@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 添付先のリリースタグ（例: v0.1.0）
+        description: '添付先のリリースタグ（例 v0.1.0）'
         required: true
         default: v0.1.0
 
@@ -31,7 +31,7 @@ jobs:
             script: dist
             artifact: tools/setup-wizard/dist/NagayaBaseSetup-portable.exe
           - os: macos-latest
-            script: dist:mac
+            script: 'dist:mac'
             artifact: tools/setup-wizard/dist/NagayaBaseSetup-mac.dmg
     runs-on: ${{ matrix.os }}
     steps:
