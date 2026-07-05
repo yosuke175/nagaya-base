@@ -2,6 +2,25 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-05（案内AIの挨拶＋PWAの更新を確実化〔古いキャッシュ対策〕）
+
+向井「ログインしたら案内AIが声かけを」「reload/ログインで最新がロードされるべき（今は古い状態が開く）」を反映。
+
+- **挨拶（第一声）**: 各ペルソナに `greeting` を追加。会話が空のとき、すがたの声かけを
+  表示（表示のみ・生成コストなし）。例: 女将「おや、よく来たね。まあ座って…」
+- **PWA更新の確実化**（本題の"古い状態が開く"）:
+  - 原因: SW/シェルの HTTP キャッシュ。`sw.js` がブラウザキャッシュから返ると新SWを検出できず
+    古いシェルのまま固まる。※ガジェット追加などの**DBデータは Supabase 直読みで常に最新**
+    （SWは同一オリジンのビルド成果物だけを precache。DB応答はキャッシュしない）。古くなるのは
+    プラットフォーム本体（UI/JS）だけ
+  - `public/_headers`: `sw.js`/`registerSW.js`/`index.html`/`/`/`manifest.webmanifest` に
+    `Cache-Control: no-cache`（毎回サーバー再確認。ハッシュ付き /assets/* は据え置きで良い）
+  - 登録を自前化（`injectRegister:null` → main.tsx で `registerSW({immediate,onRegisteredSW})`）。
+    起動直後・タブ復帰時・60秒ごとに `registration.update()`。`autoUpdate`＋skipWaiting＋clientsClaim で
+    新SW検出→即有効化→最新へ。`vite-env.d.ts` に `vite-plugin-pwa/client` 参照を追加
+  - build に registerSW.js は生成されず、登録は本体バンドルに同梱（index.html は本体JSのみ参照）
+- 検証: build＋56テスト緑、dev 起動・console エラー無し。実際のSW更新挙動は本番デプロイで要確認
+
 ## 2026-07-05（案内AIの既定オープン・全幅バナー・縮小表示・AI設定モデルをプルダウン化）
 
 向井の4点の指摘を反映:

@@ -511,8 +511,15 @@ export function GuideAssistant({
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {messages.length === 0 && (
               <div className="grid gap-2">
-                <p className="rounded-lg bg-stone-50 p-3 text-xs text-stone-500">
-                  長屋の使い方をたずねてください。下のボタンからも聞けます。
+                {/* ログイン時の第一声（このすがたの声かけ・挨拶）。表示のみ・生成コストなし */}
+                <p
+                  className="rounded-lg p-3 text-sm leading-relaxed text-stone-700"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 60%, white)' }}
+                >
+                  {persona.greeting}
+                </p>
+                <p className="px-1 text-xs text-stone-400">
+                  長屋のことをたずねてください。下のボタンからも聞けます。
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {setupGadgets.slice(0, 2).map((g) => (

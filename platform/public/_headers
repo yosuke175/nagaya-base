@@ -1,3 +1,16 @@
+# PWAの更新を確実にする: これらは必ずサーバーへ再確認させ、古いキャッシュで固まらせない。
+# （ハッシュ付きの /assets/* は内容が変わればファイル名も変わるので長期キャッシュで問題ない）
+/sw.js
+  Cache-Control: no-cache
+/registerSW.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
+
 /sdk/*
   Access-Control-Allow-Origin: *
 

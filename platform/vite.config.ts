@@ -177,7 +177,8 @@ export default defineConfig(({ mode }) => {
       gadgetDevHost(),
       VitePWA({
         registerType: 'autoUpdate',
-        injectRegister: 'script',
+        // 登録は main.tsx で自前に行う（起動時・タブ復帰時・定期に更新確認するため）。
+        injectRegister: null,
         // 新しいデプロイを即時反映する（古いキャッシュで止まらないように）。
         // skipWaiting + clientsClaim で新SWがすぐ制御を握り、古いキャッシュは掃除する。
         workbox: {
