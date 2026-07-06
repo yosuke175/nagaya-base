@@ -1891,14 +1891,20 @@
         appendChatBubble("user", text);
         chatHistory.push({ role: "user", content: text });
         await runAction("AIが考えています…", async () => {
+          // 空 content のメッセージは AI API がエラー（content が空です）にするため送らない。
+          const messages = chatHistory
+            .map((m) => ({ role: m.role, content: String(m.content ?? "").trim() }))
+            .filter((m) => m.content.length > 0)
+            .slice(-12);
           const raw = await gadget.ai.complete({
             system: chatSystemPrompt(),
-            messages: chatHistory.slice(-12),
+            messages,
             maxTokens: 800,
           });
-          chatHistory.push({ role: "assistant", content: raw });
           const { text: replyText, action } = tryParseChatAction(raw);
-          appendChatBubble("assistant", replyText);
+          // 表示用にパース後テキストを、モデル履歴には生の応答を残す（ただし空なら履歴に積まない）。
+          if (String(raw ?? "").trim()) chatHistory.push({ role: "assistant", content: raw });
+          appendChatBubble("assistant", replyText || "（操作案）");
           if (action) appendChatActionCard(action);
         });
       }

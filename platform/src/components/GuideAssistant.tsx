@@ -56,12 +56,16 @@ interface Msg {
   done?: boolean
 }
 
-/** 表示メッセージ → 案内AIに送る会話（tool 結果は user 発話として渡す） */
+/** 表示メッセージ → 案内AIに送る会話（tool 結果は user 発話として渡す）
+ * content が空のメッセージは AI API がエラー（400: content が空です）にするため必ず落とす。
+ * 例: アシスタントがツール/操作タグだけを返し前後の文が無かったターンは content='' になる。 */
 function toConvo(msgs: Msg[]): GuideMessage[] {
-  return msgs.map((m) => ({
-    role: m.role === 'assistant' ? 'assistant' : 'user',
-    content: m.raw ?? m.content,
-  }))
+  return msgs
+    .map((m) => ({
+      role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+      content: (m.raw ?? m.content ?? '').trim(),
+    }))
+    .filter((m) => m.content.length > 0)
 }
 
 // 案内AI（段1・ステートレス）: 下部常駐の単一窓。
@@ -344,7 +348,20 @@ export function GuideAssistant({
     // 全文が揃ったら、ツール/操作タグを解析して最終形（タグ除去済み）に置き換える。
     const { text: afterTool, toolCall } = parseGuideToolCall(reply)
     const { text, action } = parseGuideReply(afterTool)
-    const withReply: Msg[] = [...working, { role: 'assistant', content: text, action, toolCall }]
+    // アシスタントがツール/操作タグだけを返して前後の文が無いと content='' になる。
+    // そのままだと次ターンで空メッセージを送って AI API がエラーになるため、モデルへ
+    // 送る raw にはツール/操作の要約を入れて空にならないようにする（表示は content のまま）。
+    const rawForModel = text
+      ? undefined
+      : toolCall
+        ? `（${toolCall.gadget} の ${toolCall.tool} を実行します）`
+        : action
+          ? `（${actionLabel(action)}）`
+          : undefined
+    const withReply: Msg[] = [
+      ...working,
+      { role: 'assistant', content: text, raw: rawForModel, action, toolCall },
+    ]
     setMessages(withReply)
     scrollToEnd()
     if (toolCall) {
