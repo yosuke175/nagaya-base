@@ -4,7 +4,6 @@ import { fetchAiStatus } from '../host/aiSettings'
 import {
   centerFromRect,
   loadLayoutsRaw,
-  rectFromCenter,
   saveLayoutRaw,
   type CenterRect,
   type WinRect,
@@ -79,6 +78,23 @@ const MIN_H = 240
 
 // 「整列する」ボタン行の下端が未測定のとき（初回描画の一瞬など）だけ使う概算値。
 const FALLBACK_TOP_Y = 220
+
+/** 要素の現在の絶対座標（画面基準）をDOMから直接読み取る。 */
+function measureRect(el: HTMLElement): WinRect {
+  const r = el.getBoundingClientRect()
+  return { x: r.left, y: r.top, w: r.width, h: r.height }
+}
+
+/**
+ * ドラッグ開始/終了時の座標変換をビューポート幅からの計算(rectFromCenter/centerFromRect)
+ * ではなく実測に置き換える（棚のガジェットと同じ理由: 100vw・パディング・スクロールバー等の
+ * 重なりで数px単位のズレが出る余地を無くすため）。この窓は position:fixed なので
+ * containing block は「初期包含ブロック」＝document.documentElement で測る。
+ */
+function toCenterOffset(absX: number): number {
+  const r = document.documentElement.getBoundingClientRect()
+  return absX - (r.left + r.width / 2)
+}
 
 // 初期位置＝中央1024px帯の右端（＝「整列する」ボタンの真下）・実測した行の下。
 function defaultRect(topY: number, viewportWidth: number): WinRect {
@@ -165,6 +181,7 @@ export function GuideAssistant({
     }
   }
 
+  const containerRef = useRef<HTMLDivElement>(null)
   const drag = useRef<
     null | { mode: 'move' | 'resize'; dir?: ResizeDir; sx: number; sy: number; orig: WinRect }
   >(null)
@@ -217,19 +234,19 @@ export function GuideAssistant({
 
   // --- ドラッグ / リサイズ（PCのみ） ---
   const startMove = (e: ReactPointerEvent) => {
-    if (narrow || !center) return
+    if (narrow || !center || !containerRef.current) return
     if ((e.target as HTMLElement).closest('button')) return
     e.preventDefault()
-    const orig = rectFromCenter(center, currentViewportWidth())
+    const orig = measureRect(containerRef.current) // 今まさに描画されている位置をそのまま使う
     drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive('move')
   }
   const startResize = (dir: ResizeDir, e: ReactPointerEvent) => {
-    if (!center) return
+    if (!center || !containerRef.current) return
     e.preventDefault()
     e.stopPropagation()
-    const orig = rectFromCenter(center, currentViewportWidth())
+    const orig = measureRect(containerRef.current)
     drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive(dir)
@@ -258,7 +275,12 @@ export function GuideAssistant({
     drag.current = null
     setActive(null)
     if (dragLocal) {
-      const c = centerFromRect(dragLocal, currentViewportWidth())
+      const c: CenterRect = {
+        cx: toCenterOffset(dragLocal.x),
+        y: dragLocal.y,
+        w: dragLocal.w,
+        h: dragLocal.h,
+      }
       setCenter(c)
       saveLayoutRaw(GUIDE_ID, c)
     }
@@ -423,7 +445,7 @@ export function GuideAssistant({
       : { left: `calc(50% + ${center!.cx}px)`, top: center!.y, width: center!.w, height: center!.h }
 
   return (
-    <div className={containerClass} style={containerStyle}>
+    <div ref={containerRef} className={containerClass} style={containerStyle}>
       <header
         onPointerDown={startMove}
         className={`flex items-center justify-between gap-2 border-b border-stone-100 px-4 py-2 ${

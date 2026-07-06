@@ -1,8 +1,7 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { GadgetFrame } from './GadgetFrame'
 import { ResizeHandles, computeResize, cursorForDir, type ResizeDir } from './resizeHandles'
-import { centerFromRect, rectFromCenter, type CenterRect, type WinRect } from '../host/gadgetLayout'
-import { currentViewportWidth } from '../host/useViewportWidth'
+import type { CenterRect, WinRect } from '../host/gadgetLayout'
 
 // 棚のフローティング窓。ヘッダーをドラッグで移動、4辺4角のハンドルでリサイズ。
 // ドラッグ/リサイズ中は全面シールドを敷いて iframe にイベントを奪われないようにする。
@@ -13,9 +12,30 @@ import { currentViewportWidth } from '../host/useViewportWidth'
 // 見た目がガタつく（案内AI窓も同じ仕組みにしたところ同様にガタついた＝JS側の計算方式に
 // 起因すると確認済み）。calc()はブラウザのレイアウトエンジンがネイティブに追従するので
 // JSの介在が無く、リサイズ中もガタつかない。
+//
+// ドラッグ開始/終了の変換は、ビューポート幅からの計算(rectFromCenter/centerFromRect)を
+// やめ、**実際に描画されているDOMを直接測る**方式にした。containing block（position:relative
+// の親=棚の.relative）を getBoundingClientRect() で測り、その中心を基準にする。ビューポート幅
+// 経由の再計算だと、100vw・パディング・スクロールバー等の重なりでCSSの実際の解決結果と
+// 数px単位でズレる余地があり、それが「掴む/離す瞬間に一瞬ズレる」不具合の原因だった。
+// DOMを直接測れば、CSSが実際に使っている値そのものなのでズレようがない。
 
 const MIN_W = 240
 const MIN_H = 180
+
+/** 要素の現在の絶対座標（画面基準）をDOMから直接読み取る。 */
+function measureRect(el: HTMLElement): WinRect {
+  const r = el.getBoundingClientRect()
+  return { x: r.left, y: r.top, w: r.width, h: r.height }
+}
+
+/** 自分の containing block（position:relative の親）の中心を基準にした cx を求める。 */
+function toCenterOffset(el: HTMLElement, absX: number): number {
+  const parent = el.offsetParent as HTMLElement | null
+  if (!parent) return absX - window.innerWidth / 2
+  const p = parent.getBoundingClientRect()
+  return absX - (p.left + p.width / 2)
+}
 
 export function FloatingWindow({
   gadgetDir,
@@ -33,6 +53,7 @@ export function FloatingWindow({
   onCommit: (rect: CenterRect) => void
   onUninstall: (dir: string) => void
 }) {
+  const containerRef = useRef<HTMLDivElement>(null)
   // ドラッグ/リサイズ中だけ使う絶対座標のワーキングコピー。null=静止（CSS calc()で描画）
   const [dragLocal, setDragLocal] = useState<WinRect | null>(null)
 
@@ -44,18 +65,20 @@ export function FloatingWindow({
   const startMove = (e: ReactPointerEvent) => {
     // ヘッダー内のボタン（アンインストール等）を押したときはドラッグしない
     if ((e.target as HTMLElement).closest('button')) return
+    if (!containerRef.current) return
     e.preventDefault()
     onFocus()
-    const orig = rectFromCenter(rect, currentViewportWidth())
+    const orig = measureRect(containerRef.current) // 今まさに描画されている位置をそのまま使う
     drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive('move')
   }
   const startResize = (dir: ResizeDir, e: ReactPointerEvent) => {
+    if (!containerRef.current) return
     e.preventDefault()
     e.stopPropagation()
     onFocus()
-    const orig = rectFromCenter(rect, currentViewportWidth())
+    const orig = measureRect(containerRef.current)
     drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive(dir)
@@ -75,7 +98,10 @@ export function FloatingWindow({
     if (!drag.current) return
     drag.current = null
     setActive(null)
-    if (dragLocal) onCommit(centerFromRect(dragLocal, currentViewportWidth()))
+    if (dragLocal && containerRef.current) {
+      const cx = toCenterOffset(containerRef.current, dragLocal.x)
+      onCommit({ cx, y: dragLocal.y, w: dragLocal.w, h: dragLocal.h })
+    }
     setDragLocal(null)
   }
 
@@ -84,7 +110,7 @@ export function FloatingWindow({
     : { left: `calc(50% + ${rect.cx}px)`, top: rect.y, width: rect.w, height: rect.h, zIndex }
 
   return (
-    <div className="absolute" style={style} onPointerDown={onFocus}>
+    <div ref={containerRef} className="absolute" style={style} onPointerDown={onFocus}>
       <GadgetFrame
         gadgetDir={gadgetDir}
         floating
