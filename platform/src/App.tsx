@@ -227,16 +227,6 @@ export default function App() {
                 </span>
               </div>
             </button>
-            {/* デプロイ後に「古いまま」を1クリックで解消する強制更新
-                （SW解除＋全キャッシュ削除＋再読み込み） */}
-            <button
-              type="button"
-              onClick={() => void forceRefresh()}
-              title="キャッシュ（Service Worker・保存済みデータ）を消して最新を再読み込みします"
-              className="rounded-lg border border-stone-300 px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
-            >
-              🔄 更新
-            </button>
             {/* メニューはタイトルの右に一列（指定の並び順: 部屋/入居者/道具市/回覧板/
                 長屋暦/案内所/工房）。「部屋」は主画面(dashboard)の表示名。歩みは案内所内、
                 大家の間は入居者情報内へ移設済み */}
@@ -272,6 +262,17 @@ export default function App() {
           </div>
           {(auth.status === 'signed-in' || auth.status === 'disabled') && (
           <div className="flex shrink-0 items-center gap-1">
+            {/* デプロイ後に「古いまま」を1クリックで解消する強制更新
+                （SW解除＋全キャッシュ削除＋再読み込み） */}
+            <button
+              type="button"
+              onClick={() => void forceRefresh()}
+              title="キャッシュ（Service Worker・保存済みデータ）を消して最新を再読み込みします"
+              className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
+            >
+              <span aria-hidden>🔄</span>
+              <span className="hidden sm:inline">更新</span>
+            </button>
             {view !== 'help' && (
               <button
                 type="button"
