@@ -33,14 +33,22 @@ export function AiSettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const status = await fetchAiStatus()
-      if (cancelled) return
-      setScope(status.scope)
-      setRegistered(status.registered)
-      setProvider(status.provider)
-      setModel(status.model)
-      // 保存済みキーは読み込まない（●● 表示のまま。変更時のみ入力させる）
-      setLoading(false)
+      try {
+        const status = await fetchAiStatus()
+        if (cancelled) return
+        setScope(status.scope)
+        setRegistered(status.registered)
+        setProvider(status.provider)
+        setModel(status.model)
+        // 保存済みキーは読み込まない（●● 表示のまま。変更時のみ入力させる）
+      } catch (cause) {
+        // 確認自体が失敗した場合は「未登録」と誤表示せず、エラーとして出す
+        // （以前はここで握りつぶして未登録扱いにしていたため、実際は保存できているのに
+        // 「保存されていないように見える」という紛らわしい表示になっていた）
+        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     })()
     void myMonthlyCostUsd().then((usd) => {
       if (!cancelled) setMonthUsd(usd)

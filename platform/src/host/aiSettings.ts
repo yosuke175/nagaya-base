@@ -122,19 +122,19 @@ async function aiApi<T>(body: Record<string, unknown>): Promise<T> {
 
 export async function fetchAiStatus(): Promise<AiStatus> {
   if (await useRemoteCredentials()) {
-    try {
-      const status = await aiApi<{ registered: boolean; provider: string; model: string }>({
-        action: 'status',
-      })
-      const provider = normalizeProvider(status.provider)
-      return {
-        scope: 'account',
-        registered: Boolean(status.registered),
-        provider,
-        model: status.model || DEFAULT_AI_MODEL[provider],
-      }
-    } catch {
-      // API hiccup — report the device copy rather than failing
+    // 以前はここでエラーを握りつぶして「未登録（deviceスコープ）」として返していたが、
+    // サーバー側の一時的な不調（復号エラー・ネットワーク等）でも「保存したのに未登録に
+    // 見える」という紛らわしい表示になっていた。ここは呼び出し側にエラーを伝播させ、
+    // 本当に未登録なのか・確認自体が失敗したのかを区別できるようにする。
+    const status = await aiApi<{ registered: boolean; provider: string; model: string }>({
+      action: 'status',
+    })
+    const provider = normalizeProvider(status.provider)
+    return {
+      scope: 'account',
+      registered: Boolean(status.registered),
+      provider,
+      model: status.model || DEFAULT_AI_MODEL[provider],
     }
   }
   const local = getAiSettings()
