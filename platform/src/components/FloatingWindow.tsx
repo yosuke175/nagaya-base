@@ -19,22 +19,35 @@ import type { CenterRect, WinRect } from '../host/gadgetLayout'
 // 経由の再計算だと、100vw・パディング・スクロールバー等の重なりでCSSの実際の解決結果と
 // 数px単位でズレる余地があり、それが「掴む/離す瞬間に一瞬ズレる」不具合の原因だった。
 // DOMを直接測れば、CSSが実際に使っている値そのものなのでズレようがない。
+//
+// 重要: getBoundingClientRect() は「ビューポート基準」（スクロール量を含む）の座標を返すが、
+// position:absolute の top/left は「containing block（position:relative の親）基準」の座標。
+// この2つの座標系は、containing block 自身がビューポート内のどこにあるか（＝スクロール量ぶん
+// ズレる）だけ食い違う。measureRect はこの食い違いを containing block の位置を差し引くことで
+// 補正している（差し引かずに使うと、ページがスクロールしている分だけ縦に大きくズレる）。
 
 const MIN_W = 240
 const MIN_H = 180
 
-/** 要素の現在の絶対座標（画面基準）をDOMから直接読み取る。 */
+/**
+ * 要素の現在位置を、containing block（position:relative の親）基準の座標として読み取る。
+ * position:absolute の top/left にそのまま使える値になる。
+ */
 function measureRect(el: HTMLElement): WinRect {
   const r = el.getBoundingClientRect()
-  return { x: r.left, y: r.top, w: r.width, h: r.height }
+  const parent = el.offsetParent as HTMLElement | null
+  if (!parent) return { x: r.left, y: r.top, w: r.width, h: r.height }
+  const p = parent.getBoundingClientRect()
+  return { x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height }
 }
 
-/** 自分の containing block（position:relative の親）の中心を基準にした cx を求める。 */
-function toCenterOffset(el: HTMLElement, absX: number): number {
+/**
+ * containing block 基準の x（measureRect が返す座標系）を、その中心を基準にした cx に変換する。
+ */
+function toCenterOffset(el: HTMLElement, localX: number): number {
   const parent = el.offsetParent as HTMLElement | null
-  if (!parent) return absX - window.innerWidth / 2
-  const p = parent.getBoundingClientRect()
-  return absX - (p.left + p.width / 2)
+  const width = parent ? parent.getBoundingClientRect().width : document.documentElement.clientWidth
+  return localX - width / 2
 }
 
 export function FloatingWindow({
