@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocalStorageStub } from '../testing/localStorageStub'
-import { clearLayouts, loadLayouts, saveLayout } from './gadgetLayout'
+import {
+  centerFromRect,
+  clearLayouts,
+  loadLayouts,
+  loadLayoutsRaw,
+  rectFromCenter,
+  saveLayout,
+  saveLayoutRaw,
+} from './gadgetLayout'
 
 // 位置は「画面中央からのオフセット」で保存する。ブラウザ幅を変えても、窓の
 // 中央に対する相対位置が保たれることを確認する（左上原点だと崩れていた問題）。
@@ -39,5 +47,31 @@ describe('gadgetLayout: 中央基準の保存・復元', () => {
   it('壊れた/古い形式のデータは無視する', () => {
     localStorage.setItem('gadget-layouts', JSON.stringify({ old: { x: 1, y: 2, w: 3, h: 4 } }))
     expect(loadLayouts(1000)).toEqual({})
+  })
+})
+
+describe('gadgetLayout: 描画時に毎回変換する生のAPI（rectFromCenter/centerFromRect）', () => {
+  it('centerFromRect と rectFromCenter は互いに逆変換になる', () => {
+    const rect = { x: 700, y: 50, w: 380, h: 300 }
+    const center = centerFromRect(rect, 1000)
+    expect(rectFromCenter(center, 1000)).toEqual(rect)
+  })
+
+  it('同じ center を別の幅で変換すると、中央基準の位置関係を保って平行移動する', () => {
+    const center = centerFromRect({ x: 700, y: 50, w: 380, h: 300 }, 1000) // cx=200
+    expect(rectFromCenter(center, 2000)).toEqual({ x: 1200, y: 50, w: 380, h: 300 })
+  })
+
+  it('loadLayoutsRaw/saveLayoutRaw は中央基準の生データをそのまま保存・復元する', () => {
+    const center = { cx: 200, y: 50, w: 380, h: 300 }
+    saveLayoutRaw('gadget-a', center)
+    expect(loadLayoutsRaw()['gadget-a']).toEqual(center)
+  })
+
+  it('saveLayout(絶対座標) と saveLayoutRaw(中央基準) は同じ結果になる', () => {
+    saveLayout('a', { x: 700, y: 50, w: 380, h: 300 }, 1000)
+    saveLayoutRaw('b', centerFromRect({ x: 700, y: 50, w: 380, h: 300 }, 1000))
+    const raw = loadLayoutsRaw()
+    expect(raw['a']).toEqual(raw['b'])
   })
 })

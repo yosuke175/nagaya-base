@@ -6,7 +6,16 @@ import { CraftsmanGuide, EntranceScreen, type EntranceChoice } from './component
 import { FloatingWindow } from './components/FloatingWindow'
 import { GadgetFrame } from './components/GadgetFrame'
 import { GuideAssistant } from './components/GuideAssistant'
-import { clearLayouts, loadLayouts, saveLayout, type WinRect } from './host/gadgetLayout'
+import {
+  centerFromRect,
+  clearLayouts,
+  loadLayoutsRaw,
+  rectFromCenter,
+  saveLayoutRaw,
+  type CenterRect,
+  type WinRect,
+} from './host/gadgetLayout'
+import { useViewportWidth } from './host/useViewportWidth'
 import { LoginView } from './components/LoginView'
 import { appConfig } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
@@ -468,10 +477,12 @@ function FloatingDesk({
   /** 「整列する」行の下端Y（案内AIの初期位置に使う。実測値を都度渡す） */
   onMeasureTop: (y: number) => void
 }) {
-  const deskRef = useRef<HTMLDivElement>(null)
   const tidyRowRef = useRef<HTMLDivElement>(null)
-  const [deskWidth, setDeskWidth] = useState(0)
-  const [layouts, setLayouts] = useState<Record<string, WinRect>>(() => loadLayouts())
+  const viewportWidth = useViewportWidth()
+  // 保存形式（中央基準の生データ）をそのまま state に持つ。絶対座標への変換は
+  // 描画のたびに rectFor 内で行う＝resize のたびに「保存し直して読み直す」という
+  // 一拍遅れる経路を経由しないので、リサイズ中もガタつかず滑らかに追従する。
+  const [rawLayouts, setRawLayouts] = useState<Record<string, CenterRect>>(() => loadLayoutsRaw())
   const [order, setOrder] = useState<string[]>(installed)
 
   // インストール一覧に合わせて重なり順（order）を同期。新規は末尾＝前面
@@ -483,42 +494,38 @@ function FloatingDesk({
     })
   }, [installed])
 
-  // 棚の幅を測る（既定配置の列数・幅に使う）＋「整列する」行の下端も測って親へ伝える
-  // （案内AIの初期位置＝この行の下、に使う）
+  // スマホ等の狭い画面では自由配置はやめ、縦積み・全幅で表示する（操作しやすさ優先）
+  const narrow = viewportWidth < 640
+
+  // 「整列する」行の下端を測って親へ伝える（案内AIの初期位置＝この行の下、に使う）。
+  // narrow⇔wide の切り替えで行の有無が変わるので、narrow が変わるたび測り直す。
   useEffect(() => {
-    const el = deskRef.current
-    if (!el) return
-    const update = () => {
-      setDeskWidth(el.clientWidth)
-      const row = tidyRowRef.current
-      if (row) onMeasureTop(row.getBoundingClientRect().bottom)
-    }
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(el)
+    if (narrow) return
+    const row = tidyRowRef.current
+    if (!row) return
+    const measure = () => onMeasureTop(row.getBoundingClientRect().bottom)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(row)
+    observer.observe(document.documentElement)
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [narrow])
 
-  // 保存済みの窓は「画面中央からのオフセット」で持っているので、ブラウザ幅が変わる
-  // たびに現在の幅で読み直す＝ウインドウをリサイズしても中央基準の位置関係のまま
-  // 追従する（左上原点だと、幅を変えると配置が画面外にずれてしまうため）。
-  useEffect(() => {
-    if (deskWidth === 0) return
-    setLayouts(loadLayouts(deskWidth))
-  }, [deskWidth])
-
-  const rectFor = (id: string, index: number): WinRect =>
-    layouts[id] ?? defaultRect(index, deskWidth || 1000)
+  const rectFor = (id: string, index: number): WinRect => {
+    const raw = rawLayouts[id]
+    return raw ? rectFromCenter(raw, viewportWidth) : defaultRect(index, viewportWidth || 1000)
+  }
 
   const commit = (id: string, rect: WinRect) => {
-    setLayouts((prev) => ({ ...prev, [id]: rect }))
-    saveLayout(id, rect, deskWidth || window.innerWidth)
+    const center = centerFromRect(rect, viewportWidth)
+    setRawLayouts((prev) => ({ ...prev, [id]: center }))
+    saveLayoutRaw(id, center)
   }
   const bringToFront = (id: string) => setOrder((prev) => [...prev.filter((x) => x !== id), id])
   const tidy = () => {
     clearLayouts() // 棚の各窓＋案内AI（__guide__）の保存位置をまとめて消す
-    setLayouts({})
+    setRawLayouts({})
     onTidy() // 案内AIの窓も初期位置へ戻す
   }
 
@@ -530,14 +537,10 @@ function FloatingDesk({
     }),
   )
 
-  // スマホ等の狭い画面では自由配置はやめ、縦積み・全幅で表示する（操作しやすさ優先）
-  const narrow = deskWidth > 0 && deskWidth < 640
-
   return (
     // 棚はブラウザ幅いっぱいに（案内AIと同様、道具を左右どこにでも置けるように）。
     // full-bleed: 中央寄せの親(max-w-5xl)から抜けてビューポート全幅にする。
     <div
-      ref={deskRef}
       style={narrow ? undefined : { width: '100vw', marginLeft: 'calc(50% - 50vw)' }}
       className={narrow ? undefined : 'px-4'}
     >

@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { askGuide, type GuideError, type GuideMessage } from '../host/guide'
 import { fetchAiStatus } from '../host/aiSettings'
-import { loadLayouts, saveLayout, type WinRect } from '../host/gadgetLayout'
+import {
+  centerFromRect,
+  loadLayoutsRaw,
+  rectFromCenter,
+  saveLayoutRaw,
+  type CenterRect,
+  type WinRect,
+} from '../host/gadgetLayout'
+import { useViewportWidth } from '../host/useViewportWidth'
 import {
   actionLabel,
   parseGuideReply,
@@ -73,12 +81,12 @@ const MIN_H = 240
 const FALLBACK_TOP_Y = 220
 
 // 初期位置＝中央1024px帯の右端（＝「整列する」ボタンの真下）・実測した行の下。
-function defaultRect(topY: number): WinRect {
+function defaultRect(topY: number, viewportWidth: number): WinRect {
   const w = 380
   const h = Math.min(520, Math.round(window.innerHeight * 0.62))
   // 中央カラム(1024)の右端 = 画面中央 + 512
-  const centerRight = window.innerWidth / 2 + Math.min(512, window.innerWidth / 2 - 16)
-  const x = Math.max(8, Math.min(centerRight - w, window.innerWidth - w - 8))
+  const centerRight = viewportWidth / 2 + Math.min(512, viewportWidth / 2 - 16)
+  const x = Math.max(8, Math.min(centerRight - w, viewportWidth - w - 8))
   return { x, y: Math.max(8, Math.round(topY) + 8), w, h }
 }
 
@@ -93,8 +101,14 @@ export function GuideAssistant({
   defaultTopY,
 }: GuideAssistantProps) {
   const [open, setOpen] = useState(false)
-  const [narrow, setNarrow] = useState(false)
-  const [rect, setRect] = useState<WinRect | null>(null)
+  const viewportWidth = useViewportWidth()
+  // ガジェットの棚と同じく、位置は「画面中央からのオフセット」で state に持ち、
+  // 描画のたびに現在のビューポート幅で絶対座標に変換する（rect）。resize のたびに
+  // 「保存し直して読み直す」という一拍遅れる経路を挟まないので、リサイズ中も
+  // 棚のガジェットと同じ滑らかさで追従する（片方だけ別経路だとガタつきの差が出る）。
+  const [center, setCenter] = useState<CenterRect | null>(null)
+  const rect = center ? rectFromCenter(center, viewportWidth) : null
+  const narrow = viewportWidth < 640
   const topY = defaultTopY ?? FALLBACK_TOP_Y
 
   // 棚の「整列する」が押されたら、案内AIの窓も初期位置へ戻す（行方不明の解消）。
@@ -104,27 +118,12 @@ export function GuideAssistant({
       firstReset.current = false
       return // 初回マウント時は動かさない
     }
-    const d = defaultRect(topY)
-    setRect(d)
-    saveLayout(GUIDE_ID, d)
+    const c = centerFromRect(defaultRect(topY, viewportWidth), viewportWidth)
+    setCenter(c)
+    saveLayoutRaw(GUIDE_ID, c)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetSignal])
 
-  // 保存済みの窓は「画面中央からのオフセット」で持っているので、ブラウザ幅が変わる
-  // たびに中央基準の位置関係を保つよう x をずらす（左上原点だと画面外にずれてしまう）。
-  const prevWidthRef = useRef(window.innerWidth)
-  useEffect(() => {
-    const onResize = () => {
-      const newWidth = window.innerWidth
-      const oldWidth = prevWidthRef.current
-      prevWidthRef.current = newWidth
-      if (oldWidth === newWidth || drag.current) return
-      const deltaCenter = (newWidth - oldWidth) / 2
-      setRect((prev) => (prev ? { ...prev, x: prev.x + deltaCenter } : prev))
-    }
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
   // AI設定（BYOK）済みか。未設定なら案内AIの窓自体を出さない（費用は各自負担のため）
   const [aiReady, setAiReady] = useState<boolean | null>(null)
   const readyRef = useRef(false)
@@ -170,13 +169,6 @@ export function GuideAssistant({
   >(null)
   const [active, setActive] = useState<null | 'move' | ResizeDir>(null)
 
-  useEffect(() => {
-    const onResize = () => setNarrow(window.innerWidth < 640)
-    onResize()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
   // AI設定済みかを確認（マウント時＋画面移動のたび、設定が済むまで）。
   // 済んだら readyRef で以後は問い合わせない。工房でAI設定→移動すると窓が出る。
   useEffect(() => {
@@ -195,7 +187,11 @@ export function GuideAssistant({
 
   const openPanel = () => {
     setOpen(true)
-    if (!rect) setRect(loadLayouts()[GUIDE_ID] ?? defaultRect(topY))
+    if (!center) {
+      setCenter(
+        loadLayoutsRaw()[GUIDE_ID] ?? centerFromRect(defaultRect(topY, viewportWidth), viewportWidth),
+      )
+    }
     // 導入済み道具のうち「連携設定が要る」ものを拾い、設定方法チップの候補にする
     void (async () => {
       const found: Array<{ id: string; name: string }> = []
@@ -238,21 +234,25 @@ export function GuideAssistant({
     if (!d) return
     const dx = e.clientX - d.sx
     const dy = e.clientY - d.sy
+    let next: WinRect
     if (d.mode === 'move') {
-      setRect({
+      next = {
         ...d.orig,
         x: Math.min(Math.max(0, d.orig.x + dx), window.innerWidth - 60),
         y: Math.min(Math.max(0, d.orig.y + dy), window.innerHeight - 40),
-      })
+      }
     } else if (d.dir) {
-      setRect(computeResize(d.orig, d.dir, dx, dy, MIN_W, MIN_H))
+      next = computeResize(d.orig, d.dir, dx, dy, MIN_W, MIN_H)
+    } else {
+      return
     }
+    setCenter(centerFromRect(next, viewportWidth))
   }
   const endDrag = () => {
     if (!drag.current) return
     drag.current = null
     setActive(null)
-    if (rect) saveLayout(GUIDE_ID, rect)
+    if (center) saveLayoutRaw(GUIDE_ID, center)
   }
 
   const scrollToEnd = () =>
