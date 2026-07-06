@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "schedule-secretary",
   "name": "スケジュール秘書",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "複数の Google カレンダー（個人・共有・privateなど、本家Googleカレンダーの色を反映）を横断して予定を表示・追加・移動・削除できるスケジュール秘書。日/4日/週/月の表示切替に対応。AIチャットで会話しながら空き時間の相談や予定操作ができます（登録・変更はあなたの承認後）。チャット窓は設定ページのトグルで非表示にでき、非表示中は長屋の案内AIから同じ操作を任せられます。カレンダー設定・個人ルールは設定ページに集約。案件名・メモ・相談は音声入力対応。連携にはユーザー自身がデプロイする GAS WebApp を使います（セットアップ手順は gas/SETUP.md）。",
   "author": { "name": "向井庸祐", "contact": "yosuke175@gmail.com" },
   "entry": "index.html",
@@ -11,7 +11,15 @@
   "permissions": ["storage", "microphone", "ai", "ai-tools"],
   "aiTools": [
     { "name": "list_calendars", "description": "連携している Google カレンダーの一覧（id・名前）を返す（読み取り）", "kind": "read" },
-    { "name": "list_events", "description": "今後の予定の一覧を返す（読み取り）。各予定にどのカレンダーの予定かが付く", "kind": "read" },
+    {
+      "name": "list_events",
+      "description": "予定の一覧を返す（読み取り）。既定は今後30日。過去や特定の期間（例:昨日・先週）を見たいときは rangeStart/rangeEnd に ISO日時を指定する。各予定に id・カレンダー・allDay が付く",
+      "kind": "read",
+      "params": {
+        "rangeStart": { "type": "string" },
+        "rangeEnd": { "type": "string" }
+      }
+    },
     {
       "name": "create_event",
       "description": "予定を1件作成する。calendarId を省略すると既定のカレンダーに作成される。args: title(必須), start(ISO日時・必須), end(ISO日時), description, calendarId",

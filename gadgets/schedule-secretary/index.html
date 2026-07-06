@@ -569,7 +569,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-06 r8</span
+          >build 2026-07-07 r9</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -805,7 +805,12 @@
             return { calendars: await callGas("listCalendars") };
           }
           if (name === "list_events") {
-            return { events: await callGas("list", schedulingListParams()) };
+            // 既定は今後30日（GAS側の既定）。案内AIが rangeStart/rangeEnd(ISO) を
+            // 指定してきたら、その期間で取得する（「昨日」など過去の予定の変更に必要）。
+            const params = schedulingListParams();
+            if (args.rangeStart) params.rangeStart = String(args.rangeStart);
+            if (args.rangeEnd) params.rangeEnd = String(args.rangeEnd);
+            return { events: await callGas("list", params) };
           }
           if (name === "create_event") {
             if (!args.title || !args.start) {
