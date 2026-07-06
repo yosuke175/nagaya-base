@@ -10,7 +10,6 @@ import {
   centerFromRect,
   clearLayouts,
   loadLayoutsRaw,
-  rectFromCenter,
   saveLayoutRaw,
   type CenterRect,
   type WinRect,
@@ -512,13 +511,12 @@ function FloatingDesk({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrow])
 
-  const rectFor = (id: string, index: number): WinRect => {
-    const raw = rawLayouts[id]
-    return raw ? rectFromCenter(raw, viewportWidth) : defaultRect(index, viewportWidth || 1000)
-  }
+  // 静止時は常に「中央基準」のまま渡す＝FloatingWindow が CSS の calc(50% + cxpx) で
+  // 描画するので、リサイズはブラウザのレイアウトエンジンがネイティブに追従し、ガタつかない。
+  const rectFor = (id: string, index: number): CenterRect =>
+    rawLayouts[id] ?? centerFromRect(defaultRect(index, viewportWidth || 1000), viewportWidth)
 
-  const commit = (id: string, rect: WinRect) => {
-    const center = centerFromRect(rect, viewportWidth)
+  const commit = (id: string, center: CenterRect) => {
     setRawLayouts((prev) => ({ ...prev, [id]: center }))
     saveLayoutRaw(id, center)
   }

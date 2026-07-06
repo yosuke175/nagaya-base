@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { GadgetFrame } from './GadgetFrame'
 import { ResizeHandles, computeResize, cursorForDir, type ResizeDir } from './resizeHandles'
-import type { WinRect } from '../host/gadgetLayout'
+import { centerFromRect, rectFromCenter, type CenterRect, type WinRect } from '../host/gadgetLayout'
 
 // 棚のフローティング窓。ヘッダーをドラッグで移動、4辺4角のハンドルでリサイズ。
 // ドラッグ/リサイズ中は全面シールドを敷いて iframe にイベントを奪われないようにする。
+//
+// 位置は「静止時はCSSの calc(50% + cxpx) で置く」「ドラッグ中だけJSの絶対座標で動かす」
+// の二枚構成にしている。ブラウザのリサイズに合わせて毎回JSで絶対座標を計算し直す方式
+// （以前の実装）だと、リサイズの描画→ワンテンポ遅れてJSが位置を補正、を繰り返すことになり
+// 見た目がガタつく（案内AI窓も同じ仕組みにしたところ同様にガタついた＝JS側の計算方式に
+// 起因すると確認済み）。calc()はブラウザのレイアウトエンジンがネイティブに追従するので
+// JSの介在が無く、リサイズ中もガタつかない。
 
 const MIN_W = 240
 const MIN_H = 180
@@ -18,15 +25,15 @@ export function FloatingWindow({
   onUninstall,
 }: {
   gadgetDir: string
-  rect: WinRect
+  /** 静止時の位置（画面中央からのオフセット）。ドラッグ中はここを見ない。 */
+  rect: CenterRect
   zIndex: number
   onFocus: () => void
-  onCommit: (rect: WinRect) => void
+  onCommit: (rect: CenterRect) => void
   onUninstall: (dir: string) => void
 }) {
-  const [local, setLocal] = useState<WinRect>(rect)
-  // 親がレイアウトをリセット（整列）したら追従する
-  useEffect(() => setLocal(rect), [rect.x, rect.y, rect.w, rect.h])
+  // ドラッグ/リサイズ中だけ使う絶対座標のワーキングコピー。null=静止（CSS calc()で描画）
+  const [dragLocal, setDragLocal] = useState<WinRect | null>(null)
 
   const drag = useRef<
     null | { mode: 'move' | 'resize'; dir?: ResizeDir; sx: number; sy: number; orig: WinRect }
@@ -38,14 +45,18 @@ export function FloatingWindow({
     if ((e.target as HTMLElement).closest('button')) return
     e.preventDefault()
     onFocus()
-    drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig: local }
+    const orig = rectFromCenter(rect, window.innerWidth)
+    drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig }
+    setDragLocal(orig)
     setActive('move')
   }
   const startResize = (dir: ResizeDir, e: ReactPointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
     onFocus()
-    drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig: local }
+    const orig = rectFromCenter(rect, window.innerWidth)
+    drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig }
+    setDragLocal(orig)
     setActive(dir)
   }
   const onShieldMove = (e: ReactPointerEvent) => {
@@ -54,24 +65,25 @@ export function FloatingWindow({
     const dx = e.clientX - d.sx
     const dy = e.clientY - d.sy
     if (d.mode === 'move') {
-      setLocal({ ...d.orig, x: Math.max(0, d.orig.x + dx), y: Math.max(0, d.orig.y + dy) })
+      setDragLocal({ ...d.orig, x: Math.max(0, d.orig.x + dx), y: Math.max(0, d.orig.y + dy) })
     } else if (d.dir) {
-      setLocal(computeResize(d.orig, d.dir, dx, dy, MIN_W, MIN_H))
+      setDragLocal(computeResize(d.orig, d.dir, dx, dy, MIN_W, MIN_H))
     }
   }
   const endDrag = () => {
     if (!drag.current) return
     drag.current = null
     setActive(null)
-    onCommit(local)
+    if (dragLocal) onCommit(centerFromRect(dragLocal, window.innerWidth))
+    setDragLocal(null)
   }
 
+  const style = dragLocal
+    ? { left: dragLocal.x, top: dragLocal.y, width: dragLocal.w, height: dragLocal.h, zIndex }
+    : { left: `calc(50% + ${rect.cx}px)`, top: rect.y, width: rect.w, height: rect.h, zIndex }
+
   return (
-    <div
-      className="absolute"
-      style={{ left: local.x, top: local.y, width: local.w, height: local.h, zIndex }}
-      onPointerDown={onFocus}
-    >
+    <div className="absolute" style={style} onPointerDown={onFocus}>
       <GadgetFrame
         gadgetDir={gadgetDir}
         floating

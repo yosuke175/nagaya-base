@@ -102,12 +102,13 @@ export function GuideAssistant({
 }: GuideAssistantProps) {
   const [open, setOpen] = useState(false)
   const viewportWidth = useViewportWidth()
-  // ガジェットの棚と同じく、位置は「画面中央からのオフセット」で state に持ち、
-  // 描画のたびに現在のビューポート幅で絶対座標に変換する（rect）。resize のたびに
-  // 「保存し直して読み直す」という一拍遅れる経路を挟まないので、リサイズ中も
-  // 棚のガジェットと同じ滑らかさで追従する（片方だけ別経路だとガタつきの差が出る）。
+  // 静止時の位置は「画面中央からのオフセット」で持つ。描画は CSS の
+  // calc(50% + cxpx) で行う（下の containerStyle）ので、ブラウザのリサイズは
+  // レイアウトエンジンがネイティブに追従し、JSの計算待ちによるガタつきが出ない
+  // （棚のガジェットと同じ仕組み。片方だけJSで絶対座標を出し直す方式だとズレて見える）。
   const [center, setCenter] = useState<CenterRect | null>(null)
-  const rect = center ? rectFromCenter(center, viewportWidth) : null
+  // ドラッグ/リサイズ中だけ使う絶対座標のワーキングコピー。null=静止（CSS calc()で描画）
+  const [dragLocal, setDragLocal] = useState<WinRect | null>(null)
   const narrow = viewportWidth < 640
   const topY = defaultTopY ?? FALLBACK_TOP_Y
 
@@ -216,17 +217,21 @@ export function GuideAssistant({
 
   // --- ドラッグ / リサイズ（PCのみ） ---
   const startMove = (e: ReactPointerEvent) => {
-    if (narrow || !rect) return
+    if (narrow || !center) return
     if ((e.target as HTMLElement).closest('button')) return
     e.preventDefault()
-    drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig: rect }
+    const orig = rectFromCenter(center, window.innerWidth)
+    drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig }
+    setDragLocal(orig)
     setActive('move')
   }
   const startResize = (dir: ResizeDir, e: ReactPointerEvent) => {
-    if (!rect) return
+    if (!center) return
     e.preventDefault()
     e.stopPropagation()
-    drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig: rect }
+    const orig = rectFromCenter(center, window.innerWidth)
+    drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig }
+    setDragLocal(orig)
     setActive(dir)
   }
   const onShieldMove = (e: ReactPointerEvent) => {
@@ -246,13 +251,18 @@ export function GuideAssistant({
     } else {
       return
     }
-    setCenter(centerFromRect(next, viewportWidth))
+    setDragLocal(next)
   }
   const endDrag = () => {
     if (!drag.current) return
     drag.current = null
     setActive(null)
-    if (center) saveLayoutRaw(GUIDE_ID, center)
+    if (dragLocal) {
+      const c = centerFromRect(dragLocal, window.innerWidth)
+      setCenter(c)
+      saveLayoutRaw(GUIDE_ID, c)
+    }
+    setDragLocal(null)
   }
 
   const scrollToEnd = () =>
@@ -401,13 +411,16 @@ export function GuideAssistant({
   }
 
   // 狭い画面は下部固定、広い画面は保存位置に自由配置
-  const floating = !narrow && rect
+  const floating = !narrow && center
   const containerClass = floating
     ? 'fixed z-40 flex flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl'
     : 'fixed bottom-4 right-4 z-40 flex max-h-[70vh] w-[min(92vw,380px)] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl'
-  const containerStyle = floating
-    ? { left: rect!.x, top: rect!.y, width: rect!.w, height: rect!.h }
-    : undefined
+  // ドラッグ中は絶対座標(dragLocal)、静止時は CSS calc(50% + cxpx) で中央基準に描画。
+  const containerStyle = !floating
+    ? undefined
+    : dragLocal
+      ? { left: dragLocal.x, top: dragLocal.y, width: dragLocal.w, height: dragLocal.h }
+      : { left: `calc(50% + ${center!.cx}px)`, top: center!.y, width: center!.w, height: center!.h }
 
   return (
     <div className={containerClass} style={containerStyle}>
