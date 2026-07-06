@@ -259,10 +259,22 @@ function buildGuideSystemPrompt(
         ...chunks.map((c, i) => `【${i + 1}】(${c.source_path})\n${c.content}`),
       ].join('\n')
     : '# 長屋の資料\n（関連資料は見つかりませんでした。確信が無いことは断定せず、「案内所」を勧めてよい）'
-  const now =
+  // 現在日時（日本時間）を毎回渡す。これが無いと AI は日付を持たず、「今日」を
+  // 推測して誤った日付（前日など）を答えてしまう。サーバーはUTCなので Asia/Tokyo に整形。
+  const nowJst = new Date().toLocaleString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  const viewLine =
     typeof context?.viewLabel === 'string' && context.viewLabel.length <= 20
-      ? `# 今の状況\n- ユーザーが今見ている画面: ${context.viewLabel}`
+      ? `\n- ユーザーが今見ている画面: ${context.viewLabel}`
       : ''
+  const now = `# 今の状況\n- 現在日時: ${nowJst}（日本時間）。「今日」「今」「来週」等はこの日時を基準に解釈する。${viewLine}`
   return [
     personaName
       ? `あなたは「長屋（NAGAYA-BASE）」の案内AI。長屋の${personaName}として、入居者が道具（ガジェット）を活用するのを助ける親切で簡潔な案内役です。`
@@ -741,10 +753,12 @@ export const onRequest = async (context: {
         background(logUsage(env, userId, 'openai', EMBEDDING_MODEL, lastUser.length, 0, 'embed', 'platform'))
       }
       const system = buildGuideSystemPrompt(state, chunks, body.context)
+      // 既定800は短く、長めの説明や末尾のツール/操作ブロックが途中で切れて（＝ブロック
+      // 未完でツールが実行されず「無反応」に見える）いた。既定を上げて途切れを防ぐ。
       const maxTokens =
         typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
           ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)
-          : 800
+          : 1500
       // 案内は根拠つきの短い応答なので fast tier（速い/安いモデル）で十分。生成を速くする。
       const guideModel = TIER_MODEL.fast[settings.provider] ?? settings.model
       const guideSettings: StoredAiSettings = { ...settings, model: guideModel }
