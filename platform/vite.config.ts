@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +10,30 @@ import { buildGadgetCsp, manifestConnectSrc } from './src/host/csp'
 
 const platformDir = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = path.resolve(platformDir, '..')
+
+/**
+ * どのデプロイを見ているかを見た目で確認できるよう、ビルド時にコミットSHAと時刻を
+ * 埋め込む。Cloudflare Pages はビルド時に CF_PAGES_COMMIT_SHA を渡すので優先し、
+ * ローカルでは git から取る（どちらも無ければ 'dev'）。
+ */
+function resolveBuildInfo(): { version: string; sha: string; time: string } {
+  const pkg = JSON.parse(fs.readFileSync(path.join(platformDir, 'package.json'), 'utf8')) as {
+    version?: string
+  }
+  let sha = process.env.CF_PAGES_COMMIT_SHA ?? ''
+  if (!sha) {
+    try {
+      sha = execSync('git rev-parse HEAD', { cwd: repoRoot }).toString().trim()
+    } catch {
+      sha = ''
+    }
+  }
+  return {
+    version: pkg.version ?? '0.0.0',
+    sha: sha ? sha.slice(0, 7) : 'dev',
+    time: new Date().toISOString(),
+  }
+}
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -167,6 +192,10 @@ export default defineConfig(({ mode }) => {
   const appName = env.VITE_APP_NAME || 'Gadget Platform (dev)'
 
   return {
+    // 見た目でデプロイ版を確認できるよう、ビルド情報をグローバル定数に埋め込む。
+    define: {
+      __BUILD_INFO__: JSON.stringify(resolveBuildInfo()),
+    },
     // Allow launchers/CI to assign the dev port via PORT (default: 5173)
     server: {
       port: Number(process.env.PORT) || 5173,

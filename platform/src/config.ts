@@ -22,3 +22,10 @@ export const appConfig = {
   wizardDownloadUrl: `${repoUrl}/releases/latest/download/NagayaBaseSetup-portable.exe`,
   wizardDownloadUrlMac: `${repoUrl}/releases/latest/download/NagayaBaseSetup-mac.dmg`,
 } as const
+
+/**
+ * ビルド情報（版・コミットSHA・ビルド時刻）。vite.config.ts の define で注入される。
+ * どのデプロイを表示しているかを画面で確認するために使う。
+ */
+export const buildInfo: { version: string; sha: string; time: string } =
+  typeof __BUILD_INFO__ !== 'undefined' ? __BUILD_INFO__ : { version: '0.0.0', sha: 'dev', time: '' }

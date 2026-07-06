@@ -11,3 +11,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** ビルド時に vite.config.ts の define で注入される（コミットSHA・時刻・版）。 */
+declare const __BUILD_INFO__: {
+  readonly version: string
+  readonly sha: string
+  readonly time: string
+}

@@ -16,7 +16,7 @@ import {
 } from './host/gadgetLayout'
 import { useViewportWidth } from './host/useViewportWidth'
 import { LoginView } from './components/LoginView'
-import { appConfig } from './config'
+import { appConfig, buildInfo } from './config'
 import { installGadget, listInstallations, uninstallGadget } from './host/installations'
 import { AdminView } from './components/AdminView'
 import { AnnouncementsView } from './components/AnnouncementsView'
@@ -191,9 +191,19 @@ export default function App() {
                 width={44}
                 height={44}
               />
-              <h1 className="text-2xl font-bold leading-none" style={{ color: 'var(--nb-navy)' }}>
-                {appConfig.appName}
-              </h1>
+              <div className="flex flex-col">
+                <h1 className="text-2xl font-bold leading-none" style={{ color: 'var(--nb-navy)' }}>
+                  {appConfig.appName}
+                </h1>
+                {/* どのデプロイを見ているか一目で分かるよう、版・コミット・ビルド時刻を表示 */}
+                <span
+                  className="mt-0.5 font-mono text-[10px] leading-none text-stone-400"
+                  title={`build ${buildInfo.time}`}
+                >
+                  v{buildInfo.version} · {buildInfo.sha}
+                  {buildInfo.time ? ` · ${buildInfo.time.slice(0, 16).replace('T', ' ')}` : ''}
+                </span>
+              </div>
             </button>
             {/* メニューはタイトルの右に一列（指定の並び順: 部屋/入居者/道具市/回覧板/
                 長屋暦/案内所/工房）。「部屋」は主画面(dashboard)の表示名。歩みは案内所内、
