@@ -298,20 +298,30 @@ function normalizeProvider(value: unknown): Provider {
 }
 
 function validMessages(messages: unknown): messages is AiMessage[] {
-  if (!Array.isArray(messages) || messages.length === 0) return false
+  return describeMessagesProblem(messages) === null
+}
+
+/**
+ * messages がAI呼び出しに使える形かを検証し、ダメな場合は「何がダメか」を返す。
+ * null なら妥当。以前は理由を返さず一律「invalid ai request」だったため、デプロイ間の
+ * 形式ズレ等を切り分けられなかった。呼び出し側でこの文言をそのまま 400 に載せる。
+ */
+function describeMessagesProblem(messages: unknown): string | null {
+  if (!Array.isArray(messages)) return 'request.messages が配列ではありません'
+  if (messages.length === 0) return 'request.messages が空です'
   let total = 0
-  for (const message of messages as Array<Partial<AiMessage>>) {
-    if (
-      !message ||
-      (message.role !== 'user' && message.role !== 'assistant') ||
-      typeof message.content !== 'string' ||
-      message.content.length === 0
-    ) {
-      return false
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i] as Partial<AiMessage> | null
+    if (!message || typeof message !== 'object') return `messages[${i}] がオブジェクトではありません`
+    if (message.role !== 'user' && message.role !== 'assistant') {
+      return `messages[${i}].role が user/assistant ではありません（${String(message.role)}）`
     }
+    if (typeof message.content !== 'string') return `messages[${i}].content が文字列ではありません`
+    if (message.content.length === 0) return `messages[${i}].content が空です`
     total += message.content.length
   }
-  return total <= MAX_TOTAL_CONTENT_CHARS
+  if (total > MAX_TOTAL_CONTENT_CHARS) return `メッセージ全体が長すぎます（${total}文字 > ${MAX_TOTAL_CONTENT_CHARS}）`
+  return null
 }
 
 // --- provider adapters: return generated text or throw with a message -------
@@ -628,10 +638,11 @@ export const onRequest = async (context: {
     if (body.action === 'complete') {
       const aiRequest = body.request
       if (!aiRequest || !validMessages(aiRequest.messages)) {
-        return json(400, { error: 'invalid ai request' }, MARKER)
+        const reason = describeMessagesProblem(aiRequest?.messages) ?? 'request がありません'
+        return json(400, { error: `invalid ai request: ${reason}` }, MARKER)
       }
       if (aiRequest.system !== undefined && typeof aiRequest.system !== 'string') {
-        return json(400, { error: 'invalid ai request' }, MARKER)
+        return json(400, { error: 'invalid ai request: system が文字列ではありません' }, MARKER)
       }
       const settings = await loadSettings()
       if (!settings) {
@@ -688,7 +699,8 @@ export const onRequest = async (context: {
       // 案内AI（段1・ステートレス）。system は状態票つきでサーバーが組む（クライアントは送らない）。
       const aiRequest = body.request
       if (!aiRequest || !validMessages(aiRequest.messages)) {
-        return json(400, { error: 'invalid ai request' }, MARKER)
+        const reason = describeMessagesProblem(aiRequest?.messages) ?? 'request がありません'
+        return json(400, { error: `invalid ai request: ${reason}` }, MARKER)
       }
       const t0 = Date.now()
       const lastUser =
