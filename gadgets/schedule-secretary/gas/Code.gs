@@ -68,7 +68,11 @@ function doPost(e) {
   }
 }
 
-/** ユーザーが持つ（購読含む）すべてのカレンダーの一覧。 */
+/**
+ * ユーザーが持つ（購読含む）すべてのカレンダーの一覧。
+ * color は Google カレンダー側で設定した色の colorId（"1"〜"24"）。本家の色を
+ * ガジェット側でも再現できるよう、そのまま返す（フロント側で色見本に変換）。
+ */
 function listCalendars() {
   var defaultId = CalendarApp.getDefaultCalendar().getId();
   return CalendarApp.getAllCalendars().map(function (calendar) {
@@ -76,6 +80,7 @@ function listCalendars() {
       id: calendar.getId(),
       name: calendar.getName(),
       isDefault: calendar.getId() === defaultId,
+      color: calendar.getColor(),
     };
   });
 }
