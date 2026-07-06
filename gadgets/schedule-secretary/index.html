@@ -1888,6 +1888,13 @@
       });
 
       async function runChatTurn(text) {
+        // runAction は busy 中だと黙って return するため、チャットが「無反応」に見える。
+        // 予定取得などの処理中はその旨を明示して、入力を捨てずに気づけるようにする。
+        if (busy) {
+          appendChatBubble("user", text);
+          appendSystemNote("いま別の処理中です（予定の取得など）。少し待ってからもう一度送ってください。");
+          return;
+        }
         appendChatBubble("user", text);
         chatHistory.push({ role: "user", content: text });
         await runAction("AIが考えています…", async () => {
