@@ -35,6 +35,7 @@
         justify-content: space-between;
         gap: 8px;
         margin-bottom: 8px;
+        flex-wrap: wrap;
       }
       button {
         font-size: 13px;
@@ -66,6 +67,11 @@
       button.mic.listening {
         background: #fee2e2;
         border-color: #ef4444;
+      }
+      button.toggle-active {
+        background: #44403c;
+        border-color: #44403c;
+        color: #fafaf9;
       }
       #status {
         font-size: 12px;
@@ -147,12 +153,25 @@
         margin-bottom: 6px;
         background: #fff;
       }
+      .event.off-schedule {
+        border-style: dashed;
+        opacity: 0.85;
+      }
       .event .time {
         font-size: 12px;
         color: #57534e;
       }
       .event .title {
         font-weight: 600;
+      }
+      .event .cal-tag {
+        display: inline-block;
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        color: #fff;
+        margin-left: 6px;
+        vertical-align: middle;
       }
       .event .desc {
         font-size: 12px;
@@ -185,6 +204,12 @@
         gap: 3px;
         font-size: 12px;
         color: #57534e;
+      }
+      select {
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid #d6d3d1;
+        border-radius: 8px;
       }
       .with-mic {
         display: flex;
@@ -229,6 +254,251 @@
         font-size: 11px;
         color: #78716c;
       }
+
+      /* ---- calendar picker ---- */
+      .cal-list {
+        display: grid;
+        gap: 4px;
+        font-size: 12px;
+      }
+      .cal-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 2px;
+      }
+      .cal-row .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex: none;
+      }
+      .cal-row .name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .cal-row label {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 3px;
+        font-size: 11px;
+        color: #57534e;
+      }
+
+      /* ---- view switcher ---- */
+      .view-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+      .view-modes {
+        display: flex;
+        gap: 4px;
+      }
+      .view-modes button {
+        padding: 4px 10px;
+      }
+      .view-nav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .view-range-label {
+        font-size: 12px;
+        font-weight: 600;
+        min-width: 120px;
+        text-align: center;
+      }
+
+      /* ---- day/week/4day grid ---- */
+      .grid-wrap {
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+      }
+      .grid-allday {
+        display: grid;
+        border-bottom: 1px solid #e7e5e4;
+      }
+      .grid-allday .cell {
+        border-left: 1px solid #f0efed;
+        padding: 3px;
+        min-height: 20px;
+      }
+      .grid-head {
+        display: grid;
+        border-bottom: 1px solid #e7e5e4;
+        background: #fafaf9;
+      }
+      .grid-head .cell {
+        border-left: 1px solid #f0efed;
+        padding: 4px 6px;
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .grid-head .cell.today {
+        color: #b85042;
+      }
+      .grid-body-scroll {
+        max-height: 440px;
+        overflow-y: auto;
+      }
+      .grid-body {
+        display: grid;
+        position: relative;
+      }
+      .grid-hourlabels {
+        position: relative;
+      }
+      .grid-hourlabels .hour {
+        font-size: 10px;
+        color: #a8a29e;
+        text-align: right;
+        padding-right: 4px;
+        box-sizing: border-box;
+        border-top: 1px solid #f0efed;
+      }
+      .grid-col {
+        position: relative;
+        border-left: 1px solid #f0efed;
+      }
+      .grid-col .hourline {
+        border-top: 1px solid #f0efed;
+        box-sizing: border-box;
+      }
+      .grid-event {
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 11px;
+        padding: 2px 4px;
+        overflow: hidden;
+        cursor: pointer;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+      }
+      .grid-allday-chip {
+        display: inline-block;
+        font-size: 11px;
+        border-radius: 4px;
+        color: #fff;
+        padding: 1px 5px;
+        margin: 1px 2px 1px 0;
+        cursor: pointer;
+      }
+
+      /* ---- month view ---- */
+      .month-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+      }
+      .month-cell {
+        border-left: 1px solid #f0efed;
+        border-top: 1px solid #f0efed;
+        min-height: 76px;
+        padding: 3px;
+        font-size: 11px;
+      }
+      .month-cell .day-num {
+        font-size: 11px;
+        color: #78716c;
+        margin-bottom: 2px;
+      }
+      .month-cell.today .day-num {
+        color: #b85042;
+        font-weight: 700;
+      }
+      .month-cell.outside {
+        background: #fafaf9;
+        color: #d6d3d1;
+      }
+      .month-cell .more {
+        font-size: 10px;
+        color: #78716c;
+      }
+
+      /* ---- AI chat ---- */
+      .chat-panel {
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .chat-messages {
+        max-height: 260px;
+        overflow-y: auto;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .chat-msg {
+        max-width: 88%;
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-size: 13px;
+        white-space: pre-wrap;
+      }
+      .chat-msg.user {
+        align-self: flex-end;
+        background: #44403c;
+        color: #fafaf9;
+      }
+      .chat-msg.assistant {
+        align-self: flex-start;
+        background: #f5f5f4;
+      }
+      .chat-msg.system-note {
+        align-self: center;
+        background: none;
+        color: #78716c;
+        font-size: 11px;
+      }
+      .chat-action-card {
+        align-self: flex-start;
+        max-width: 88%;
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+        border-radius: 10px;
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      .chat-input-row {
+        border-top: 1px solid #e7e5e4;
+        display: flex;
+        gap: 6px;
+        padding: 8px;
+      }
+      .chat-input-row input {
+        flex: 1;
+      }
+      .chat-hidden-note {
+        font-size: 12px;
+        color: #57534e;
+        border: 1px dashed #d6d3d1;
+        border-radius: 10px;
+        padding: 8px 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
     </style>
   </head>
   <body>
@@ -271,7 +541,43 @@
       </div>
       <p id="cache-note" class="sub" hidden></p>
 
-      <div id="events"></div>
+      <h2>AIチャット</h2>
+      <div id="chat-panel" class="chat-panel">
+        <div id="chat-messages" class="chat-messages"></div>
+        <form id="chat-form" class="chat-input-row">
+          <input id="chat-input" maxlength="500" placeholder="例: 明日の午後、1時間空いてる？" autocomplete="off" />
+          <button class="mic" type="button" data-target="chat-input" hidden aria-label="音声で入力">🎤</button>
+          <button class="primary" type="submit">送信</button>
+          <button id="chat-hide" type="button">隠す</button>
+        </form>
+      </div>
+      <div id="chat-hidden-note" class="chat-hidden-note" hidden>
+        <span>AIチャットは非表示です。この間は長屋の<strong>案内AI</strong>からこの道具を操作できます。</span>
+        <button id="chat-show" type="button">チャットを表示</button>
+      </div>
+
+      <h2>カレンダー設定</h2>
+      <div id="cal-settings" class="cal-list"></div>
+      <p class="sub">
+        「表示」はこの道具に取り込むカレンダー、「予定管理」はAIの空き時間判定・チャットでの一覧に数えるカレンダーです。
+      </p>
+
+      <div class="view-bar">
+        <div class="view-modes" id="view-modes">
+          <button data-view="list" type="button">リスト</button>
+          <button data-view="day" type="button">日</button>
+          <button data-view="4day" type="button">4日</button>
+          <button data-view="week" type="button">週</button>
+          <button data-view="month" type="button">月</button>
+        </div>
+        <div class="view-nav">
+          <button id="nav-prev" type="button">◀</button>
+          <button id="nav-today" type="button">今日</button>
+          <button id="nav-next" type="button">▶</button>
+        </div>
+      </div>
+      <p id="view-range-label" class="view-range-label"></p>
+      <div id="view-container"></div>
 
       <h2>予定を追加</h2>
       <form id="create-form">
@@ -281,6 +587,10 @@
             <input id="create-title" required maxlength="200" placeholder="例: 山田様 打ち合わせ" />
             <button class="mic" type="button" data-target="create-title" hidden aria-label="案件名を音声入力">🎤</button>
           </span>
+        </label>
+        <label>
+          カレンダー
+          <select id="create-calendar"></select>
         </label>
         <label>
           開始日時
@@ -345,8 +655,13 @@
 
       const SERVICE_ID = "gas-webapp";
       const CACHE_KEY = "events-cache";
+      const DISPLAY_CAL_KEY = "display-calendars";
+      const SCHEDULING_CAL_KEY = "scheduling-calendars";
+      const VIEW_MODE_KEY = "view-mode";
+      const CHAT_VISIBLE_KEY = "chat-visible";
       const GAS_URL_PREFIX = "https://script.google.com/";
       const REQUEST_TIMEOUT_MS = 30_000;
+      const HOUR_PX = 36;
 
       const el = (id) => document.getElementById(id);
       const statusEl = el("status");
@@ -360,13 +675,18 @@
       const errorBannerEl = el("error-banner");
       const errorTextEl = el("error-text");
       const cacheNoteEl = el("cache-note");
-      const eventsEl = el("events");
       const createForm = el("create-form");
+      const createCalendarSelect = el("create-calendar");
 
       let gadget = null;
       let credential = null; // { url, token } — kept in memory only
-      let events = [];
+      let events = []; // events currently loaded for the active view's range
       let busy = false;
+      let calendars = []; // [{id, name, isDefault}]
+      let displayCalendarIds = null; // Set<string> | null (null = not loaded yet)
+      let schedulingCalendarIds = null; // Set<string> | null
+      let viewMode = "week"; // list | day | 4day | week | month
+      let viewDate = startOfDay(new Date());
 
       // ---------------- bootstrap ----------------
 
@@ -380,12 +700,15 @@
         }
         statusEl.hidden = true;
 
-        // ADR-011: 案内AIからのツール実行に応答する（read=list_events / act=create_event）。
-        // 実際の実行はいずれもユーザー承認のうえで案内AI経由で呼ばれる。
+        // ADR-011: 案内AIからのツール実行に応答する。実際の実行はいずれも
+        // ユーザー承認のうえで案内AI経由で呼ばれる（act系は requiresConfirm）。
         gadget.ai?.onToolInvoke?.(async ({ name, args }) => {
           if (!credential) throw new Error("先に連携設定（GAS WebApp）を済ませてください");
+          if (name === "list_calendars") {
+            return { calendars: await callGas("listCalendars") };
+          }
           if (name === "list_events") {
-            return { events: await callGas("list") };
+            return { events: await callGas("list", schedulingListParams()) };
           }
           if (name === "create_event") {
             if (!args.title || !args.start) {
@@ -396,9 +719,37 @@
               description: args.description ? String(args.description) : "",
               start: String(args.start),
               end: args.end ? String(args.end) : String(args.start),
+              calendarId: args.calendarId ? String(args.calendarId) : undefined,
             });
-            await reloadList().catch(() => {});
+            await reloadEvents().catch(() => {});
             return { ok: true, created };
+          }
+          if (name === "move_event") {
+            requireArgs(args, ["eventId", "calendarId", "start", "end"]);
+            const moved = await callGas("move", {
+              eventId: String(args.eventId),
+              calendarId: String(args.calendarId),
+              start: String(args.start),
+              end: String(args.end),
+            });
+            await reloadEvents().catch(() => {});
+            return { ok: true, moved };
+          }
+          if (name === "move_event_to_calendar") {
+            requireArgs(args, ["eventId", "calendarId", "toCalendarId"]);
+            const moved = await callGas("moveToCalendar", {
+              eventId: String(args.eventId),
+              calendarId: String(args.calendarId),
+              toCalendarId: String(args.toCalendarId),
+            });
+            await reloadEvents().catch(() => {});
+            return { ok: true, moved };
+          }
+          if (name === "delete_event") {
+            requireArgs(args, ["eventId", "calendarId"]);
+            await callGas("delete", { eventId: String(args.eventId), calendarId: String(args.calendarId) });
+            await reloadEvents().catch(() => {});
+            return { ok: true };
           }
           throw new Error("未対応のツールです: " + name);
         });
@@ -410,6 +761,14 @@
           return;
         }
         await checkCredentialAndStart();
+      }
+
+      function requireArgs(args, names) {
+        for (const name of names) {
+          if (args[name] === undefined || args[name] === null || args[name] === "") {
+            throw new Error(name + " が必要です");
+          }
+        }
       }
 
       async function checkCredentialAndStart() {
@@ -435,6 +794,9 @@
         refreshButton.hidden = false;
         void loadRules();
         await restoreCache();
+        await loadPreferences();
+        await loadCalendars();
+        setActiveView(viewMode);
         await refreshEvents();
       }
 
@@ -540,34 +902,252 @@
         errorBannerEl.hidden = true;
       }
 
-      // ---------------- events list ----------------
+      // ---------------- calendars (multi-calendar support) ----------------
 
-      async function reloadList() {
-        events = await callGas("list");
+      async function loadPreferences() {
+        try {
+          const saved = await gadget.storage.get(DISPLAY_CAL_KEY);
+          displayCalendarIds = Array.isArray(saved) ? new Set(saved) : null;
+        } catch {
+          displayCalendarIds = null;
+        }
+        try {
+          const saved = await gadget.storage.get(SCHEDULING_CAL_KEY);
+          schedulingCalendarIds = Array.isArray(saved) ? new Set(saved) : null;
+        } catch {
+          schedulingCalendarIds = null;
+        }
+        try {
+          const saved = await gadget.storage.get(VIEW_MODE_KEY);
+          if (typeof saved === "string" && ["list", "day", "4day", "week", "month"].includes(saved)) {
+            viewMode = saved;
+          }
+        } catch {
+          // keep default
+        }
+        try {
+          const saved = await gadget.storage.get(CHAT_VISIBLE_KEY);
+          setChatVisible(saved !== false);
+        } catch {
+          setChatVisible(true);
+        }
+      }
+
+      async function loadCalendars() {
+        try {
+          calendars = await callGas("listCalendars");
+        } catch (error) {
+          showError(`カレンダー一覧の取得に失敗しました: ${error.message}`);
+          calendars = [];
+        }
+        // Preferences default to "all calendars" until the user narrows them down.
+        if (!displayCalendarIds) displayCalendarIds = new Set(calendars.map((c) => c.id));
+        if (!schedulingCalendarIds) schedulingCalendarIds = new Set(calendars.map((c) => c.id));
+        renderCalSettings();
+        renderCreateCalendarOptions();
+      }
+
+      function calendarColor(calendarId) {
+        const palette = ["#b85042", "#6e8f7c", "#c9a15a", "#1e2c4a", "#7c6ba8", "#3a8fb7", "#a85b8f", "#5b8f4f"];
+        let hash = 0;
+        for (let i = 0; i < calendarId.length; i++) hash = (hash * 31 + calendarId.charCodeAt(i)) >>> 0;
+        return palette[hash % palette.length];
+      }
+
+      function calendarName(calendarId) {
+        return calendars.find((c) => c.id === calendarId)?.name ?? "カレンダー";
+      }
+
+      function renderCalSettings() {
+        const container = el("cal-settings");
+        container.replaceChildren();
+        if (calendars.length === 0) {
+          const empty = document.createElement("p");
+          empty.className = "empty";
+          empty.textContent = "カレンダーを取得できませんでした";
+          container.append(empty);
+          return;
+        }
+        for (const calendar of calendars) {
+          const row = document.createElement("div");
+          row.className = "cal-row";
+          const dot = document.createElement("span");
+          dot.className = "dot";
+          dot.style.background = calendarColor(calendar.id);
+          const name = document.createElement("span");
+          name.className = "name";
+          name.textContent = calendar.name + (calendar.isDefault ? "（既定）" : "");
+          const displayLabel = document.createElement("label");
+          const displayCheck = document.createElement("input");
+          displayCheck.type = "checkbox";
+          displayCheck.checked = displayCalendarIds.has(calendar.id);
+          displayCheck.addEventListener("change", () => {
+            toggleSetMember(displayCalendarIds, calendar.id, displayCheck.checked);
+            void gadget.storage.set(DISPLAY_CAL_KEY, [...displayCalendarIds]);
+            void refreshEvents();
+          });
+          displayLabel.append(displayCheck, document.createTextNode("表示"));
+          const scheduleLabel = document.createElement("label");
+          const scheduleCheck = document.createElement("input");
+          scheduleCheck.type = "checkbox";
+          scheduleCheck.checked = schedulingCalendarIds.has(calendar.id);
+          scheduleCheck.addEventListener("change", () => {
+            toggleSetMember(schedulingCalendarIds, calendar.id, scheduleCheck.checked);
+            void gadget.storage.set(SCHEDULING_CAL_KEY, [...schedulingCalendarIds]);
+          });
+          scheduleLabel.append(scheduleCheck, document.createTextNode("予定管理"));
+          row.append(dot, name, displayLabel, scheduleLabel);
+          container.append(row);
+        }
+      }
+
+      function toggleSetMember(set, value, on) {
+        if (on) set.add(value);
+        else set.delete(value);
+      }
+
+      function renderCreateCalendarOptions() {
+        createCalendarSelect.replaceChildren();
+        for (const calendar of calendars) {
+          const option = document.createElement("option");
+          option.value = calendar.id;
+          option.textContent = calendar.name + (calendar.isDefault ? "（既定）" : "");
+          if (calendar.isDefault) option.selected = true;
+          createCalendarSelect.append(option);
+        }
+      }
+
+      /** 「予定管理」対象カレンダーだけに絞った list パラメータ（AI相談・チャット・ツール向け）。 */
+      function schedulingListParams() {
+        return { calendarIds: [...(schedulingCalendarIds ?? [])] };
+      }
+
+      // ---------------- view switching (list/day/4day/week/month) ----------------
+
+      function startOfDay(date) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      }
+      function addDays(date, n) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n);
+      }
+      function weekStart(date) {
+        return addDays(date, -date.getDay());
+      }
+
+      function computeRange() {
+        const today = startOfDay(new Date());
+        switch (viewMode) {
+          case "day":
+            return { start: viewDate, end: addDays(viewDate, 1) };
+          case "4day":
+            return { start: viewDate, end: addDays(viewDate, 4) };
+          case "week": {
+            const start = weekStart(viewDate);
+            return { start, end: addDays(start, 7) };
+          }
+          case "month": {
+            const monthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+            const gridStart = weekStart(monthStart);
+            return { start: gridStart, end: addDays(gridStart, 42) };
+          }
+          default:
+            return { start: today, end: addDays(today, 30) };
+        }
+      }
+
+      function setActiveView(mode) {
+        viewMode = mode;
+        void gadget.storage.set(VIEW_MODE_KEY, viewMode);
+        for (const button of document.querySelectorAll("#view-modes button")) {
+          button.classList.toggle("toggle-active", button.dataset.view === mode);
+        }
+        renderViewRangeLabel();
+        renderActiveView();
+      }
+
+      function renderViewRangeLabel() {
+        const { start, end } = computeRange();
+        const fmt = new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "numeric", day: "numeric" });
+        if (viewMode === "list") {
+          el("view-range-label").textContent = "今後30日間";
+        } else if (viewMode === "month") {
+          el("view-range-label").textContent = new Intl.DateTimeFormat("ja-JP", {
+            year: "numeric",
+            month: "long",
+          }).format(viewDate);
+        } else {
+          const last = addDays(end, -1);
+          el("view-range-label").textContent =
+            start.getTime() === last.getTime() ? fmt.format(start) : `${fmt.format(start)} 〜 ${fmt.format(last)}`;
+        }
+      }
+
+      for (const button of document.querySelectorAll("#view-modes button")) {
+        button.addEventListener("click", () => setActiveView(button.dataset.view));
+      }
+      el("nav-prev").addEventListener("click", () => navigate(-1));
+      el("nav-next").addEventListener("click", () => navigate(1));
+      el("nav-today").addEventListener("click", () => {
+        viewDate = startOfDay(new Date());
+        renderViewRangeLabel();
+        void refreshEvents();
+      });
+
+      function navigate(dir) {
+        const step = viewMode === "day" ? 1 : viewMode === "4day" ? 4 : viewMode === "week" ? 7 : viewMode === "month" ? 30 : 30;
+        if (viewMode === "month") {
+          viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + dir, 1);
+        } else {
+          viewDate = addDays(viewDate, dir * step);
+        }
+        renderViewRangeLabel();
+        void refreshEvents();
+      }
+
+      // ---------------- events fetch + render dispatch ----------------
+
+      async function reloadEvents() {
+        const { start, end } = computeRange();
+        events = await callGas("list", {
+          calendarIds: [...(displayCalendarIds ?? [])],
+          rangeStart: start.toISOString(),
+          rangeEnd: end.toISOString(),
+        });
         cacheNoteEl.hidden = true;
-        renderEvents();
+        renderActiveView();
         await saveCache();
       }
 
       function refreshEvents() {
-        return runAction("予定を取得しています…（数秒かかります）", reloadList);
+        return runAction("予定を取得しています…（数秒かかります）", reloadEvents);
       }
 
-      function renderEvents() {
-        eventsEl.replaceChildren();
+      function renderActiveView() {
+        const container = el("view-container");
+        container.replaceChildren();
+        if (viewMode === "list") {
+          container.append(renderListView());
+        } else if (viewMode === "month") {
+          container.append(renderMonthView());
+        } else {
+          const days = viewMode === "day" ? 1 : viewMode === "4day" ? 4 : 7;
+          container.append(renderGridView(days));
+        }
+      }
+
+      // ---- list view ----
+
+      function renderListView() {
+        const wrap = document.createElement("div");
         if (events.length === 0) {
           const empty = document.createElement("p");
           empty.className = "empty";
           empty.textContent = "今後30日間の予定はありません";
-          eventsEl.append(empty);
-          return;
+          wrap.append(empty);
+          return wrap;
         }
         const sorted = [...events].sort((a, b) => new Date(a.start) - new Date(b.start));
-        const dayFormat = new Intl.DateTimeFormat("ja-JP", {
-          month: "numeric",
-          day: "numeric",
-          weekday: "short",
-        });
+        const dayFormat = new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
         let currentDay = "";
         for (const event of sorted) {
           const day = dayFormat.format(new Date(event.start));
@@ -575,32 +1155,37 @@
             currentDay = day;
             const heading = document.createElement("h2");
             heading.textContent = day;
-            eventsEl.append(heading);
+            wrap.append(heading);
           }
-          eventsEl.append(renderEventCard(event));
+          wrap.append(renderEventCard(event));
         }
+        return wrap;
       }
 
       function formatTimeRange(event) {
         if (event.allDay) return "終日";
-        const timeFormat = new Intl.DateTimeFormat("ja-JP", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const timeFormat = new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" });
         return `${timeFormat.format(new Date(event.start))}〜${timeFormat.format(new Date(event.end))}`;
       }
 
       function renderEventCard(event) {
         const card = document.createElement("article");
         card.className = "event";
+        if (!schedulingCalendarIds?.has(event.calendarId)) card.classList.add("off-schedule");
 
         const time = document.createElement("div");
         time.className = "time";
         time.textContent = formatTimeRange(event);
-        const title = document.createElement("div");
+        const title = document.createElement("span");
         title.className = "title";
         title.textContent = event.title;
-        card.append(time, title);
+        const tag = document.createElement("span");
+        tag.className = "cal-tag";
+        tag.style.background = calendarColor(event.calendarId);
+        tag.textContent = event.calendarName;
+        const titleRow = document.createElement("div");
+        titleRow.append(title, tag);
+        card.append(time, titleRow);
         if (event.description) {
           const desc = document.createElement("p");
           desc.className = "desc";
@@ -620,10 +1205,19 @@
         actions.append(moveButton, deleteButton);
         card.append(actions);
 
-        // Inline move editor (sandboxed iframes have no prompt()/confirm())
+        // Inline move editor (sandboxed iframes have no prompt()/confirm()).
+        // カレンダー横断の変更に対応: カレンダー選択が変わっていれば
+        // moveToCalendar、日時が変わっていれば move を呼ぶ。
         const editor = document.createElement("div");
         editor.className = "editor";
         editor.hidden = true;
+        const calendarSelect = document.createElement("select");
+        for (const calendar of calendars) {
+          const option = document.createElement("option");
+          option.value = calendar.id;
+          option.textContent = calendar.name;
+          calendarSelect.append(option);
+        }
         const startInput = document.createElement("input");
         startInput.type = "datetime-local";
         const endInput = document.createElement("input");
@@ -633,17 +1227,18 @@
         const saveButton = document.createElement("button");
         saveButton.type = "button";
         saveButton.className = "primary";
-        saveButton.textContent = "この日時に移動";
+        saveButton.textContent = "この内容に変更";
         const cancelButton = document.createElement("button");
         cancelButton.type = "button";
         cancelButton.textContent = "キャンセル";
         editorRow.append(saveButton, cancelButton);
-        editor.append(startInput, endInput, editorRow);
+        editor.append(calendarSelect, startInput, endInput, editorRow);
         card.append(editor);
 
         moveButton.addEventListener("click", () => {
           editor.hidden = !editor.hidden;
           if (!editor.hidden) {
+            calendarSelect.value = event.calendarId;
             startInput.value = toLocalInputValue(new Date(event.start));
             endInput.value = toLocalInputValue(new Date(event.end));
           }
@@ -654,9 +1249,20 @@
         saveButton.addEventListener("click", () => {
           const range = readRange(startInput, endInput);
           if (!range) return;
-          runAction("予定を移動しています…", async () => {
-            await callGas("move", { eventId: event.id, ...range });
-            await reloadList();
+          runAction("予定を更新しています…", async () => {
+            let eventId = event.id;
+            let calendarId = event.calendarId;
+            if (calendarSelect.value !== event.calendarId) {
+              const moved = await callGas("moveToCalendar", {
+                eventId,
+                calendarId,
+                toCalendarId: calendarSelect.value,
+              });
+              eventId = moved.id;
+              calendarId = moved.calendarId;
+            }
+            await callGas("move", { eventId, calendarId, ...range });
+            await reloadEvents();
           });
         });
 
@@ -664,8 +1270,8 @@
         deleteButton.addEventListener("click", () => {
           if (deleteButton.dataset.confirming) {
             runAction("予定を削除しています…", async () => {
-              await callGas("delete", { eventId: event.id });
-              await reloadList();
+              await callGas("delete", { eventId: event.id, calendarId: event.calendarId });
+              await reloadEvents();
             });
           } else {
             deleteButton.dataset.confirming = "1";
@@ -699,6 +1305,184 @@
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
       }
 
+      // ---- day/4day/week grid view ----
+
+      function renderGridView(numDays) {
+        const { start } = computeRange();
+        const days = Array.from({ length: numDays }, (_, i) => addDays(start, i));
+        const today = startOfDay(new Date()).getTime();
+
+        const wrap = document.createElement("div");
+        wrap.className = "grid-wrap";
+
+        const cols = `50px repeat(${numDays}, 1fr)`;
+        const dayFmt = new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
+
+        const head = document.createElement("div");
+        head.className = "grid-head";
+        head.style.gridTemplateColumns = cols;
+        head.append(document.createElement("div"));
+        for (const day of days) {
+          const cell = document.createElement("div");
+          cell.className = "cell" + (day.getTime() === today ? " today" : "");
+          cell.textContent = dayFmt.format(day);
+          head.append(cell);
+        }
+        wrap.append(head);
+
+        const allDayEvents = days.map((day) =>
+          events.filter((ev) => ev.allDay && sameDay(new Date(ev.start), day)),
+        );
+        if (allDayEvents.some((list) => list.length > 0)) {
+          const allDayRow = document.createElement("div");
+          allDayRow.className = "grid-allday";
+          allDayRow.style.gridTemplateColumns = cols;
+          allDayRow.append(document.createElement("div"));
+          allDayEvents.forEach((list, i) => {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            for (const ev of list) {
+              const chip = document.createElement("span");
+              chip.className = "grid-allday-chip";
+              chip.style.background = calendarColor(ev.calendarId);
+              chip.textContent = ev.title;
+              chip.title = ev.calendarName;
+              cell.append(chip);
+            }
+            allDayRow.append(cell);
+          });
+          wrap.append(allDayRow);
+        }
+
+        const scroll = document.createElement("div");
+        scroll.className = "grid-body-scroll";
+        const body = document.createElement("div");
+        body.className = "grid-body";
+        body.style.gridTemplateColumns = cols;
+        body.style.gridTemplateRows = `${24 * HOUR_PX}px`;
+
+        const hourLabels = document.createElement("div");
+        hourLabels.className = "grid-hourlabels";
+        for (let h = 0; h < 24; h++) {
+          const label = document.createElement("div");
+          label.className = "hour";
+          label.style.height = `${HOUR_PX}px`;
+          label.textContent = h === 0 ? "" : `${h}:00`;
+          hourLabels.append(label);
+        }
+        body.append(hourLabels);
+
+        for (const day of days) {
+          const col = document.createElement("div");
+          col.className = "grid-col";
+          for (let h = 0; h < 24; h++) {
+            const line = document.createElement("div");
+            line.className = "hourline";
+            line.style.height = `${HOUR_PX}px`;
+            col.append(line);
+          }
+          for (const ev of events) {
+            if (ev.allDay || !sameDay(new Date(ev.start), day)) continue;
+            col.append(renderGridEventBlock(ev, day));
+          }
+          body.append(col);
+        }
+        scroll.append(body);
+        wrap.append(scroll);
+        scroll.scrollTop = 7 * HOUR_PX;
+        return wrap;
+      }
+
+      function sameDay(a, b) {
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      }
+
+      function renderGridEventBlock(event, day) {
+        const dayStart = startOfDay(day).getTime();
+        const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+        const startMs = Math.max(new Date(event.start).getTime(), dayStart);
+        const endMs = Math.min(new Date(event.end).getTime(), dayEnd);
+        const topMin = (startMs - dayStart) / 60000;
+        const durationMin = Math.max(15, (endMs - startMs) / 60000);
+        const block = document.createElement("div");
+        block.className = "grid-event";
+        block.style.top = `${(topMin / 60) * HOUR_PX}px`;
+        block.style.height = `${(durationMin / 60) * HOUR_PX}px`;
+        block.style.background = calendarColor(event.calendarId);
+        block.textContent = event.title;
+        block.title = `${event.calendarName} / ${formatTimeRange(event)} / ${event.title}`;
+        block.addEventListener("click", () => openGridEventEditor(event));
+        return block;
+      }
+
+      // Grid views show compact blocks; clicking one reveals the same
+      // move/delete controls as the list view via a temporary inline panel
+      // appended just below the grid.
+      function openGridEventEditor(event) {
+        const container = el("view-container");
+        const existing = container.querySelector(".grid-event-editor");
+        if (existing) existing.remove();
+        const panel = renderEventCard(event);
+        panel.classList.add("grid-event-editor");
+        container.append(panel);
+        panel.scrollIntoView({ block: "nearest" });
+      }
+
+      // ---- month view ----
+
+      function renderMonthView() {
+        const { start } = computeRange();
+        const currentMonth = viewDate.getMonth();
+        const today = startOfDay(new Date()).getTime();
+        const grid = document.createElement("div");
+        grid.className = "month-grid";
+        const weekdayFmt = new Intl.DateTimeFormat("ja-JP", { weekday: "short" });
+        for (let i = 0; i < 7; i++) {
+          const head = document.createElement("div");
+          head.className = "cell";
+          head.style.cssText = "font-size:11px;font-weight:600;padding:3px;text-align:center;background:#fafaf9;";
+          head.textContent = weekdayFmt.format(addDays(start, i));
+          grid.append(head);
+        }
+        for (let i = 0; i < 42; i++) {
+          const day = addDays(start, i);
+          const cell = document.createElement("div");
+          cell.className = "month-cell";
+          if (day.getMonth() !== currentMonth) cell.classList.add("outside");
+          if (day.getTime() === today) cell.classList.add("today");
+          const num = document.createElement("div");
+          num.className = "day-num";
+          num.textContent = String(day.getDate());
+          cell.append(num);
+          const dayEvents = events
+            .filter((ev) => sameDay(new Date(ev.start), day))
+            .sort((a, b) => new Date(a.start) - new Date(b.start));
+          const shown = dayEvents.slice(0, 3);
+          for (const ev of shown) {
+            const chip = document.createElement("div");
+            chip.className = "grid-allday-chip";
+            chip.style.background = calendarColor(ev.calendarId);
+            chip.style.display = "block";
+            chip.style.marginBottom = "1px";
+            chip.textContent = ev.allDay ? ev.title : `${new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date(ev.start))} ${ev.title}`;
+            chip.addEventListener("click", () => openGridEventEditor(ev));
+            cell.append(chip);
+          }
+          if (dayEvents.length > shown.length) {
+            const more = document.createElement("div");
+            more.className = "more";
+            more.textContent = `+${dayEvents.length - shown.length}件`;
+            cell.append(more);
+          }
+          cell.addEventListener("dblclick", () => {
+            viewDate = day;
+            setActiveView("day");
+          });
+          grid.append(cell);
+        }
+        return grid;
+      }
+
       // ---------------- create form ----------------
 
       function resetFormDefaults() {
@@ -719,12 +1503,13 @@
         const range = readRange(el("create-start"), el("create-end"));
         if (!range) return;
         const description = el("create-memo").value.trim();
+        const calendarId = createCalendarSelect.value || undefined;
         runAction("予定を作成しています…", async () => {
-          await callGas("create", { title, description, ...range });
+          await callGas("create", { title, description, calendarId, ...range });
           el("create-title").value = "";
           el("create-memo").value = "";
           resetFormDefaults();
-          await reloadList();
+          await reloadEvents();
         });
       });
 
@@ -743,7 +1528,6 @@
           const cache = await gadget.storage.get(CACHE_KEY);
           if (cache && Array.isArray(cache.events)) {
             events = cache.events;
-            renderEvents();
             cacheNoteEl.textContent = "前回取得した内容を表示中。最新の予定を取得しています…";
             cacheNoteEl.hidden = false;
           }
@@ -848,9 +1632,16 @@
         });
       }
 
+      /** AIの空き時間判定に使う「予定管理」対象の予定（直近7日）。 */
+      function schedulingEventsWithinDays(days) {
+        const cutoff = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+        return events.filter(
+          (ev) => new Date(ev.start) < cutoff && schedulingCalendarIds?.has(ev.calendarId),
+        );
+      }
+
       function consultPrompts(text, isRetry) {
         const now = new Date();
-        const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         const fmt = new Intl.DateTimeFormat("ja-JP", {
           month: "numeric",
           day: "numeric",
@@ -859,8 +1650,7 @@
           minute: "2-digit",
         });
         const eventLines =
-          events
-            .filter((ev) => new Date(ev.start) < weekOut)
+          schedulingEventsWithinDays(7)
             .map(
               (ev) =>
                 `- ${fmt.format(new Date(ev.start))}〜${fmt.format(new Date(ev.end))} ${ev.title} (start=${ev.start}, end=${ev.end})`,
@@ -878,7 +1668,7 @@
         ].join("\n");
         const user = [
           `現在日時: ${now.toString()}`,
-          `【既存の予定（直近7日）】\n${eventLines}`,
+          `【既存の予定（直近7日・予定管理対象カレンダーのみ）】\n${eventLines}`,
           `【個人ルール】\n${rulesInput.value.trim() || "（なし）"}`,
           `【依頼】\n${text}`,
           isRetry ? "※前回とは異なる時間帯の案を出してください。" : "",
@@ -994,9 +1784,158 @@
                 description: "",
               });
               card.remove();
-              await reloadList();
+              await reloadEvents();
             });
           });
+        });
+      }
+
+      // ---------------- AI chat window (hideable; delegates to 案内AI) -----
+      // 会話しながら予定操作もできるチャット。実行が必要な提案は
+      // ```action ... ``` の1つのJSONブロックとして返させ、ユーザーが
+      // ボタンで承認したときだけ実行する（自動実行はしない）。
+      // 非表示にしても gadget.ai.onToolInvoke は常に有効なままなので、
+      // 長屋の案内AIから同じ操作を任せられる。
+
+      const chatMessagesEl = el("chat-messages");
+      const chatForm = el("chat-form");
+      const chatInput = el("chat-input");
+      const chatPanel = el("chat-panel");
+      const chatHiddenNote = el("chat-hidden-note");
+      let chatHistory = []; // [{role, content}]
+
+      function setChatVisible(visible) {
+        chatPanel.hidden = !visible;
+        chatHiddenNote.hidden = visible;
+      }
+
+      el("chat-hide").addEventListener("click", () => {
+        setChatVisible(false);
+        void gadget.storage.set(CHAT_VISIBLE_KEY, false);
+      });
+      el("chat-show").addEventListener("click", () => {
+        setChatVisible(true);
+        void gadget.storage.set(CHAT_VISIBLE_KEY, true);
+      });
+
+      function appendChatBubble(role, text) {
+        const bubble = document.createElement("div");
+        bubble.className = `chat-msg ${role}`;
+        bubble.textContent = text;
+        chatMessagesEl.append(bubble);
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        return bubble;
+      }
+
+      function appendSystemNote(text) {
+        const note = document.createElement("div");
+        note.className = "chat-msg system-note";
+        note.textContent = text;
+        chatMessagesEl.append(note);
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      }
+
+      function chatSystemPrompt() {
+        const calList =
+          calendars.map((c) => `- ${c.name} (id=${c.id})${c.isDefault ? " ※既定" : ""}`).join("\n") ||
+          "（カレンダー未取得）";
+        const eventLines =
+          schedulingEventsWithinDays(14)
+            .map((ev) => `- ${ev.title} (id=${ev.id}, calendarId=${ev.calendarId}, start=${ev.start}, end=${ev.end})`)
+            .join("\n") || "（直近14日の予定管理対象の予定なし）";
+        return [
+          "あなたはユーザーのGoogleカレンダーを扱うスケジュール秘書のチャットです。日本語で簡潔に会話してください。",
+          "【カレンダー一覧】\n" + calList,
+          "【直近14日の予定（予定管理対象カレンダーのみ）】\n" + eventLines,
+          "操作（作成・移動・カレンダー間移動・削除）が必要な場合は、返答の最後に次の形式でJSONブロックを1つだけ付けてください:",
+          '```action\n{"action":"create","params":{"title":"...","start":"ISO8601","end":"ISO8601","description":"","calendarId":"..."}}\n```',
+          "action は create / move / moveToCalendar / delete のいずれか。",
+          "move の params: eventId, calendarId, start, end。moveToCalendar の params: eventId, calendarId, toCalendarId。delete の params: eventId, calendarId。",
+          "操作が不要な単なる会話・質問への回答のときはJSONブロックを付けないでください。実行はユーザーがボタンで承認するまで行われません。",
+        ].join("\n\n");
+      }
+
+      function tryParseChatAction(raw) {
+        const match = /```action\s*([\s\S]*?)```/.exec(raw);
+        if (!match) return { text: raw.trim(), action: null };
+        const text = raw.slice(0, match.index).trim();
+        try {
+          const parsed = JSON.parse(match[1].trim());
+          if (!parsed.action || !parsed.params) return { text: text || raw.trim(), action: null };
+          return { text: text || "（操作案）", action: parsed };
+        } catch {
+          return { text: text || raw.trim(), action: null };
+        }
+      }
+
+      function describeChatAction(action) {
+        const p = action.params || {};
+        switch (action.action) {
+          case "create":
+            return `予定を作成: ${p.title ?? ""}（${p.start ?? ""} 〜 ${p.end ?? ""}）${p.calendarId ? " @" + calendarName(p.calendarId) : ""}`;
+          case "move":
+            return `予定を移動: ${p.eventId ?? ""}（${p.start ?? ""} 〜 ${p.end ?? ""}）`;
+          case "moveToCalendar":
+            return `カレンダーを移動: ${p.eventId ?? ""} → ${calendarName(p.toCalendarId)}`;
+          case "delete":
+            return `予定を削除: ${p.eventId ?? ""}`;
+          default:
+            return JSON.stringify(action);
+        }
+      }
+
+      function appendChatActionCard(action) {
+        const card = document.createElement("div");
+        card.className = "chat-action-card";
+        const desc = document.createElement("div");
+        desc.textContent = describeChatAction(action);
+        const row = document.createElement("div");
+        row.className = "row";
+        const approve = document.createElement("button");
+        approve.type = "button";
+        approve.className = "primary";
+        approve.textContent = "実行する";
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.textContent = "しない";
+        row.append(approve, cancel);
+        card.append(desc, row);
+        chatMessagesEl.append(card);
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+        cancel.addEventListener("click", () => card.remove());
+        approve.addEventListener("click", () => {
+          runAction("操作を実行しています…", async () => {
+            const gasAction = action.action === "create" ? "create" : action.action;
+            await callGas(gasAction, action.params);
+            card.remove();
+            appendSystemNote("実行しました");
+            await reloadEvents();
+          });
+        });
+      }
+
+      chatForm.addEventListener("submit", (submitEvent) => {
+        submitEvent.preventDefault();
+        const text = chatInput.value.trim();
+        if (!text) return;
+        chatInput.value = "";
+        void runChatTurn(text);
+      });
+
+      async function runChatTurn(text) {
+        appendChatBubble("user", text);
+        chatHistory.push({ role: "user", content: text });
+        await runAction("AIが考えています…", async () => {
+          const raw = await gadget.ai.complete({
+            system: chatSystemPrompt(),
+            messages: chatHistory.slice(-12),
+            maxTokens: 800,
+          });
+          chatHistory.push({ role: "assistant", content: raw });
+          const { text: replyText, action } = tryParseChatAction(raw);
+          appendChatBubble("assistant", replyText);
+          if (action) appendChatActionCard(action);
         });
       }
 

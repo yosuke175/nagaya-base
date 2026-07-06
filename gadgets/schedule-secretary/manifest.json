@@ -2,25 +2,60 @@
   "manifestVersion": 1,
   "id": "schedule-secretary",
   "name": "スケジュール秘書",
-  "version": "0.3.0",
-  "description": "Google カレンダーの今後30日の予定を表示・追加・移動・削除できるスケジュール秘書。「AIに相談」で空き時間への挿入案を提案（登録はあなたの承認後）。案件名・メモ・相談は音声入力対応。連携にはユーザー自身がデプロイする GAS WebApp を使います（セットアップ手順は gas/SETUP.md）。",
+  "version": "0.4.0",
+  "description": "複数の Google カレンダー（個人・共有・privateなど）を横断して予定を表示・追加・移動・削除できるスケジュール秘書。日/4日/週/月の表示切替に対応。「AIに相談」で空き時間への挿入案を提案するほか、AIチャット窓で会話しながら予定操作もできます（登録・変更はあなたの承認後）。チャット窓は非表示にでき、非表示中は長屋の案内AIから同じ操作を任せられます。案件名・メモ・相談は音声入力対応。連携にはユーザー自身がデプロイする GAS WebApp を使います（セットアップ手順は gas/SETUP.md）。",
   "author": { "name": "向井庸祐", "contact": "yosuke175@gmail.com" },
   "entry": "index.html",
   "icon": "cover.webp",
   "size": { "default": "large", "supported": ["large", "full"] },
   "permissions": ["storage", "microphone", "ai", "ai-tools"],
   "aiTools": [
-    { "name": "list_events", "description": "今後の予定の一覧を返す（読み取り）", "kind": "read" },
+    { "name": "list_calendars", "description": "連携している Google カレンダーの一覧（id・名前）を返す（読み取り）", "kind": "read" },
+    { "name": "list_events", "description": "今後の予定の一覧を返す（読み取り）。各予定にどのカレンダーの予定かが付く", "kind": "read" },
     {
       "name": "create_event",
-      "description": "予定を1件作成する。args: title(必須), start(ISO日時・必須), end(ISO日時), description",
+      "description": "予定を1件作成する。calendarId を省略すると既定のカレンダーに作成される。args: title(必須), start(ISO日時・必須), end(ISO日時), description, calendarId",
       "kind": "act",
       "requiresConfirm": true,
       "params": {
         "title": { "type": "string", "required": true },
         "start": { "type": "string", "required": true },
         "end": { "type": "string" },
-        "description": { "type": "string" }
+        "description": { "type": "string" },
+        "calendarId": { "type": "string" }
+      }
+    },
+    {
+      "name": "move_event",
+      "description": "既存の予定の日時を変更する（同じカレンダー内）。args: eventId(必須), calendarId(必須・その予定があるカレンダー), start(必須), end(必須)",
+      "kind": "act",
+      "requiresConfirm": true,
+      "params": {
+        "eventId": { "type": "string", "required": true },
+        "calendarId": { "type": "string", "required": true },
+        "start": { "type": "string", "required": true },
+        "end": { "type": "string", "required": true }
+      }
+    },
+    {
+      "name": "move_event_to_calendar",
+      "description": "既存の予定を別のカレンダーへ移す（カレンダー横断の変更）。args: eventId(必須), calendarId(必須・現在のカレンダー), toCalendarId(必須・移動先)",
+      "kind": "act",
+      "requiresConfirm": true,
+      "params": {
+        "eventId": { "type": "string", "required": true },
+        "calendarId": { "type": "string", "required": true },
+        "toCalendarId": { "type": "string", "required": true }
+      }
+    },
+    {
+      "name": "delete_event",
+      "description": "既存の予定を削除する。args: eventId(必須), calendarId(必須・その予定があるカレンダー)",
+      "kind": "act",
+      "requiresConfirm": true,
+      "params": {
+        "eventId": { "type": "string", "required": true },
+        "calendarId": { "type": "string", "required": true }
       }
     }
   ],
@@ -30,7 +65,7 @@
       "name": "Google Apps Script WebApp（自分のカレンダー連携）",
       "auth": "byok",
       "baseUrls": ["https://script.google.com", "https://script.googleusercontent.com"],
-      "purpose": "ユーザー自身が自分の Google アカウントにデプロイした GAS WebApp を呼び出し、本人のデフォルトカレンダーの予定を取得・作成・移動・削除するため。プラットフォームは Google の権限を一切仲介しない（BYOK）",
+      "purpose": "ユーザー自身が自分の Google アカウントにデプロイした GAS WebApp を呼び出し、本人の複数カレンダーの予定を取得・作成・移動・削除するため。プラットフォームは Google の権限を一切仲介しない（BYOK）",
       "setupHint": "「WebAppのURL␣合言葉」の形式で、URLと合言葉を半角スペース1つで区切って貼り付け（例: https://script.google.com/macros/s/XXXX/exec a8Kx2mP9qL4wN7vB）",
       "setupUrl": "https://github.com/yosuke175/nagaya-base/blob/main/gadgets/schedule-secretary/gas/SETUP.md"
     }

@@ -4,7 +4,14 @@
  * Deployed by EACH USER on their own Google account (BYOK model,
  * docs/architecture.md ADR-005): the platform never touches Google
  * permissions. The gadget calls this WebApp with a shared token and the
- * script operates the user's default Google Calendar via CalendarApp.
+ * script operates the user's own Google Calendars via CalendarApp.
+ *
+ * 複数カレンダー対応: ユーザーが Google カレンダーを複数使い分けている場合
+ * （個人・配偶者・夫婦共有・private など）、どのカレンダーを読み書きするかは
+ * 呼び出し側（ガジェット）が calendarId で指定する。省略時はそのユーザーの
+ * デフォルトカレンダーを使う（後方互換）。「どのカレンダーを自分の予定管理に
+ * 数えるか」はユーザー個別の判断なので、この GAS 側は全カレンダーを機械的に
+ * 読めるようにするところまでを担い、絞り込みはガジェット側（フロント）で行う。
  *
  * Setup for non-engineers: see SETUP.md in this folder.
  */
@@ -35,12 +42,16 @@ function doPost(e) {
   var params = request.params || {};
   try {
     switch (request.action) {
+      case 'listCalendars':
+        return jsonResponse({ ok: true, result: listCalendars() });
       case 'list':
-        return jsonResponse({ ok: true, result: listEvents() });
+        return jsonResponse({ ok: true, result: listEvents(params) });
       case 'create':
         return jsonResponse({ ok: true, result: createEvent(params) });
       case 'move':
         return jsonResponse({ ok: true, result: moveEvent(params) });
+      case 'moveToCalendar':
+        return jsonResponse({ ok: true, result: moveEventToCalendar(params) });
       case 'delete':
         return jsonResponse({ ok: true, result: deleteEvent(params) });
       default:
@@ -57,13 +68,47 @@ function doPost(e) {
   }
 }
 
-/** Events from today 00:00 through the next DAYS_TO_LIST days. */
-function listEvents() {
-  var calendar = CalendarApp.getDefaultCalendar();
-  var now = new Date();
-  var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  var end = new Date(start.getTime() + DAYS_TO_LIST * 24 * 60 * 60 * 1000);
-  return calendar.getEvents(start, end).map(eventToJson);
+/** ユーザーが持つ（購読含む）すべてのカレンダーの一覧。 */
+function listCalendars() {
+  var defaultId = CalendarApp.getDefaultCalendar().getId();
+  return CalendarApp.getAllCalendars().map(function (calendar) {
+    return {
+      id: calendar.getId(),
+      name: calendar.getName(),
+      isDefault: calendar.getId() === defaultId,
+    };
+  });
+}
+
+/**
+ * 指定した calendarIds（省略時は全カレンダー）の、指定した期間
+ * （rangeStart/rangeEnd 省略時は今日から DAYS_TO_LIST 日間）の予定一覧。
+ * 各予定に calendarId/calendarName を付与して返す（カレンダー横断の表示・
+ * 移動・削除に使う）。
+ */
+function listEvents(params) {
+  params = params || {};
+  var start;
+  var end;
+  if (params.rangeStart && params.rangeEnd) {
+    start = new Date(params.rangeStart);
+    end = new Date(params.rangeEnd);
+  } else {
+    var now = new Date();
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    end = new Date(start.getTime() + DAYS_TO_LIST * 24 * 60 * 60 * 1000);
+  }
+  var calendars = resolveCalendars(params.calendarIds);
+  var events = [];
+  calendars.forEach(function (calendar) {
+    calendar.getEvents(start, end).forEach(function (event) {
+      events.push(eventToJson(event, calendar));
+    });
+  });
+  events.sort(function (a, b) {
+    return new Date(a.start) - new Date(b.start);
+  });
+  return events;
 }
 
 function createEvent(params) {
@@ -73,34 +118,76 @@ function createEvent(params) {
   if (end.getTime() <= start.getTime()) {
     throw new Error('終了日時は開始日時より後にしてください');
   }
+  var calendar = resolveCalendar(params.calendarId);
   var options = params.description ? { description: String(params.description) } : {};
-  var event = CalendarApp.getDefaultCalendar().createEvent(title, start, end, options);
-  return eventToJson(event);
+  var event = calendar.createEvent(title, start, end, options);
+  return eventToJson(event, calendar);
 }
 
 function moveEvent(params) {
-  var event = requireEvent(params);
+  var calendar = resolveCalendar(params.calendarId);
+  var eventId = requireString(params, 'eventId');
+  var event = calendar.getEventById(eventId);
+  if (!event) {
+    throw new Error('予定が見つかりません（既に削除された可能性があります）');
+  }
   var start = requireDate(params, 'start');
   var end = requireDate(params, 'end');
   if (end.getTime() <= start.getTime()) {
     throw new Error('終了日時は開始日時より後にしてください');
   }
   event.setTime(start, end);
-  return eventToJson(event);
+  return eventToJson(event, calendar);
 }
 
-function deleteEvent(params) {
-  requireEvent(params).deleteEvent();
-  return { deleted: true };
-}
-
-function requireEvent(params) {
+/**
+ * カレンダーを横断した移動（「登録した予定はカレンダーを横断して変更できる」
+ * 要件）。classic CalendarApp には「別カレンダーへ移す」直接APIが無いため、
+ * 元の予定を複製して新しいカレンダーに作り直し、元を削除する。
+ */
+function moveEventToCalendar(params) {
+  var fromCalendar = resolveCalendar(params.calendarId);
   var eventId = requireString(params, 'eventId');
-  var event = CalendarApp.getDefaultCalendar().getEventById(eventId);
+  var event = fromCalendar.getEventById(eventId);
   if (!event) {
     throw new Error('予定が見つかりません（既に削除された可能性があります）');
   }
-  return event;
+  var toCalendar = resolveCalendar(requireString(params, 'toCalendarId'));
+  var start = event.getStartTime();
+  var end = event.getEndTime();
+  var options = event.getDescription() ? { description: event.getDescription() } : {};
+  var created = toCalendar.createEvent(event.getTitle(), start, end, options);
+  event.deleteEvent();
+  return eventToJson(created, toCalendar);
+}
+
+function deleteEvent(params) {
+  var calendar = resolveCalendar(params.calendarId);
+  var eventId = requireString(params, 'eventId');
+  var event = calendar.getEventById(eventId);
+  if (!event) {
+    throw new Error('予定が見つかりません（既に削除された可能性があります）');
+  }
+  event.deleteEvent();
+  return { deleted: true };
+}
+
+/** calendarId を指定した Calendar を返す（省略時はデフォルトカレンダー）。 */
+function resolveCalendar(calendarId) {
+  if (!calendarId) return CalendarApp.getDefaultCalendar();
+  var calendar = CalendarApp.getCalendarById(String(calendarId));
+  if (!calendar) throw new Error('カレンダーが見つかりません: ' + calendarId);
+  return calendar;
+}
+
+/** calendarIds（配列、省略時は全カレンダー）を Calendar のリストに変換。 */
+function resolveCalendars(calendarIds) {
+  if (!calendarIds || !calendarIds.length) return CalendarApp.getAllCalendars();
+  return calendarIds.map(function (id) {
+    var calendar = CalendarApp.getCalendarById(String(id));
+    if (!calendar) throw new Error('カレンダーが見つかりません: ' + id);
+    return calendar;
+  });
 }
 
 function requireString(params, name) {
@@ -119,9 +206,11 @@ function requireDate(params, name) {
   return value;
 }
 
-function eventToJson(event) {
+function eventToJson(event, calendar) {
   return {
     id: event.getId(),
+    calendarId: calendar.getId(),
+    calendarName: calendar.getName(),
     title: event.getTitle(),
     start: event.getStartTime().toISOString(),
     end: event.getEndTime().toISOString(),
