@@ -63,6 +63,13 @@ const ALLOWED_MODELS: Record<Provider, string[]> = {
 const USAGE_WINDOW_MS = 60 * 60 * 1000
 const AI_HOURLY_LIMIT = 120
 
+// 案内AIの出力上限。ガジェット用の AI_MAX_TOKENS_LIMIT(2000) より広めにして、
+// 説明＋末尾のツール/操作ブロックが途中で切れないようにする（maxTokens は「上限」で
+// あって「目標」ではない＝短い回答なら課金は実生成分のみ。切れる方が実害が大きい）。
+// 冗長化はプロンプト側（簡潔に）で抑える。
+const GUIDE_MAX_TOKENS = 4000
+const GUIDE_DEFAULT_TOKENS = 2000
+
 // 概算コスト（USD / 100万トークン, in/out）。正確な課金は各社ダッシュボード参照。
 // モデル追随は backlog（#7）。未知モデルは既定値でざっくり見積る。
 const PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
@@ -754,11 +761,11 @@ export const onRequest = async (context: {
       }
       const system = buildGuideSystemPrompt(state, chunks, body.context)
       // 既定800は短く、長めの説明や末尾のツール/操作ブロックが途中で切れて（＝ブロック
-      // 未完でツールが実行されず「無反応」に見える）いた。既定を上げて途切れを防ぐ。
+      // 未完でツールが実行されず「無反応」に見える）いた。案内AI用の広めの上限を使う。
       const maxTokens =
         typeof aiRequest.maxTokens === 'number' && aiRequest.maxTokens > 0
-          ? Math.min(aiRequest.maxTokens, AI_MAX_TOKENS_LIMIT)
-          : 1500
+          ? Math.min(aiRequest.maxTokens, GUIDE_MAX_TOKENS)
+          : GUIDE_DEFAULT_TOKENS
       // 案内は根拠つきの短い応答なので fast tier（速い/安いモデル）で十分。生成を速くする。
       const guideModel = TIER_MODEL.fast[settings.provider] ?? settings.model
       const guideSettings: StoredAiSettings = { ...settings, model: guideModel }
