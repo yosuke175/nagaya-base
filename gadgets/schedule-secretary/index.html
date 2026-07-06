@@ -1803,11 +1803,17 @@
           "（カレンダー未取得）";
         const eventLines =
           schedulingEventsWithinDays(14)
-            .map((ev) => `- ${ev.title} (id=${ev.id}, calendarId=${ev.calendarId}, start=${ev.start}, end=${ev.end})`)
+            .map(
+              (ev) =>
+                `- ${ev.title} (id=${ev.id}, calendarId=${ev.calendarId}, start=${ev.start}, end=${ev.end}${ev.allDay ? ", allDay=true" : ""})`,
+            )
             .join("\n") || "（直近14日の予定管理対象の予定なし）";
+        const now = new Date();
         return [
           "あなたはユーザーのGoogleカレンダーを扱うスケジュール秘書のチャットです。日本語で簡潔に会話してください。",
           "「空いてる時間ある?」「◯◯を入れたい」のような相談には、直近の予定と個人ルールをもとに具体的な日時を提案してください。",
+          `【現在日時】${now.toString()}（この時刻を基準に「今日」「来週」等を解釈すること）`,
+          "予定の start/end はタイムゾーン付きISO（例 2026-07-06T00:00:00+09:00）です。allDay=true は終日予定（0:00始まり）で、時刻に意味はありません。日付だけで扱ってください。",
           "【カレンダー一覧】\n" + calList,
           "【直近14日の予定（予定管理対象カレンダーのみ）】\n" + eventLines,
           "【個人ルール（提案時は厳守）】\n" + (rulesInput.value.trim() || "（なし）"),

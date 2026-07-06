@@ -212,13 +212,19 @@ function requireDate(params, name) {
 }
 
 function eventToJson(event, calendar) {
+  // タイムゾーン付き ISO（例 2026-07-06T00:00:00+09:00）で返す。
+  // toISOString() は UTC（末尾 Z）なので、終日予定（そのカレンダーの深夜0時始まり）が
+  // 日本だと前日15:00Z になり、AI・表示が「前日15時」と誤読していた。カレンダーの
+  // タイムゾーンでオフセット付きに整形すれば、日付も時刻も正しく解釈される。
+  var tz = calendar.getTimeZone();
   return {
     id: event.getId(),
     calendarId: calendar.getId(),
     calendarName: calendar.getName(),
     title: event.getTitle(),
-    start: event.getStartTime().toISOString(),
-    end: event.getEndTime().toISOString(),
+    start: Utilities.formatDate(event.getStartTime(), tz, "yyyy-MM-dd'T'HH:mm:ssXXX"),
+    end: Utilities.formatDate(event.getEndTime(), tz, "yyyy-MM-dd'T'HH:mm:ssXXX"),
+    timeZone: tz,
     description: event.getDescription() || '',
     allDay: event.isAllDayEvent(),
   };

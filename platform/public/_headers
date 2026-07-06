@@ -11,8 +11,12 @@
 /manifest.webmanifest
   Cache-Control: no-cache
 
+# ガジェットのコードと SDK は固定URL（内容ハッシュ無し）なので、no-cache を付けないと
+# ブラウザ/CDN が古い版を配り続け、デプロイしても反映されない。必ず再確認させる。
 /sdk/*
   Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
 
 /gadgets/*
   Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
