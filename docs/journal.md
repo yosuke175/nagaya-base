@@ -2,6 +2,27 @@
 
 日々の変更・決定・未決事項の記録。新しい日付を上に追記する。
 
+## 2026-07-06（フローティング配置を中央基準の座標に＋案内AIの初期位置を実測ベースに修正）
+
+向井「フローティングの位置記録は左上角基準では？ウインドウ幅を変えたら崩れる。中央から測る方式に。
+あと案内AIの初期位置が整列ボタンと重なって見えなくなってる」。
+
+- **`host/gadgetLayout.ts` の保存形式を刷新**: 絶対座標(x,y)ではなく「画面中央からのオフセット(cx)」で
+  保存するように変更。`loadLayouts(viewportWidth)`/`saveLayout(id, rect, viewportWidth)` が現在の
+  ビューポート幅で相互変換する。ブラウザ幅を変えても、窓の中央に対する相対位置が保たれる
+  （左上原点だと、幅を変えると配置がまるごと画面外にずれていた）。単体テスト5件を追加（往復・平行移動・
+  負オフセット・clearLayouts・壊れたデータの無視）。
+- **ガジェット（FloatingDesk）**: deskWidth が変わるたび（ResizeObserver）に `loadLayouts(deskWidth)` で
+  読み直し、開いたまま resize しても中央基準の位置関係で追従するように。commit 時も現在の deskWidth で保存。
+- **案内AI（GuideAssistant）**: resize イベントで `x += Δ中央`（新旧ウインドウ幅の中央差）を都度加算し、
+  ドラッグ操作中は無視。ドラッグ終了時の保存は従来どおり `saveLayout` 経由（中央基準に自動変換）。
+- **初期位置の重なりバグを修正**: 「整列する」行の下端Yを**実測**するように変更（以前はヘッダー高の
+  ハードコード概算 y=210 で、実際のヘッダー拡大後のレイアウトとズレてボタンに重なっていた）。
+  `FloatingDesk` が `tidyRowRef.getBoundingClientRect().bottom` を測って `onMeasureTop` で
+  `Dashboard`→`App`（`guideTopY` state）→`GuideAssistant`（`defaultTopY` prop）へ伝播。
+  未測定時（道具ゼロ・narrow画面等）は概算値 `FALLBACK_TOP_Y=220` にフォールバック。
+- 検証: build＋74テスト緑、起動 console エラー無し。実際の重なり解消・resize追従はログイン後の実機で要確認。
+
 ## 2026-07-06（部屋帯ミラーを中央基準に＋整列範囲を中央1024帯に統一）
 
 向井の再指摘。前回のミラーは「中央＝オリジナルの右端」になっていた（誤り）。

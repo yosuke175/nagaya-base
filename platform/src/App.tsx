@@ -158,6 +158,8 @@ export default function App() {
 
   // 「整列する」で棚の配置と一緒に案内AIの窓も初期位置へ戻すためのシグナル
   const [layoutResetKey, setLayoutResetKey] = useState(0)
+  // 「整列する」行の下端Y（棚が実測）。案内AIの初期位置に使う
+  const [guideTopY, setGuideTopY] = useState<number | undefined>(undefined)
 
   return (
     <div className="nb-washi min-h-screen overflow-x-hidden" style={{ color: 'var(--nb-ink)' }}>
@@ -273,6 +275,7 @@ export default function App() {
                 avatar={auth.profile?.avatar}
                 roomNo={auth.profile?.roomNo}
                 onTidy={() => setLayoutResetKey((k) => k + 1)}
+                onMeasureTop={setGuideTopY}
               />
             )}
             {view === 'catalog' && (
@@ -353,6 +356,7 @@ export default function App() {
             setView('help')
           }}
           resetSignal={layoutResetKey}
+          defaultTopY={guideTopY}
         />
       )}
     </div>
@@ -392,6 +396,7 @@ function Dashboard({
   avatar,
   roomNo,
   onTidy,
+  onMeasureTop,
 }: {
   installed: string[]
   onOpenCatalog: () => void
@@ -402,6 +407,7 @@ function Dashboard({
   avatar?: string | null
   roomNo?: number | null
   onTidy: () => void
+  onMeasureTop: (y: number) => void
 }) {
   // `npm run dev:gadget <dir>` pins the dashboard to one gadget for development
   if (appConfig.devGadgetDir) {
@@ -444,7 +450,7 @@ function Dashboard({
   return (
     <>
       <InfoSlot onNavigate={onNavigate} onOpenGadget={onOpenGadget} userName={userName} avatar={avatar} roomNo={roomNo} />
-      <FloatingDesk installed={installed} onUninstall={onUninstall} onTidy={onTidy} />
+      <FloatingDesk installed={installed} onUninstall={onUninstall} onTidy={onTidy} onMeasureTop={onMeasureTop} />
     </>
   )
 }
@@ -454,12 +460,16 @@ function FloatingDesk({
   installed,
   onUninstall,
   onTidy,
+  onMeasureTop,
 }: {
   installed: string[]
   onUninstall: (dir: string) => void
   onTidy: () => void
+  /** 「整列する」行の下端Y（案内AIの初期位置に使う。実測値を都度渡す） */
+  onMeasureTop: (y: number) => void
 }) {
   const deskRef = useRef<HTMLDivElement>(null)
+  const tidyRowRef = useRef<HTMLDivElement>(null)
   const [deskWidth, setDeskWidth] = useState(0)
   const [layouts, setLayouts] = useState<Record<string, WinRect>>(() => loadLayouts())
   const [order, setOrder] = useState<string[]>(installed)
@@ -473,23 +483,37 @@ function FloatingDesk({
     })
   }, [installed])
 
-  // 棚の幅を測る（既定配置の列数・幅に使う）
+  // 棚の幅を測る（既定配置の列数・幅に使う）＋「整列する」行の下端も測って親へ伝える
+  // （案内AIの初期位置＝この行の下、に使う）
   useEffect(() => {
     const el = deskRef.current
     if (!el) return
-    const update = () => setDeskWidth(el.clientWidth)
+    const update = () => {
+      setDeskWidth(el.clientWidth)
+      const row = tidyRowRef.current
+      if (row) onMeasureTop(row.getBoundingClientRect().bottom)
+    }
     update()
     const observer = new ResizeObserver(update)
     observer.observe(el)
     return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 保存済みの窓は「画面中央からのオフセット」で持っているので、ブラウザ幅が変わる
+  // たびに現在の幅で読み直す＝ウインドウをリサイズしても中央基準の位置関係のまま
+  // 追従する（左上原点だと、幅を変えると配置が画面外にずれてしまうため）。
+  useEffect(() => {
+    if (deskWidth === 0) return
+    setLayouts(loadLayouts(deskWidth))
+  }, [deskWidth])
 
   const rectFor = (id: string, index: number): WinRect =>
     layouts[id] ?? defaultRect(index, deskWidth || 1000)
 
   const commit = (id: string, rect: WinRect) => {
     setLayouts((prev) => ({ ...prev, [id]: rect }))
-    saveLayout(id, rect)
+    saveLayout(id, rect, deskWidth || window.innerWidth)
   }
   const bringToFront = (id: string) => setOrder((prev) => [...prev.filter((x) => x !== id), id])
   const tidy = () => {
@@ -525,7 +549,10 @@ function FloatingDesk({
         </div>
       ) : (
         <>
-          <div className="mx-auto mb-2 flex max-w-5xl items-center justify-end gap-2 text-xs text-stone-500">
+          <div
+            ref={tidyRowRef}
+            className="mx-auto mb-2 flex max-w-5xl items-center justify-end gap-2 text-xs text-stone-500"
+          >
             <span>道具の枠は自由に動かせます（見出しをドラッグで移動／縁や角のハンドルでサイズ変更）</span>
             <button
               type="button"
