@@ -35,6 +35,9 @@
   background-color: var(--nb-cream);
   background-image: var(--nb-texture, url('/img/textures/washi.webp'));
   background-size: var(--nb-texture-size, 520px);
+  /* 既定は左上角起点でタイル。上端中央から左右対称にタイルさせる（他の中央基準の
+     配置と揃える）。 */
+  background-position: top center;
 }
 
 /* User-selectable accent color (src/theme.ts). Keep primary actions on this
