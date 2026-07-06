@@ -70,6 +70,28 @@ const VIEW_HELP: Record<View, string> = {
 /** Full-screen guidance overlays (entrance branch is behavioral only) */
 type Overlay = 'entrance' | 'craftsman-guide' | 'tutorial' | null
 
+/**
+ * Service Worker を解除し、全キャッシュを消してから再読み込みする。
+ * 「デプロイしたのに古いまま」を1クリックで解消するための強制更新。
+ * （ガジェットはサンドボックスで SW/caches に触れないため、この操作はプラット
+ * フォーム本体側にしか置けない。）
+ */
+async function forceRefresh(): Promise<void> {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map((r) => r.unregister()))
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+    }
+  } catch {
+    // 失敗しても、下の reload だけは必ず行う（最低限サーバーへ再確認させる）
+  }
+  window.location.reload()
+}
+
 export default function App() {
   const auth = useAuth()
   const [view, setView] = useState<View>('dashboard')
@@ -204,6 +226,16 @@ export default function App() {
                   {buildInfo.time ? ` · ${buildInfo.time.slice(0, 16).replace('T', ' ')}` : ''}
                 </span>
               </div>
+            </button>
+            {/* デプロイ後に「古いまま」を1クリックで解消する強制更新
+                （SW解除＋全キャッシュ削除＋再読み込み） */}
+            <button
+              type="button"
+              onClick={() => void forceRefresh()}
+              title="キャッシュ（Service Worker・保存済みデータ）を消して最新を再読み込みします"
+              className="rounded-lg border border-stone-300 px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
+            >
+              🔄 更新
             </button>
             {/* メニューはタイトルの右に一列（指定の並び順: 部屋/入居者/道具市/回覧板/
                 長屋暦/案内所/工房）。「部屋」は主画面(dashboard)の表示名。歩みは案内所内、
