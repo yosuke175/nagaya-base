@@ -2,6 +2,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { GadgetFrame } from './GadgetFrame'
 import { ResizeHandles, computeResize, cursorForDir, type ResizeDir } from './resizeHandles'
 import { centerFromRect, rectFromCenter, type CenterRect, type WinRect } from '../host/gadgetLayout'
+import { currentViewportWidth } from '../host/useViewportWidth'
 
 // 棚のフローティング窓。ヘッダーをドラッグで移動、4辺4角のハンドルでリサイズ。
 // ドラッグ/リサイズ中は全面シールドを敷いて iframe にイベントを奪われないようにする。
@@ -45,7 +46,7 @@ export function FloatingWindow({
     if ((e.target as HTMLElement).closest('button')) return
     e.preventDefault()
     onFocus()
-    const orig = rectFromCenter(rect, window.innerWidth)
+    const orig = rectFromCenter(rect, currentViewportWidth())
     drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive('move')
@@ -54,7 +55,7 @@ export function FloatingWindow({
     e.preventDefault()
     e.stopPropagation()
     onFocus()
-    const orig = rectFromCenter(rect, window.innerWidth)
+    const orig = rectFromCenter(rect, currentViewportWidth())
     drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive(dir)
@@ -74,7 +75,7 @@ export function FloatingWindow({
     if (!drag.current) return
     drag.current = null
     setActive(null)
-    if (dragLocal) onCommit(centerFromRect(dragLocal, window.innerWidth))
+    if (dragLocal) onCommit(centerFromRect(dragLocal, currentViewportWidth()))
     setDragLocal(null)
   }
 

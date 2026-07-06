@@ -73,15 +73,26 @@ export function saveLayoutRaw(id: string, center: CenterRect): void {
   localStorage.setItem(KEY, JSON.stringify(store))
 }
 
+// 既定値は document.documentElement.clientWidth（縦スクロールバーを除いた幅）を使う。
+// window.innerWidth だとスクロールバー分だけ CSS の calc(50%+...) 側の解決結果とズレる
+// （ドラッグ確定の瞬間に窓が一瞬ずれる不具合の原因だったため、必ずこちらに合わせる）。
+function defaultViewportWidth(): number {
+  return document.documentElement.clientWidth
+}
+
 /** 保存済みレイアウトを、指定（既定=現在）のビューポート幅で絶対座標(WinRect)に変換して返す。 */
-export function loadLayouts(viewportWidth: number = window.innerWidth): Record<string, WinRect> {
+export function loadLayouts(viewportWidth: number = defaultViewportWidth()): Record<string, WinRect> {
   const out: Record<string, WinRect> = {}
   for (const [id, c] of Object.entries(readStore())) out[id] = rectFromCenter(c, viewportWidth)
   return out
 }
 
 /** 絶対座標(WinRect)を、画面中央からのオフセットに変換して保存する。 */
-export function saveLayout(id: string, rect: WinRect, viewportWidth: number = window.innerWidth): void {
+export function saveLayout(
+  id: string,
+  rect: WinRect,
+  viewportWidth: number = defaultViewportWidth(),
+): void {
   saveLayoutRaw(id, centerFromRect(rect, viewportWidth))
 }
 

@@ -9,7 +9,7 @@ import {
   type CenterRect,
   type WinRect,
 } from '../host/gadgetLayout'
-import { useViewportWidth } from '../host/useViewportWidth'
+import { currentViewportWidth, useViewportWidth } from '../host/useViewportWidth'
 import {
   actionLabel,
   parseGuideReply,
@@ -220,7 +220,7 @@ export function GuideAssistant({
     if (narrow || !center) return
     if ((e.target as HTMLElement).closest('button')) return
     e.preventDefault()
-    const orig = rectFromCenter(center, window.innerWidth)
+    const orig = rectFromCenter(center, currentViewportWidth())
     drag.current = { mode: 'move', sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive('move')
@@ -229,7 +229,7 @@ export function GuideAssistant({
     if (!center) return
     e.preventDefault()
     e.stopPropagation()
-    const orig = rectFromCenter(center, window.innerWidth)
+    const orig = rectFromCenter(center, currentViewportWidth())
     drag.current = { mode: 'resize', dir, sx: e.clientX, sy: e.clientY, orig }
     setDragLocal(orig)
     setActive(dir)
@@ -243,7 +243,7 @@ export function GuideAssistant({
     if (d.mode === 'move') {
       next = {
         ...d.orig,
-        x: Math.min(Math.max(0, d.orig.x + dx), window.innerWidth - 60),
+        x: Math.min(Math.max(0, d.orig.x + dx), currentViewportWidth() - 60),
         y: Math.min(Math.max(0, d.orig.y + dy), window.innerHeight - 40),
       }
     } else if (d.dir) {
@@ -258,7 +258,7 @@ export function GuideAssistant({
     drag.current = null
     setActive(null)
     if (dragLocal) {
-      const c = centerFromRect(dragLocal, window.innerWidth)
+      const c = centerFromRect(dragLocal, currentViewportWidth())
       setCenter(c)
       saveLayoutRaw(GUIDE_ID, c)
     }
