@@ -569,7 +569,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-06 r7</span
+          >build 2026-07-06 r8</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -723,7 +723,7 @@
                   autocomplete="off"
                 />
                 <button class="mic" type="button" data-target="chat-input" hidden aria-label="音声で入力">🎤</button>
-                <button class="primary" type="submit">送信</button>
+                <button id="chat-send" class="primary" type="submit">送信</button>
               </form>
             </div>
             <div id="chat-hidden-note" class="chat-hidden-note" hidden>
@@ -995,8 +995,11 @@
       }
 
       function setButtonsDisabled(disabled) {
+        // chat-send はチャット専用の chatBusy で制御する（共有 busy で無効化すると、
+        // 予定取得中に送信ボタンが押せず「無反応」に見えるため除外）。
+        const skip = new Set(["error-close", "chat-send"]);
         for (const button of mainEl.querySelectorAll("button")) {
-          if (button.id !== "error-close" && !button.classList.contains("mic")) {
+          if (!skip.has(button.id) && !button.classList.contains("mic")) {
             button.disabled = disabled;
           }
         }
@@ -1802,6 +1805,7 @@
         note.textContent = text;
         chatMessagesEl.append(note);
         chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        return note;
       }
 
       function chatSystemPrompt() {
@@ -1900,17 +1904,18 @@
         void runChatTurn(text);
       });
 
+      // チャットは予定取得などの共有 busy とは独立に動かす（旧実装は共有 runAction を
+      // 使っていたため、初期ロード等で busy 中は送信ボタンが disabled になり、押しても
+      // 何も起きない「無反応」になっていた）。専用の chatBusy と、チャット内の
+      // 「考え中」表示・エラー表示で、常にフィードバックを返す。
+      let chatBusy = false;
       async function runChatTurn(text) {
-        // runAction は busy 中だと黙って return するため、チャットが「無反応」に見える。
-        // 予定取得などの処理中はその旨を明示して、入力を捨てずに気づけるようにする。
-        if (busy) {
-          appendChatBubble("user", text);
-          appendSystemNote("いま別の処理中です（予定の取得など）。少し待ってからもう一度送ってください。");
-          return;
-        }
+        if (chatBusy) return; // 連打防止（前の応答待ち）
+        chatBusy = true;
         appendChatBubble("user", text);
         chatHistory.push({ role: "user", content: text });
-        await runAction("AIが考えています…", async () => {
+        const thinking = appendSystemNote("AIが考えています…");
+        try {
           // 空 content のメッセージは AI API がエラー（content が空です）にするため送らない。
           const messages = chatHistory
             .map((m) => ({ role: m.role, content: String(m.content ?? "").trim() }))
@@ -1921,12 +1926,18 @@
             messages,
             maxTokens: 800,
           });
+          thinking.remove();
           const { text: replyText, action } = tryParseChatAction(raw);
           // 表示用にパース後テキストを、モデル履歴には生の応答を残す（ただし空なら履歴に積まない）。
           if (String(raw ?? "").trim()) chatHistory.push({ role: "assistant", content: raw });
           appendChatBubble("assistant", replyText || "（操作案）");
           if (action) appendChatActionCard(action);
-        });
+        } catch (error) {
+          thinking.remove();
+          appendChatBubble("assistant", "エラー: " + (error?.message ?? String(error)));
+        } finally {
+          chatBusy = false;
+        }
       }
 
       // ---------------- wire up static buttons ----------------
