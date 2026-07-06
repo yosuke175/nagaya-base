@@ -193,6 +193,19 @@ export default function App() {
 
   return (
     <div className="nb-washi min-h-screen overflow-x-hidden" style={{ color: 'var(--nb-ink)' }}>
+      {/* 大家（admin）専用の強制更新。画面右上角に固定表示。
+          SW解除＋全キャッシュ削除＋再読み込みで「デプロイしたのに古いまま」を1クリック解消。
+          ガジェットはサンドボックスで SW/caches に触れないため本体側にのみ置ける。 */}
+      {auth.profile?.role === 'admin' && (
+        <button
+          type="button"
+          onClick={() => void forceRefresh()}
+          title="キャッシュ（Service Worker・保存済みデータ）を消して最新を再読み込み（大家専用）"
+          className="fixed right-1 top-1 z-[9999] rounded-md border border-stone-300 bg-white/90 px-2 py-1 text-xs text-stone-600 shadow-sm backdrop-blur hover:bg-stone-100"
+        >
+          🔄<span className="ml-1 hidden sm:inline">更新</span>
+        </button>
+      )}
       <header
         className="accent-topbar border-b border-stone-200 px-4 py-3 shadow-sm"
         style={{ backgroundColor: 'color-mix(in srgb, var(--nb-cream) 80%, white)' }}
@@ -262,17 +275,6 @@ export default function App() {
           </div>
           {(auth.status === 'signed-in' || auth.status === 'disabled') && (
           <div className="flex shrink-0 items-center gap-1">
-            {/* デプロイ後に「古いまま」を1クリックで解消する強制更新
-                （SW解除＋全キャッシュ削除＋再読み込み） */}
-            <button
-              type="button"
-              onClick={() => void forceRefresh()}
-              title="キャッシュ（Service Worker・保存済みデータ）を消して最新を再読み込みします"
-              className="flex items-center gap-1 rounded-lg border border-stone-200 px-2 py-1.5 text-xs text-stone-600 hover:bg-stone-50"
-            >
-              <span aria-hidden>🔄</span>
-              <span className="hidden sm:inline">更新</span>
-            </button>
             {view !== 'help' && (
               <button
                 type="button"
