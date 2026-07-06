@@ -61,6 +61,16 @@ describe('parseGuideToolCall', () => {
     expect(r.text).toBe('予定を見てみます。')
   })
 
+  it('strips a duplicated "gadget." prefix from the tool name', () => {
+    const reply =
+      '```nagaya-tool\n{"gadget":"schedule-secretary","tool":"schedule-secretary.list_events","args":{}}\n```'
+    expect(parseGuideToolCall(reply).toolCall).toEqual({
+      gadget: 'schedule-secretary',
+      tool: 'list_events',
+      args: {},
+    })
+  })
+
   it('defaults args to {} and rejects bad gadget ids / malformed json', () => {
     expect(
       parseGuideToolCall('```nagaya-tool\n{"gadget":"todo","tool":"add"}\n```').toolCall,

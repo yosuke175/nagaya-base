@@ -98,7 +98,11 @@ export function parseGuideToolCall(reply: string): { text: string; toolCall: Gui
       GADGET_ID_RE.test(raw.gadget)
     ) {
       const args = raw.args && typeof raw.args === 'object' ? (raw.args as Record<string, unknown>) : {}
-      toolCall = { gadget: raw.gadget, tool: raw.tool, args }
+      // モデルがツール名を「gadget.tool」と修飾して返すことがある（例: schedule-secretary.
+      // list_events）。ガジェット側の宣言は「list_events」なので、先頭の「gadget.」は剥がす。
+      const prefix = `${raw.gadget}.`
+      const tool = raw.tool.startsWith(prefix) ? raw.tool.slice(prefix.length) : raw.tool
+      toolCall = { gadget: raw.gadget, tool, args }
     }
   } catch {
     toolCall = null
