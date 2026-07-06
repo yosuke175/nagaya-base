@@ -1,0 +1,24 @@
+{
+  "manifestVersion": 1,
+  "id": "debug-console",
+  "name": "デバッグコンソール",
+  "version": "0.1.0",
+  "description": "大家（管理者）向けの点検用ガジェット。SDKの疎通・AI呼び出し・ストレージ・環境情報を1つずつ試し、結果とエラーをそのままログに出します。案内AIからも run_diagnostics で同じ情報を取得できます。不具合の切り分け用。",
+  "author": { "name": "向井庸祐", "contact": "yosuke175@gmail.com" },
+  "entry": "index.html",
+  "size": { "default": "large", "supported": ["large", "full"] },
+  "permissions": ["storage", "ai", "ai-tools"],
+  "aiTools": [
+    {
+      "name": "run_diagnostics",
+      "description": "プラットフォーム連携の点検結果（AI疎通・ストレージ・環境情報）をまとめて返す（読み取り）",
+      "kind": "read"
+    },
+    {
+      "name": "echo",
+      "description": "受け取った文字列をそのまま返す。案内AI→ガジェットのツール実行経路の疎通確認用。args: text",
+      "kind": "read",
+      "params": { "text": { "type": "string" } }
+    }
+  ]
+}

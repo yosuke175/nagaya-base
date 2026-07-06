@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>デバッグコンソール</title>
+    <style>
+      [hidden] {
+        display: none !important;
+      }
+      :root {
+        font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+        color: #1c1917;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        font-size: 14px;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 13px;
+        margin: 16px 0 6px;
+        color: #57534e;
+      }
+      .card {
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+        background: #fff;
+      }
+      button {
+        font-size: 13px;
+        padding: 5px 12px;
+        border: 1px solid #a8a29e;
+        border-radius: 8px;
+        background: #fafaf9;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #f5f5f4;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      button.primary {
+        background: #44403c;
+        border-color: #44403c;
+        color: #fafaf9;
+      }
+      label {
+        display: grid;
+        gap: 3px;
+        font-size: 12px;
+        color: #57534e;
+        margin-bottom: 6px;
+      }
+      input,
+      select,
+      textarea {
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid #d6d3d1;
+        border-radius: 8px;
+        min-width: 0;
+      }
+      .row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .status {
+        display: inline-block;
+        font-size: 11px;
+        padding: 1px 8px;
+        border-radius: 999px;
+        color: #fff;
+      }
+      .status.ok {
+        background: #16a34a;
+      }
+      .status.ng {
+        background: #b91c1c;
+      }
+      .status.wait {
+        background: #a8a29e;
+      }
+      .kv {
+        font-size: 12px;
+        color: #57534e;
+      }
+      .kv b {
+        color: #1c1917;
+      }
+      #log {
+        width: 100%;
+        box-sizing: border-box;
+        height: 220px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.5;
+        white-space: pre;
+        overflow: auto;
+        background: #1c1917;
+        color: #e7e5e4;
+        border: none;
+        border-radius: 8px;
+        padding: 8px;
+        resize: vertical;
+      }
+      .muted {
+        font-size: 11px;
+        color: #78716c;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>デバッグコンソール <span id="conn" class="status wait">接続中…</span></h1>
+    <p class="muted">
+      プラットフォーム連携を1つずつ試して、結果とエラーをそのまま下のログに出します。
+      不具合の切り分け用（大家向け）。ログは「全部コピー」で私に貼れます。
+    </p>
+
+    <!-- AI 疎通テスト（最重要: gadget.ai.complete が動くかを単体で確認） -->
+    <div class="card">
+      <h2>① AI疎通テスト <span id="ai-status" class="status wait">未実行</span></h2>
+      <label>
+        送るメッセージ（設定は記憶されます）
+        <input id="ai-prompt" maxlength="500" placeholder="例: こんにちは。1文で挨拶して。" />
+      </label>
+      <div class="row">
+        <label style="margin: 0">
+          用途
+          <select id="ai-tier">
+            <option value="">既定</option>
+            <option value="fast">fast（速い）</option>
+            <option value="smart">smart（賢い）</option>
+          </select>
+        </label>
+        <button id="ai-run" class="primary" type="button">AIに送ってみる</button>
+      </div>
+      <p class="muted">
+        ここが成功するのに個々のガジェット（スケジュール秘書など）で失敗するなら、原因はその
+        ガジェット側。ここで失敗するなら、AI設定キーやプラットフォーム側が原因です。
+      </p>
+    </div>
+
+    <!-- ストレージ疎通 -->
+    <div class="card">
+      <h2>② ストレージ疎通 <span id="st-status" class="status wait">未実行</span></h2>
+      <button id="st-run" type="button">書き込み→読み出しを試す</button>
+    </div>
+
+    <!-- 環境情報 -->
+    <div class="card">
+      <h2>③ 環境情報</h2>
+      <div id="env" class="kv"></div>
+      <div class="row" style="margin-top: 8px">
+        <button id="env-refresh" type="button">再取得</button>
+      </div>
+    </div>
+
+    <!-- ログ -->
+    <div class="card">
+      <h2>ログ</h2>
+      <textarea id="log" readonly spellcheck="false"></textarea>
+      <div class="row" style="margin-top: 8px">
+        <button id="log-copy" class="primary" type="button">全部コピー</button>
+        <button id="log-clear" type="button">クリア</button>
+        <span id="copy-note" class="muted" hidden>コピーしました</span>
+      </div>
+    </div>
+
+    <script type="module">
+      import { createGadget } from "/sdk/gadget-sdk.js";
+
+      const PROMPT_KEY = "debug-ai-prompt";
+      const el = (id) => document.getElementById(id);
+      const logEl = el("log");
+
+      let gadget = null;
+
+      // ---- logging ----
+      function ts() {
+        return new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+      }
+      function log(line) {
+        logEl.value += `[${ts()}] ${line}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      function logObj(label, obj) {
+        let text;
+        try {
+          text = JSON.stringify(obj, null, 2);
+        } catch {
+          text = String(obj);
+        }
+        log(`${label}:\n${text}`);
+      }
+      function describeError(error) {
+        if (error instanceof Error) return `${error.name}: ${error.message}`;
+        try {
+          return JSON.stringify(error);
+        } catch {
+          return String(error);
+        }
+      }
+
+      function setStatus(node, kind, text) {
+        node.className = `status ${kind}`;
+        node.textContent = text;
+      }
+
+      // ---- capture uncaught errors inside this iframe ----
+      window.addEventListener("error", (e) => {
+        log(`⚠ window.onerror: ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`);
+      });
+      window.addEventListener("unhandledrejection", (e) => {
+        log(`⚠ unhandledrejection: ${describeError(e.reason)}`);
+      });
+
+      // ---- environment info ----
+      function collectEnv() {
+        const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+        return {
+          url: location.href,
+          referrer: document.referrer || "(なし)",
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+          online: navigator.onLine,
+          speechRecognition: Boolean(Speech),
+          time: new Date().toString(),
+        };
+      }
+      function renderEnv() {
+        const info = collectEnv();
+        el("env").innerHTML = Object.entries(info)
+          .map(([k, v]) => `<div><b>${k}</b>: ${String(v)}</div>`)
+          .join("");
+        return info;
+      }
+
+      // ---- diagnostics ----
+      async function runAiTest() {
+        const prompt = el("ai-prompt").value.trim() || "こんにちは。1文で挨拶して。";
+        const tier = el("ai-tier").value || undefined;
+        setStatus(el("ai-status"), "wait", "実行中…");
+        el("ai-run").disabled = true;
+        log(`① AI疎通テスト開始: prompt="${prompt}"${tier ? ` tier=${tier}` : ""}`);
+        try {
+          await gadget.storage.set(PROMPT_KEY, el("ai-prompt").value).catch(() => {});
+          const request = { messages: [{ role: "user", content: prompt }], maxTokens: 64 };
+          if (tier) request.tier = tier;
+          const started = performance.now();
+          const text = await gadget.ai.complete(request);
+          const ms = Math.round(performance.now() - started);
+          setStatus(el("ai-status"), "ok", `成功 (${ms}ms)`);
+          log(`① 成功 (${ms}ms) 応答: ${JSON.stringify(text)}`);
+        } catch (error) {
+          setStatus(el("ai-status"), "ng", "失敗");
+          log(`① 失敗: ${describeError(error)}`);
+        } finally {
+          el("ai-run").disabled = false;
+        }
+      }
+
+      async function runStorageTest() {
+        setStatus(el("st-status"), "wait", "実行中…");
+        el("st-run").disabled = true;
+        const key = "debug-roundtrip";
+        const value = { t: Date.now(), r: Math.floor(performance.now()) };
+        log(`② ストレージ疎通開始: set(${key}) = ${JSON.stringify(value)}`);
+        try {
+          await gadget.storage.set(key, value);
+          const back = await gadget.storage.get(key);
+          const ok = back && back.t === value.t && back.r === value.r;
+          setStatus(el("st-status"), ok ? "ok" : "ng", ok ? "成功" : "不一致");
+          log(`② 読み出し: ${JSON.stringify(back)} → ${ok ? "一致" : "不一致"}`);
+        } catch (error) {
+          setStatus(el("st-status"), "ng", "失敗");
+          log(`② 失敗: ${describeError(error)}`);
+        } finally {
+          el("st-run").disabled = false;
+        }
+      }
+
+      // ---- init ----
+      async function init() {
+        try {
+          gadget = await createGadget();
+        } catch (error) {
+          setStatus(el("conn"), "ng", "接続失敗");
+          log(`接続失敗: ${describeError(error)}`);
+          log("※このガジェットはプラットフォームの棚（iframe）の中でのみ動きます。");
+          renderEnv();
+          return;
+        }
+        setStatus(el("conn"), "ok", "接続OK");
+        log("createGadget() 成功。SDK ハンドシェイク完了。");
+        logObj("環境情報", renderEnv());
+
+        // 案内AIからのツール実行にも応答（guide→gadget 経路の疎通確認）
+        gadget.ai?.onToolInvoke?.(async ({ name, args }) => {
+          log(`案内AIからツール実行: name=${name} args=${JSON.stringify(args ?? {})}`);
+          if (name === "run_diagnostics") {
+            return { ok: true, env: collectEnv() };
+          }
+          if (name === "echo") {
+            return { echo: args?.text ?? null };
+          }
+          throw new Error("未対応のツールです: " + name);
+        });
+
+        // 記憶しておいた AI テスト用プロンプトを復元
+        try {
+          const saved = await gadget.storage.get(PROMPT_KEY);
+          if (typeof saved === "string") el("ai-prompt").value = saved;
+        } catch {
+          // storage 未対応でも本体は動く
+        }
+      }
+
+      // ---- wire up ----
+      el("ai-run").addEventListener("click", runAiTest);
+      el("st-run").addEventListener("click", runStorageTest);
+      el("env-refresh").addEventListener("click", () => logObj("環境情報", renderEnv()));
+      el("log-clear").addEventListener("click", () => {
+        logEl.value = "";
+      });
+      el("log-copy").addEventListener("click", async () => {
+        logEl.select();
+        let copied = false;
+        try {
+          await navigator.clipboard.writeText(logEl.value);
+          copied = true;
+        } catch {
+          // sandboxed iframe may block clipboard — the textarea is already
+          // selected, so the user can press Ctrl/Cmd+C manually.
+          copied = document.execCommand?.("copy") ?? false;
+        }
+        const note = el("copy-note");
+        note.textContent = copied ? "コピーしました" : "選択しました（Ctrl/Cmd+Cでコピー）";
+        note.hidden = false;
+        setTimeout(() => {
+          note.hidden = true;
+        }, 2500);
+      });
+
+      init();
+    </script>
+  </body>
+</html>
