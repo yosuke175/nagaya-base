@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* 縦スクロールバーの表示/非表示でレイアウト幅（document.documentElement.clientWidth）が
+   変わらないよう、スクロールバー用の余白を常に確保する。棚のガジェットの高さ変更・移動で
+   ページの高さがスクロール閾値をまたぐと、フローティング窓の位置計算基準
+   （calc(50% + cxpx) が使う clientWidth）が一瞬ズレて、窓がガタッと動いて見える不具合の対策。
+   scrollbar-gutter 未対応ブラウザ向けに overflow-y:scroll もフォールバックで指定。 */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 :root {
   --accent: #292524;
   /* NAGAYA-BASE watercolor palette — docs/frontend-design.md が正典 */
