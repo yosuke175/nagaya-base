@@ -569,7 +569,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-08 r12</span
+          >build 2026-07-08 r13</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -931,11 +931,14 @@
         await loadPreferences();
         await restoreCache();
         setActiveView(viewMode);
-        // 最新のカレンダー一覧と予定は「並列」で取得し、届いたそれぞれで描き替える。
-        // 互いに独立なので直列に待つ理由がない（GASコールド往復2回ぶんの直列待ちを解消）。
+        // 最新のカレンダー一覧と予定は「並列」かつ「非ブロッキング」で取得する。
+        // 以前は初回更新に runAction（全ボタン無効化＋ローディング）を使っていたため、
+        // GASコールドで15〜30秒かかる間はUIが凍り、その間に「予定を追加」を押しても
+        // ボタンが無効で全く反応しなかった。キャッシュで描画済みなので、ここは裏で
+        // 静かに取得し、届いたら描き替えるだけにする（ユーザー操作はブロックしない）。
         await Promise.all([
           loadCalendars().then(() => renderActiveView()),
-          refreshEvents(),
+          reloadEvents().catch((error) => showError(error.message)),
         ]);
       }
 
@@ -1140,11 +1143,17 @@
         24: "#a47ae2",
       };
 
-      /** 本家Googleカレンダーの色（colorId）が取れればそれを使い、無ければ機械的に割り当てる。 */
+      /**
+       * 本家Googleカレンダーの色をそのまま使う。無ければ機械的に割り当てる。
+       * GAS の Calendar.getColor() は「#f83a22」のような16進文字列を返す（＝そのまま使える）。
+       * 環境によっては colorId 番号（1〜24）で来ることもあるので両対応する。
+       */
       function calendarColor(calendarId) {
         const calendar = calendars.find((c) => c.id === calendarId);
-        const hex = calendar?.color ? GOOGLE_CALENDAR_COLOR_HEX[calendar.color] : null;
-        if (hex) return hex;
+        const raw = calendar?.color;
+        if (typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw)) return raw; // 16進そのまま
+        const byId = raw != null ? GOOGLE_CALENDAR_COLOR_HEX[raw] : null; // colorId → 16進
+        if (byId) return byId;
         const palette = ["#b85042", "#6e8f7c", "#c9a15a", "#1e2c4a", "#7c6ba8", "#3a8fb7", "#a85b8f", "#5b8f4f"];
         let hash = 0;
         for (let i = 0; i < calendarId.length; i++) hash = (hash * 31 + calendarId.charCodeAt(i)) >>> 0;
