@@ -450,6 +450,27 @@ function extractDelta(provider: Provider, dataJson: string): string {
   }
 }
 
+/**
+ * SSE `data:` 行がストリーム途中のエラーイベントなら、その内容を返す（無ければ null）。
+ * Anthropic は混雑時など、HTTP 200 のままストリーム中に {"type":"error",...} を送ってくる。
+ * 旧実装はこれを黙って捨てていたため「空の応答が正常に返った」ことになり、案内AIが
+ * 何も言わずに終わる（＝たまに動く・たまに無言）という不安定さの主因になっていた。
+ */
+function detectStreamError(dataJson: string): string | null {
+  try {
+    const obj = JSON.parse(dataJson) as {
+      type?: string
+      error?: { type?: string; message?: string }
+    }
+    if (obj.type === 'error' || (obj.error && typeof obj.error.message === 'string')) {
+      return obj.error?.message ?? 'AI提供元でエラーが発生しました'
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 /** プロバイダの SSE ストリームを「本文テキストのデルタ」だけの ReadableStream に変換。 */
 function sseToText(
   provider: Provider,
@@ -466,6 +487,15 @@ function sseToText(
     if (!line.startsWith('data:')) return
     const payload = line.slice(5).trim()
     if (!payload || payload === '[DONE]') return
+    // ストリーム途中のエラー（Anthropic の overloaded 等）は握りつぶさず、読める文で流す。
+    // ここで無言にすると「空の正常応答」になり、クライアントは理由なく沈黙してしまう。
+    const streamError = detectStreamError(payload)
+    if (streamError) {
+      const notice = `\n（AI提供元エラー: ${streamError}。少し待ってからもう一度お試しください）`
+      total += notice.length
+      controller.enqueue(encoder.encode(notice))
+      return
+    }
     const text = extractDelta(provider, payload)
     if (text) {
       total += text.length
@@ -727,11 +757,15 @@ export const onRequest = async (context: {
       const t0 = Date.now()
       const lastUser =
         [...aiRequest.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+      // ツール結果を渡して続きを生成するターンでは、埋め込み＋RAG検索をスキップする。
+      // ツール結果のJSONを埋め込みにかけても資料検索の質は上がらず、外部API 2往復ぶん
+      // 遅く（TTFT悪化＝タイムアウト誤検知の一因）・壊れやすくなるだけのため。
+      const isToolContinuation = lastUser.startsWith('[ツール結果')
       // 準備は互いに独立なので並列化（旧: 直列で 設定/レート/埋め込み/状態票 を1つずつ待っていた）。
       const [settings, recentCount, embedding, state] = await Promise.all([
         loadSettings(),
         countRecentUsage(env, userId),
-        embedQuery(env, lastUser),
+        isToolContinuation ? Promise.resolve(null) : embedQuery(env, lastUser),
         buildStateTicket(env, userId),
       ])
       const tPrep = Date.now()

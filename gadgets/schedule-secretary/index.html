@@ -569,7 +569,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-07 r9</span
+          >build 2026-07-07 r10</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -810,7 +810,20 @@
             const params = schedulingListParams();
             if (args.rangeStart) params.rangeStart = String(args.rangeStart);
             if (args.rangeEnd) params.rangeEnd = String(args.rangeEnd);
-            return { events: await callGas("list", params) };
+            const events = await callGas("list", params);
+            // AIへ返す一覧は軽量化する（説明文を丸ごと含めると数千文字級になり、続き
+            // ターンの入力が肥大して遅延・失敗の温床になる。操作に必要な項目だけ返す）。
+            return {
+              events: events.map((ev) => ({
+                id: ev.id,
+                calendarId: ev.calendarId,
+                calendarName: ev.calendarName,
+                title: ev.title,
+                start: ev.start,
+                end: ev.end,
+                allDay: ev.allDay,
+              })),
+            };
           }
           if (name === "create_event") {
             if (!args.title || !args.start) {

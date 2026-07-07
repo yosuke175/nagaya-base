@@ -312,8 +312,10 @@ export function GuideAssistant({
     setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, done: true } : m)))
   }
 
-  // ADR-011: 1回のAI応答を処理。read ツールは自動実行して連鎖、act は承認待ちにする
-  const runFrom = async (working: Msg[], depth: number): Promise<void> => {
+  // ADR-011: 1回のAI応答を処理。read ツールは自動実行して連鎖、act は承認待ちにする。
+  // retried: 空応答（本文もツールも操作も無し）だったとき、1回だけ自動で再生成する。
+  // 提供元の一時的な混雑などで空が返ることがあり、そのたびに手で言い直させない。
+  const runFrom = async (working: Msg[], depth: number, retried = false): Promise<void> => {
     // ストリーミング: まず空の吹き出しを置き、届いた文字を逐次追記して見せる。
     const streamIndex = working.length
     setMessages([...working, { role: 'assistant', content: '' }])
@@ -377,8 +379,12 @@ export function GuideAssistant({
     // ここに到達＝これ以上の自動継続は無い。本文も操作ボタンも無いと、空の吹き出しは
     // 何も描画されず（render は message.content が真のときだけ表示）、ユーザーには「無反応で
     // 固まった」ように見える。ツール実行後にモデルが本文を返さなかった場合の沈黙が主因。
-    // 必ず何か表示して、次の入力を待たずにターンを終える。
     if (!text && !action) {
+      // まず1回だけ自動で再生成（提供元の一時的な空応答対策）。それでも空なら断りを表示。
+      if (!retried) {
+        await runFrom(working, depth, true)
+        return
+      }
       setMessages([
         ...working,
         {
@@ -392,11 +398,20 @@ export function GuideAssistant({
     }
   }
 
+  // ツール結果としてモデルへ渡すJSONの上限。予定一覧などは説明文込みで際限なく大きく
+  // なり得て、続きターンの入力肥大＝遅延・コスト・失敗率の増加に直結するため頭を抑える。
+  const MAX_TOOL_RESULT_CHARS = 8000
+
   const execAndContinue = async (working: Msg[], toolCall: GuideToolCall, depth: number) => {
     let resultText: string
     try {
       const result = await invokeGadgetTool(toolCall.gadget, toolCall.tool, toolCall.args)
       resultText = JSON.stringify(result)
+      if (resultText.length > MAX_TOOL_RESULT_CHARS) {
+        resultText =
+          resultText.slice(0, MAX_TOOL_RESULT_CHARS) +
+          '…（長すぎるため以降省略。必要なら期間や条件を絞って再取得してください）'
+      }
     } catch (cause) {
       resultText = `エラー: ${cause instanceof Error ? cause.message : String(cause)}`
     }
