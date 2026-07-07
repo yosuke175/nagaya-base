@@ -368,7 +368,27 @@ export function GuideAssistant({
       const def = findTool(toolCall.gadget, toolCall.tool)
       const needsConfirm = def?.kind === 'act' || def?.requiresConfirm
       if (needsConfirm) return // act は承認ボタン待ち（confirmTool で続行）
-      if (depth < MAX_TOOL_STEPS) await execAndContinue(withReply, toolCall, depth) // read は自動
+      if (depth < MAX_TOOL_STEPS) {
+        await execAndContinue(withReply, toolCall, depth) // read は自動連鎖
+        return
+      }
+      // read だが自動連鎖の上限。これ以上は実行しない（下のフォールバック判定に進む）。
+    }
+    // ここに到達＝これ以上の自動継続は無い。本文も操作ボタンも無いと、空の吹き出しは
+    // 何も描画されず（render は message.content が真のときだけ表示）、ユーザーには「無反応で
+    // 固まった」ように見える。ツール実行後にモデルが本文を返さなかった場合の沈黙が主因。
+    // 必ず何か表示して、次の入力を待たずにターンを終える。
+    if (!text && !action) {
+      setMessages([
+        ...working,
+        {
+          role: 'assistant',
+          content: toolCall
+            ? '操作は実行しましたが、うまく説明を返せませんでした。結果はガジェット側でご確認ください。'
+            : 'うまくお応えできませんでした。恐れ入りますが、もう一度、少し言い方を変えてお試しください。',
+        },
+      ])
+      scrollToEnd()
     }
   }
 

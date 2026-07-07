@@ -49,34 +49,74 @@ export async function askGuide(
   const token = await getAccessToken()
   if (!token) throw new Error('ログインが必要です')
   const t0 = Date.now()
-  const response = await fetch('/api/ai', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ action: 'guide', request: { messages }, context }),
-  })
+
+  // ストリーミングに「無反応で永久に固まる」対策のタイムアウトを付ける。
+  // これが無いと、サーバーのコールドスタートや提供元の詰まりでストリームが止まると、
+  // reader.read() が永遠に返らず、案内AIがエラーも出さず固まっていた（本不具合の主因）。
+  // 方式: AbortController を「失速タイマー」で駆動し、一定時間データが来なければ中断する。
+  const controller = new AbortController()
+  const STALL_MS = 30_000 // 最初の応答／各チャンク間がこの時間空いたら中断
+  let stallTimer: ReturnType<typeof setTimeout> | undefined
+  const armStall = () => {
+    clearTimeout(stallTimer)
+    stallTimer = setTimeout(() => controller.abort(), STALL_MS)
+  }
+
+  let response: Response
+  armStall()
+  try {
+    response = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'guide', request: { messages }, context }),
+      signal: controller.signal,
+    })
+  } catch (cause) {
+    clearTimeout(stallTimer)
+    if (cause instanceof DOMException && cause.name === 'AbortError') {
+      throw new Error('案内AIの応答が来ませんでした（タイムアウト）。もう一度お試しください。')
+    }
+    throw cause
+  }
   if (!response.ok) {
+    clearTimeout(stallTimer)
     const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string }
     const err = new Error(payload.error ?? `案内AI エラー (HTTP ${response.status})`) as GuideError
     err.code = payload.code
     throw err
   }
-  if (!response.body) return (await response.text().catch(() => '')) ?? ''
+  if (!response.body) {
+    clearTimeout(stallTimer)
+    return (await response.text().catch(() => '')) ?? ''
+  }
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let full = ''
   let firstAt = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const chunk = decoder.decode(value, { stream: true })
-    if (!chunk) continue
-    if (!firstAt) {
-      firstAt = Date.now()
-      // 実測: 最初の文字が出るまで（TTFT）。ストリーミングの体感速度の指標。
-      console.debug('[案内AI] TTFT(ms)', firstAt - t0)
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      armStall() // データが来たので失速タイマーを張り直す
+      const chunk = decoder.decode(value, { stream: true })
+      if (!chunk) continue
+      if (!firstAt) {
+        firstAt = Date.now()
+        // 実測: 最初の文字が出るまで（TTFT）。ストリーミングの体感速度の指標。
+        console.debug('[案内AI] TTFT(ms)', firstAt - t0)
+      }
+      full += chunk
+      onDelta?.(chunk)
     }
-    full += chunk
-    onDelta?.(chunk)
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === 'AbortError') {
+      // 途中で失速して中断。ここまで受け取った分があればそれを返し、無ければエラー。
+      if (full) return full
+      throw new Error('案内AIの応答が途中で止まりました（タイムアウト）。もう一度お試しください。')
+    }
+    throw cause
+  } finally {
+    clearTimeout(stallTimer)
   }
   console.debug('[案内AI] total(ms)', Date.now() - t0)
   return full
