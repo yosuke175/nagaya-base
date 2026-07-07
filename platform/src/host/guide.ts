@@ -3,6 +3,11 @@ import { getAccessToken } from './credentialsApi'
 // 案内AI（段1・ステートレス）クライアント。生成は既存 /api/ai の 'guide' アクション経由
 // （ユーザーBYOK・状態票つきの system はサーバーが組む）。会話履歴は1セッション内のみ
 // （このモジュールは保持しない。呼び出し側が直近ターンを渡す）。
+//
+// 通信は非ストリーミングの JSON（{ text }）。以前は SSE ストリーミングだったが、
+// 提供元の途中イベントの扱い等で「空の正常応答」「無言で固まる」が間欠的に発生し
+// 不安定の主因になっていたため、gadget.ai.complete と同じ実証済みの単純な経路に
+// 一本化した（2026-07-07）。復活させる場合は git 履歴を参照。
 
 export interface GuideMessage {
   role: 'user' | 'assistant'
@@ -36,10 +41,14 @@ export interface GuideContext {
   }
 }
 
+// 生成完了までの総時間の上限。非ストリーミングなので「生成が終わるまで」を待つ
+// （長い回答＋コールドスタートでも収まる値）。超えたら中断してエラー表示＝無言で
+// 固まらせない。待ち時間中は呼び出し側の「考え中」表示が出ている。
+const TOTAL_TIMEOUT_MS = 60_000
+
 /**
  * 直近ターン（messages）＋文脈を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。
- * 生成はサーバー側でストリーミング（text/plain）。onDelta が届いた分を逐次受け取り、
- * 戻り値は最終的な全文（呼び出し側は全文でツール/操作タグを解析する）。
+ * onDelta は互換のため残しており、全文が届いた時点で1回だけ呼ばれる。
  */
 export async function askGuide(
   messages: GuideMessage[],
@@ -50,23 +59,9 @@ export async function askGuide(
   if (!token) throw new Error('ログインが必要です')
   const t0 = Date.now()
 
-  // ストリーミングに「無反応で永久に固まる」対策のタイムアウトを付ける。
-  // これが無いと、サーバーのコールドスタートや提供元の詰まりでストリームが止まると、
-  // reader.read() が永遠に返らず、案内AIがエラーも出さず固まっていた（本不具合の主因）。
-  // 方式: AbortController を「失速タイマー」で駆動し、一定時間データが来なければ中断する。
-  // 失速判定は短めに。正常時は入力直後にストリーミングで文字が出始めるので、最初の1文字が
-  // 来ない＝固まり、は数秒で分かる。ただし短すぎるとコールドスタート（最初の応答に数秒）を
-  // 誤って切ってしまい「偽タイムアウト」で逆に不安定に感じるため、8秒で様子見（要調整）。
   const controller = new AbortController()
-  const STALL_MS = 8_000 // 最初の応答／各チャンク間がこの時間空いたら中断
-  let stallTimer: ReturnType<typeof setTimeout> | undefined
-  const armStall = () => {
-    clearTimeout(stallTimer)
-    stallTimer = setTimeout(() => controller.abort(), STALL_MS)
-  }
-
+  const timer = setTimeout(() => controller.abort(), TOTAL_TIMEOUT_MS)
   let response: Response
-  armStall()
   try {
     response = await fetch('/api/ai', {
       method: 'POST',
@@ -75,52 +70,26 @@ export async function askGuide(
       signal: controller.signal,
     })
   } catch (cause) {
-    clearTimeout(stallTimer)
     if (cause instanceof DOMException && cause.name === 'AbortError') {
-      throw new Error('案内AIの応答が来ませんでした（タイムアウト）。もう一度お試しください。')
+      throw new Error('案内AIの応答が来ませんでした（60秒タイムアウト）。もう一度お試しください。')
     }
     throw cause
+  } finally {
+    clearTimeout(timer)
+  }
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    text?: string
+    error?: string
+    code?: string
   }
   if (!response.ok) {
-    clearTimeout(stallTimer)
-    const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string }
     const err = new Error(payload.error ?? `案内AI エラー (HTTP ${response.status})`) as GuideError
     err.code = payload.code
     throw err
   }
-  if (!response.body) {
-    clearTimeout(stallTimer)
-    return (await response.text().catch(() => '')) ?? ''
-  }
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let full = ''
-  let firstAt = 0
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      armStall() // データが来たので失速タイマーを張り直す
-      const chunk = decoder.decode(value, { stream: true })
-      if (!chunk) continue
-      if (!firstAt) {
-        firstAt = Date.now()
-        // 実測: 最初の文字が出るまで（TTFT）。ストリーミングの体感速度の指標。
-        console.debug('[案内AI] TTFT(ms)', firstAt - t0)
-      }
-      full += chunk
-      onDelta?.(chunk)
-    }
-  } catch (cause) {
-    if (cause instanceof DOMException && cause.name === 'AbortError') {
-      // 途中で失速して中断。ここまで受け取った分があればそれを返し、無ければエラー。
-      if (full) return full
-      throw new Error('案内AIの応答が途中で止まりました（タイムアウト）。もう一度お試しください。')
-    }
-    throw cause
-  } finally {
-    clearTimeout(stallTimer)
-  }
+  const text = typeof payload.text === 'string' ? payload.text : ''
   console.debug('[案内AI] total(ms)', Date.now() - t0)
-  return full
+  if (text) onDelta?.(text)
+  return text
 }
