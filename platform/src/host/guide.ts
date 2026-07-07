@@ -54,8 +54,11 @@ export async function askGuide(
   // これが無いと、サーバーのコールドスタートや提供元の詰まりでストリームが止まると、
   // reader.read() が永遠に返らず、案内AIがエラーも出さず固まっていた（本不具合の主因）。
   // 方式: AbortController を「失速タイマー」で駆動し、一定時間データが来なければ中断する。
+  // 失速判定は短めに。正常時は入力直後にストリーミングで文字が出始めるので、最初の1文字が
+  // 来ない＝固まり、は数秒で分かる。ただし短すぎるとコールドスタート（最初の応答に数秒）を
+  // 誤って切ってしまい「偽タイムアウト」で逆に不安定に感じるため、8秒で様子見（要調整）。
   const controller = new AbortController()
-  const STALL_MS = 30_000 // 最初の応答／各チャンク間がこの時間空いたら中断
+  const STALL_MS = 8_000 // 最初の応答／各チャンク間がこの時間空いたら中断
   let stallTimer: ReturnType<typeof setTimeout> | undefined
   const armStall = () => {
     clearTimeout(stallTimer)
