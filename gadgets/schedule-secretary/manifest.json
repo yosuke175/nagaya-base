@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "schedule-secretary",
   "name": "スケジュール秘書",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "複数の Google カレンダー（個人・共有・privateなど、本家Googleカレンダーの色を反映）を横断して予定を表示・追加・移動・削除できるスケジュール秘書。日/4日/週/月の表示切替に対応。AIチャットで会話しながら空き時間の相談や予定操作ができます（登録・変更はあなたの承認後）。チャット窓は設定ページのトグルで非表示にでき、非表示中は長屋の案内AIから同じ操作を任せられます。カレンダー設定・個人ルールは設定ページに集約。案件名・メモ・相談は音声入力対応。連携にはユーザー自身がデプロイする GAS WebApp を使います（セットアップ手順は gas/SETUP.md）。",
   "author": { "name": "向井庸祐", "contact": "yosuke175@gmail.com" },
   "entry": "index.html",
@@ -22,7 +22,7 @@
     },
     {
       "name": "create_event",
-      "description": "予定を1件作成する。calendarId を省略すると既定のカレンダーに作成される。args: title(必須), start(ISO日時・必須), end(ISO日時), description, calendarId",
+      "description": "予定を1件作成する。calendarId を省略すると既定のカレンダーに作成される。日時は必ずタイムゾーンオフセット付きISO（例 2026-07-07T16:00:00+09:00）で指定する。args: title(必須), start(ISO日時・必須), end(ISO日時), description, calendarId",
       "kind": "act",
       "requiresConfirm": true,
       "params": {
@@ -35,7 +35,7 @@
     },
     {
       "name": "move_event",
-      "description": "既存の予定の日時を変更する（同じカレンダー内）。args: eventId(必須), calendarId(必須・その予定があるカレンダー), start(必須), end(必須)",
+      "description": "既存の予定の日時を変更する（同じカレンダー内）。日時は必ずタイムゾーンオフセット付きISO（例 2026-07-07T16:00:00+09:00）で指定する。args: eventId(必須), calendarId(必須・その予定があるカレンダー), start(必須), end(必須)",
       "kind": "act",
       "requiresConfirm": true,
       "params": {

@@ -569,7 +569,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-07 r10</span
+          >build 2026-07-08 r11</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -743,6 +743,7 @@
 
       const SERVICE_ID = "gas-webapp";
       const CACHE_KEY = "events-cache";
+      const CALENDARS_CACHE_KEY = "calendars-cache";
       const DISPLAY_CAL_KEY = "display-calendars";
       const SCHEDULING_CAL_KEY = "scheduling-calendars";
       const VIEW_MODE_KEY = "view-mode";
@@ -832,8 +833,8 @@
             const created = await callGas("create", {
               title: String(args.title),
               description: args.description ? String(args.description) : "",
-              start: String(args.start),
-              end: args.end ? String(args.end) : String(args.start),
+              start: normalizeIso(args.start),
+              end: args.end ? normalizeIso(args.end) : normalizeIso(args.start),
               calendarId: args.calendarId ? String(args.calendarId) : undefined,
             });
             await reloadEvents().catch(() => {});
@@ -844,8 +845,8 @@
             const moved = await callGas("move", {
               eventId: String(args.eventId),
               calendarId: String(args.calendarId),
-              start: String(args.start),
-              end: String(args.end),
+              start: normalizeIso(args.start),
+              end: normalizeIso(args.end),
             });
             await reloadEvents().catch(() => {});
             return { ok: true, moved };
@@ -886,6 +887,21 @@
         }
       }
 
+      /**
+       * AIが渡す日時を、タイムゾーンの解釈違いが起きない絶対時刻（UTCのISO）に正規化する。
+       * オフセット無しのISO（例 2026-07-07T16:00:00）は「ユーザーのローカル時刻」として解釈。
+       * そのままGASへ渡すと、GAS側の new Date() がスクリプトのタイムゾーン（既定は米国）で
+       * 解釈して数時間ズレた日時に登録され、「予定が消えた」ように見える事故になる。
+       */
+      function normalizeIso(value) {
+        const text = String(value).trim();
+        if (!text) return text;
+        if (/(?:Z|[+-]\d{2}:?\d{2})$/.test(text)) return text; // 既にオフセット付き
+        const parsed = new Date(text); // ブラウザはローカル時刻として解釈する
+        if (isNaN(parsed.getTime())) return text; // 解釈不能はそのまま（GAS側の検証に任せる）
+        return parsed.toISOString();
+      }
+
       async function checkCredentialAndStart() {
         let raw = null;
         try {
@@ -909,10 +925,15 @@
         refreshButton.hidden = false;
         settingsToggleButton.hidden = false;
         void loadRules();
-        await restoreCache();
+        // まずキャッシュ（前回の予定・カレンダー一覧）だけで即描画する。
+        // 以前は listCalendars（GAS・コールド時〜15秒）→ list（さらに〜15秒）を
+        // 待ってから初描画していたため、開いてから30秒近く空白だった。
         await loadPreferences();
-        await loadCalendars();
+        await restoreCache();
         setActiveView(viewMode);
+        // 最新のカレンダー一覧と予定は裏で取得し、届き次第描き替える。
+        await loadCalendars();
+        renderActiveView();
         await refreshEvents();
       }
 
@@ -963,7 +984,7 @@
 
       // ---------------- GAS WebApp call ----------------
 
-      async function callGas(action, params) {
+      async function callGas(action, params, isRetry) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
         try {
@@ -976,6 +997,15 @@
             signal: controller.signal,
           });
           if (!response.ok) {
+            // GAS WebApp は同時アクセスやコールド時に一時的な 404/429/5xx を返すことがある。
+            // 読み取り系（副作用なし）に限り、少し待って1回だけ再試行する。
+            const transient = response.status === 404 || response.status === 429 || response.status >= 500;
+            const readOnly = action === "list" || action === "listCalendars";
+            if (transient && readOnly && !isRetry) {
+              clearTimeout(timeout);
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              return callGas(action, params, true);
+            }
             throw new Error(`WebApp がエラーを返しました (HTTP ${response.status})`);
           }
           const data = await response.json();
@@ -1066,9 +1096,11 @@
       async function loadCalendars() {
         try {
           calendars = await callGas("listCalendars");
+          // 次回起動の即描画用に保存（色・名前・作成フォームの選択肢に必要）
+          void gadget.storage.set(CALENDARS_CACHE_KEY, calendars).catch(() => {});
         } catch (error) {
           showError(`カレンダー一覧の取得に失敗しました: ${error.message}`);
-          calendars = [];
+          if (!Array.isArray(calendars) || calendars.length === 0) calendars = [];
         }
         // Preferences default to "all calendars" until the user narrows them down.
         if (!displayCalendarIds) displayCalendarIds = new Set(calendars.map((c) => c.id));
@@ -1688,6 +1720,17 @@
 
       async function restoreCache() {
         try {
+          // カレンダー一覧も復元する（色・名前の描画と作成フォームに必要。これが無いと
+          // 初描画がGASの listCalendars 待ちになり、開いてから30秒近く空白だった）
+          const cachedCalendars = await gadget.storage.get(CALENDARS_CACHE_KEY);
+          if (Array.isArray(cachedCalendars) && cachedCalendars.length > 0) {
+            calendars = cachedCalendars;
+            // 設定未保存の初回は「全カレンダー有効」を既定に（renderCalSettings が参照する）
+            if (!displayCalendarIds) displayCalendarIds = new Set(calendars.map((c) => c.id));
+            if (!schedulingCalendarIds) schedulingCalendarIds = new Set(calendars.map((c) => c.id));
+            renderCalSettings();
+            renderCreateCalendarOptions();
+          }
           const cache = await gadget.storage.get(CACHE_KEY);
           if (cache && Array.isArray(cache.events)) {
             events = cache.events;
@@ -1906,7 +1949,11 @@
         approve.addEventListener("click", () => {
           runAction("操作を実行しています…", async () => {
             const gasAction = action.action === "create" ? "create" : action.action;
-            await callGas(gasAction, action.params);
+            // チャットのAIが出す日時もオフセット無しの可能性があるため正規化して渡す
+            const params = { ...action.params };
+            if (params.start) params.start = normalizeIso(params.start);
+            if (params.end) params.end = normalizeIso(params.end);
+            await callGas(gasAction, params);
             card.remove();
             appendSystemNote("実行しました");
             await reloadEvents();
