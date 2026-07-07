@@ -49,26 +49,48 @@ const TOTAL_TIMEOUT_MS = 60_000
 /**
  * 直近ターン（messages）＋文脈を渡して案内AIの返答を得る。未設定時は code='ai_not_configured'。
  * onDelta は互換のため残しており、全文が届いた時点で1回だけ呼ばれる。
+ * opts.continuation: ツール結果を受けた続きターン（サーバーが資料検索等を省略して速く返す）。
  */
 export async function askGuide(
   messages: GuideMessage[],
   context?: GuideContext,
   onDelta?: (chunk: string) => void,
+  opts?: { continuation?: boolean },
 ): Promise<string> {
   const token = await getAccessToken()
   if (!token) throw new Error('ログインが必要です')
   const t0 = Date.now()
 
+  // タイムアウトは「本文の受信完了まで」を覆う。以前はヘッダ受信（fetch解決）で
+  // タイマーを解除していたため、本文待ちの response.json() が無期限に固まる穴があった。
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TOTAL_TIMEOUT_MS)
-  let response: Response
   try {
-    response = await fetch('/api/ai', {
+    const response = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: 'guide', request: { messages }, context }),
+      body: JSON.stringify({
+        action: 'guide',
+        request: { messages },
+        context,
+        ...(opts?.continuation ? { continuation: true } : {}),
+      }),
       signal: controller.signal,
     })
+    const payload = (await response.json().catch(() => ({}))) as {
+      text?: string
+      error?: string
+      code?: string
+    }
+    if (!response.ok) {
+      const err = new Error(payload.error ?? `案内AI エラー (HTTP ${response.status})`) as GuideError
+      err.code = payload.code
+      throw err
+    }
+    const text = typeof payload.text === 'string' ? payload.text : ''
+    console.debug('[案内AI] total(ms)', Date.now() - t0)
+    if (text) onDelta?.(text)
+    return text
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') {
       throw new Error('案内AIの応答が来ませんでした（60秒タイムアウト）。もう一度お試しください。')
@@ -77,19 +99,4 @@ export async function askGuide(
   } finally {
     clearTimeout(timer)
   }
-
-  const payload = (await response.json().catch(() => ({}))) as {
-    text?: string
-    error?: string
-    code?: string
-  }
-  if (!response.ok) {
-    const err = new Error(payload.error ?? `案内AI エラー (HTTP ${response.status})`) as GuideError
-    err.code = payload.code
-    throw err
-  }
-  const text = typeof payload.text === 'string' ? payload.text : ''
-  console.debug('[案内AI] total(ms)', Date.now() - t0)
-  if (text) onDelta?.(text)
-  return text
 }

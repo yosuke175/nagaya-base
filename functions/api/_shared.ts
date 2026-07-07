@@ -73,8 +73,10 @@ export function isConfigured(env: Env): boolean {
 export async function requireUserId(request: Request, env: Env): Promise<string | null> {
   const authorization = request.headers.get('authorization') ?? ''
   if (!authorization.startsWith('Bearer ')) return null
+  // タイムアウト必須: 全処理の前に完全直列で走るため、ここが詰まると応答全体が無期限に固まる
   const response = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
     headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY as string, authorization },
+    signal: AbortSignal.timeout(8000),
   })
   if (!response.ok) return null
   const user = (await response.json()) as { id?: string }
@@ -113,7 +115,7 @@ export async function getCredentialRow(
 ): Promise<{ ciphertext: string; iv: string } | null> {
   const response = await fetch(
     `${restUrl(env)}?${rowFilter(userId, credentialId)}&select=ciphertext,iv`,
-    { headers: restHeaders(env) },
+    { headers: restHeaders(env), signal: AbortSignal.timeout(8000) },
   )
   if (!response.ok) throw new Error('storage error')
   const rows = (await response.json()) as Array<{ ciphertext: string; iv: string }>

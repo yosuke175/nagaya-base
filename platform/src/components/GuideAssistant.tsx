@@ -58,13 +58,22 @@ interface Msg {
 
 /** 表示メッセージ → 案内AIに送る会話（tool 結果は user 発話として渡す）
  * content が空のメッセージは AI API がエラー（400: content が空です）にするため必ず落とす。
- * 例: アシスタントがツール/操作タグだけを返し前後の文が無かったターンは content='' になる。 */
+ * 例: アシスタントがツール/操作タグだけを返し前後の文が無かったターンは content='' になる。
+ * 古いツール結果（最新以外）は要約サイズに切り詰める: 1件最大8000字の結果が会話窓
+ * （直近10件）に積もると入力が数万字級に肥大し、遅延・コスト・失敗率が上がるため。 */
 function toConvo(msgs: Msg[]): GuideMessage[] {
+  const lastToolIndex = msgs.map((m) => m.role).lastIndexOf('tool')
   return msgs
-    .map((m) => ({
-      role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
-      content: (m.raw ?? m.content ?? '').trim(),
-    }))
+    .map((m, i) => {
+      let content = (m.raw ?? m.content ?? '').trim()
+      if (m.role === 'tool' && i !== lastToolIndex && content.length > 300) {
+        content = content.slice(0, 300) + '…（古いツール結果のため省略）'
+      }
+      return {
+        role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+        content,
+      }
+    })
     .filter((m) => m.content.length > 0)
 }
 
@@ -151,6 +160,9 @@ export function GuideAssistant({
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  // いま何を待っているか（考え中／ツール実行中）。無変化の待ち時間を「固まった」と
+  // 誤認させないための、段階つきの進行表示。
+  const [busyLabel, setBusyLabel] = useState('考えています…')
   const [error, setError] = useState<string | null>(null)
   // 段2 伴走: 連携設定が要る（externalServices を持つ）導入済み道具 → 設定方法チップを出す
   const [setupGadgets, setSetupGadgets] = useState<Array<{ id: string; name: string }>>([])
@@ -319,10 +331,17 @@ export function GuideAssistant({
     // ストリーミング: まず空の吹き出しを置き、届いた文字を逐次追記して見せる。
     const streamIndex = working.length
     setMessages([...working, { role: 'assistant', content: '' }])
+    setBusyLabel('考えています…')
+    // 直近N件に切った窓の先頭が assistant にならないよう補正（Anthropic/Gemini のロール制約。
+    // assistant 始まりの窓は 400 になり、会話が長くなるほど周期的に失敗していた）
+    let windowed = toConvo(working).slice(-MAX_TURNS_SENT)
+    while (windowed.length > 0 && windowed[0].role !== 'user') windowed = windowed.slice(1)
+    // 直前がツール結果なら「続きターン」: サーバーは資料検索等を省略して速く返す
+    const isContinuation = working[working.length - 1]?.role === 'tool'
     let reply: string
     try {
       reply = await askGuide(
-        toConvo(working).slice(-MAX_TURNS_SENT),
+        windowed,
         {
           viewLabel,
           tools: toolCatalog(),
@@ -341,6 +360,7 @@ export function GuideAssistant({
           })
           scrollToEnd()
         },
+        { continuation: isContinuation },
       )
     } catch (cause) {
       setMessages(working) // 失敗したら空の吹き出しを取り消す
@@ -374,7 +394,17 @@ export function GuideAssistant({
         await execAndContinue(withReply, toolCall, depth) // read は自動連鎖
         return
       }
-      // read だが自動連鎖の上限。これ以上は実行しない（下のフォールバック判定に進む）。
+      // read だが自動連鎖の上限。黙って捨てると「確認します」と言ったきり沈黙するため、
+      // 止まった理由を必ず表示してターンを終える。
+      setMessages([
+        ...withReply,
+        {
+          role: 'tool',
+          content: '⚠ 自動実行の回数上限に達したため、ここで止めました。続きが必要なら、もう一度お申し付けください。',
+        },
+      ])
+      scrollToEnd()
+      return
     }
     // ここに到達＝これ以上の自動継続は無い。本文も操作ボタンも無いと、空の吹き出しは
     // 何も描画されず（render は message.content が真のときだけ表示）、ユーザーには「無反応で
@@ -403,6 +433,14 @@ export function GuideAssistant({
   const MAX_TOOL_RESULT_CHARS = 8000
 
   const execAndContinue = async (working: Msg[], toolCall: GuideToolCall, depth: number) => {
+    // 「実行中」を先に見せる（GAS連携ツールは数秒〜20秒かかる。以前は完了後に初めて
+    // 🔧行が出るまで画面が一切変化せず、固まったように見えていた）
+    setBusyLabel(`${toolCall.gadget} の「${toolCall.tool}」を実行中…`)
+    setMessages([
+      ...working,
+      { role: 'tool', content: `🔧 ${toolCall.gadget} の「${toolCall.tool}」を実行中…` },
+    ])
+    scrollToEnd()
     let resultText: string
     try {
       const result = await invokeGadgetTool(toolCall.gadget, toolCall.tool, toolCall.args)
@@ -415,6 +453,7 @@ export function GuideAssistant({
     } catch (cause) {
       resultText = `エラー: ${cause instanceof Error ? cause.message : String(cause)}`
     }
+    // 実行中の行を、結果rawつきの確定行に置き換える（この行がモデルへの[ツール結果]になる）
     const next: Msg[] = [
       ...working,
       {
@@ -452,14 +491,22 @@ export function GuideAssistant({
     setMessages(next)
     setInput('')
     setBusy(true)
+    setBusyLabel('考えています…')
+    scrollToEnd() // 送った発言がすぐ見える位置へ（以前は返答が来るまでスクロールされなかった）
     try {
       await runFrom(next, 0)
     } catch (cause) {
       const code = (cause as GuideError).code
       if (code === 'ai_not_configured') {
-        // 途中でキーが外れた等 → 窓ごと隠す（次に設定すれば再表示）
-        readyRef.current = false
-        setAiReady(false)
+        // 会話の途中で無言のまま窓が消えるのは不親切: 一言添えて表示は維持する
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              'AIのAPIキーが確認できませんでした。工房の「AI設定」を確認してから、もう一度お試しください。',
+          },
+        ])
       } else setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
@@ -762,7 +809,7 @@ export function GuideAssistant({
                 </div>
               )
             })}
-            {busy && <p className="text-xs text-stone-400">道具・案内を確認しています…</p>}
+            {busy && <p className="text-xs text-stone-400">{busyLabel}</p>}
             {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
           </div>
           <div className="flex items-end gap-2 border-t border-stone-100 p-2">
