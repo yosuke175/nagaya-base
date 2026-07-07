@@ -569,7 +569,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-08 r11</span
+          >build 2026-07-08 r12</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -927,14 +927,16 @@
         void loadRules();
         // まずキャッシュ（前回の予定・カレンダー一覧）だけで即描画する。
         // 以前は listCalendars（GAS・コールド時〜15秒）→ list（さらに〜15秒）を
-        // 待ってから初描画していたため、開いてから30秒近く空白だった。
+        // 直列で待ってから初描画していたため、開いてから30秒近く空白だった。
         await loadPreferences();
         await restoreCache();
         setActiveView(viewMode);
-        // 最新のカレンダー一覧と予定は裏で取得し、届き次第描き替える。
-        await loadCalendars();
-        renderActiveView();
-        await refreshEvents();
+        // 最新のカレンダー一覧と予定は「並列」で取得し、届いたそれぞれで描き替える。
+        // 互いに独立なので直列に待つ理由がない（GASコールド往復2回ぶんの直列待ちを解消）。
+        await Promise.all([
+          loadCalendars().then(() => renderActiveView()),
+          refreshEvents(),
+        ]);
       }
 
       // ---------------- settings page (カレンダー設定・個人ルール・AI操作) ----
@@ -1576,9 +1578,19 @@
             line.style.height = `${HOUR_PX}px`;
             col.append(line);
           }
+          // その日の時間帯予定を集め、重なりを左右に振り分けて配置する（本家カレンダー風）
+          const dayStart = startOfDay(day).getTime();
+          const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+          const dayItems = [];
           for (const ev of events) {
             if (ev.allDay || !sameDay(new Date(ev.start), day)) continue;
-            col.append(renderGridEventBlock(ev, day));
+            const startMs = Math.max(new Date(ev.start).getTime(), dayStart);
+            const endMs = Math.min(new Date(ev.end).getTime(), dayEnd);
+            dayItems.push({ event: ev, startMs, endMs });
+          }
+          const layout = layoutDayEvents(dayItems);
+          for (const item of dayItems) {
+            col.append(renderGridEventBlock(item, day, layout.get(item.event)));
           }
           body.append(col);
         }
@@ -1592,21 +1604,68 @@
         return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
       }
 
-      function renderGridEventBlock(event, day) {
+      /**
+       * 同時間帯に重なる予定を「列」に振り分ける（Googleカレンダー風の左右分割）。
+       * 重なりが連鎖するかたまり（cluster）ごとに、貪欲法で最小列数に詰める。
+       * 返り値: event → { col, cols }（col=何番目の列か / cols=そのかたまりの総列数）。
+       */
+      function layoutDayEvents(items) {
+        const layout = new Map();
+        const sorted = items
+          .slice()
+          .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+        let cluster = [];
+        let clusterEnd = -Infinity;
+        const flush = () => {
+          const columnEnds = []; // 各列の「最後の予定の終了時刻」
+          for (const it of cluster) {
+            let placed = false;
+            for (let c = 0; c < columnEnds.length; c++) {
+              if (it.startMs >= columnEnds[c]) {
+                columnEnds[c] = it.endMs;
+                it._col = c;
+                placed = true;
+                break;
+              }
+            }
+            if (!placed) {
+              it._col = columnEnds.length;
+              columnEnds.push(it.endMs);
+            }
+          }
+          const cols = columnEnds.length || 1;
+          for (const it of cluster) layout.set(it.event, { col: it._col, cols });
+          cluster = [];
+          clusterEnd = -Infinity;
+        };
+        for (const it of sorted) {
+          // これまでのかたまりと重ならなくなったら確定して次のかたまりへ
+          if (cluster.length && it.startMs >= clusterEnd) flush();
+          cluster.push(it);
+          clusterEnd = Math.max(clusterEnd, it.endMs);
+        }
+        flush();
+        return layout;
+      }
+
+      function renderGridEventBlock(item, day, pos) {
+        pos = pos || { col: 0, cols: 1 };
         const dayStart = startOfDay(day).getTime();
-        const dayEnd = dayStart + 24 * 60 * 60 * 1000;
-        const startMs = Math.max(new Date(event.start).getTime(), dayStart);
-        const endMs = Math.min(new Date(event.end).getTime(), dayEnd);
-        const topMin = (startMs - dayStart) / 60000;
-        const durationMin = Math.max(15, (endMs - startMs) / 60000);
+        const topMin = (item.startMs - dayStart) / 60000;
+        const durationMin = Math.max(15, (item.endMs - item.startMs) / 60000);
         const block = document.createElement("div");
         block.className = "grid-event";
         block.style.top = `${(topMin / 60) * HOUR_PX}px`;
         block.style.height = `${(durationMin / 60) * HOUR_PX}px`;
-        block.style.background = calendarColor(event.calendarId);
-        block.textContent = event.title;
-        block.title = `${event.calendarName} / ${formatTimeRange(event)} / ${event.title}`;
-        block.addEventListener("click", () => openGridEventEditor(event));
+        // 重なりぶんだけ幅を分割して左右に並べる（1pxずつ隙間）
+        const widthPct = 100 / pos.cols;
+        block.style.left = `calc(${pos.col * widthPct}% + 1px)`;
+        block.style.width = `calc(${widthPct}% - 2px)`;
+        block.style.right = "auto";
+        block.style.background = calendarColor(item.event.calendarId);
+        block.textContent = item.event.title;
+        block.title = `${item.event.calendarName} / ${formatTimeRange(item.event)} / ${item.event.title}`;
+        block.addEventListener("click", () => openGridEventEditor(item.event));
         return block;
       }
 
