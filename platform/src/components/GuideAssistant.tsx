@@ -328,9 +328,6 @@ export function GuideAssistant({
   // retried: 空応答（本文もツールも操作も無し）だったとき、1回だけ自動で再生成する。
   // 提供元の一時的な混雑などで空が返ることがあり、そのたびに手で言い直させない。
   const runFrom = async (working: Msg[], depth: number, retried = false): Promise<void> => {
-    // ストリーミング: まず空の吹き出しを置き、届いた文字を逐次追記して見せる。
-    const streamIndex = working.length
-    setMessages([...working, { role: 'assistant', content: '' }])
     setBusyLabel('考えています…')
     // 直近N件に切った窓の先頭が assistant にならないよう補正（Anthropic/Gemini のロール制約。
     // assistant 始まりの窓は 400 になり、会話が長くなるほど周期的に失敗していた）
@@ -340,6 +337,8 @@ export function GuideAssistant({
     const isContinuation = working[working.length - 1]?.role === 'tool'
     let reply: string
     try {
+      // onDelta は使わない: 生の応答（nagaya-tool 等のタグ込み）を一瞬見せてから
+      // 解析済みテキストに差し替わる「ちらつき」の原因だった。表示は下の段階表示で行う。
       reply = await askGuide(
         windowed,
         {
@@ -351,15 +350,7 @@ export function GuideAssistant({
             userInfo: prefs.userInfo,
           },
         },
-        (chunk) => {
-          setMessages((prev) => {
-            const copy = [...prev]
-            const m = copy[streamIndex]
-            if (m && m.role === 'assistant') copy[streamIndex] = { ...m, content: (m.content ?? '') + chunk }
-            return copy
-          })
-          scrollToEnd()
-        },
+        undefined,
         { continuation: isContinuation },
       )
     } catch (cause) {
@@ -384,6 +375,18 @@ export function GuideAssistant({
       ...working,
       { role: 'assistant', content: text, raw: rawForModel, action, toolCall },
     ]
+    // 触感: テキストだけの返答は短時間（最大~0.8秒）で段階表示する（疑似タイプ表示・
+    // 純クライアント処理）。ツール/操作つきの返答は即時確定して動作を遅らせない。
+    // busy 中は送信できないため、この間に別ターンが割り込むことはない。
+    if (text && !toolCall && !action) {
+      const steps = 12
+      const chunk = Math.max(1, Math.ceil(text.length / steps))
+      for (let shown = chunk; shown < text.length; shown += chunk) {
+        setMessages([...working, { role: 'assistant', content: text.slice(0, shown) }])
+        scrollToEnd()
+        await new Promise((resolve) => setTimeout(resolve, 60))
+      }
+    }
     setMessages(withReply)
     scrollToEnd()
     if (toolCall) {
@@ -442,6 +445,7 @@ export function GuideAssistant({
     ])
     scrollToEnd()
     let resultText: string
+    let failed = false
     try {
       const result = await invokeGadgetTool(toolCall.gadget, toolCall.tool, toolCall.args)
       resultText = JSON.stringify(result)
@@ -451,14 +455,19 @@ export function GuideAssistant({
           '…（長すぎるため以降省略。必要なら期間や条件を絞って再取得してください）'
       }
     } catch (cause) {
+      failed = true
       resultText = `エラー: ${cause instanceof Error ? cause.message : String(cause)}`
     }
-    // 実行中の行を、結果rawつきの確定行に置き換える（この行がモデルへの[ツール結果]になる）
+    // 実行中の行を、結果rawつきの確定行に置き換える（この行がモデルへの[ツール結果]になる）。
+    // 失敗時は生のエラー文を行に出す: AIの言い換え（「うまく通信できませんでした」等）だけだと
+    // 原因（タイムアウトか・未設定か・GASエラーか）が誰にも分からず、切り分けできない。
     const next: Msg[] = [
       ...working,
       {
         role: 'tool',
-        content: `🔧 ${toolCall.gadget} の「${toolCall.tool}」を実行`,
+        content: failed
+          ? `🔧 ${toolCall.gadget} の「${toolCall.tool}」が失敗 — ${resultText}`
+          : `🔧 ${toolCall.gadget} の「${toolCall.tool}」を実行`,
         raw: `[ツール結果 ${toolCall.gadget}.${toolCall.tool}] ${resultText}`,
       },
     ]

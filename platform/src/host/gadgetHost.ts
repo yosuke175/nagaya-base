@@ -199,7 +199,10 @@ export interface GadgetHost {
   invokeTool(tool: string, args: Record<string, unknown>): Promise<unknown>
 }
 
-const TOOL_INVOKE_TIMEOUT_MS = 20_000
+// ガジェット側の外部呼び出し（例: スケジュール秘書のGAS WebAppは30秒タイムアウト）より
+// 長くする。以前は20秒で、GASが遅いだけの正常な応答を「ツール実行がタイムアウトしました」
+// に化けさせていた（複数カレンダーの列挙＋コールドスタートで20秒超えは普通に起きる）。
+const TOOL_INVOKE_TIMEOUT_MS = 35_000
 
 export interface GadgetRpcHandlerOptions {
   /** Called when the gadget asks to open the credential settings UI. */
