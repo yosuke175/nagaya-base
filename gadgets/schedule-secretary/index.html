@@ -569,7 +569,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-08 r13</span
+          >build 2026-07-08 r14</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -940,7 +940,61 @@
           loadCalendars().then(() => renderActiveView()),
           reloadEvents().catch((error) => showError(error.message)),
         ]);
+        startKeepWarm(); // 使用中はGASを温め続ける（コールド起因の遅さを予防）
       }
+
+      // ---------------- keep-warm（GASのコールド化予防） -------------------
+      // GAS WebApp は数分の無操作で休止し、次の1回目がコールド（十数秒）になる。
+      // ガジェットが「表示されていて、かつ最近ユーザー操作がある」間だけ、軽量な ping を
+      // 定期的に打って温める。プラットフォーム本体ではなくガジェット自身が打つ理由:
+      // GASのURL・合言葉（BYOK）はこのiframe内にしか無く、本体からは触れないため。
+      const KEEP_WARM_INTERVAL_MS = 4 * 60 * 1000; // コールド化前（数分）に打つ
+      const IDLE_CAP_MS = 30 * 60 * 1000; // 30分無操作なら温めを止める（開きっぱなし放置対策）
+      let keepWarmTimer = null;
+      let lastActivityAt = Date.now();
+
+      function markActivity() {
+        lastActivityAt = Date.now();
+      }
+      // 操作の合図（軽いイベントだけ・passive）。マウス移動は拾わない（放置と区別するため）。
+      for (const type of ["pointerdown", "keydown"]) {
+        window.addEventListener(type, markActivity, { passive: true });
+      }
+
+      async function pingGas() {
+        if (!credential) return;
+        if (document.visibilityState !== "visible") return;
+        if (Date.now() - lastActivityAt > IDLE_CAP_MS) return; // 放置中は温めない
+        try {
+          // 温めは best-effort。リトライ・エラー表示なしの軽量呼び出し（失敗は無視）。
+          // 古いGAS（ping未対応）だと unknown_action で失敗するが、それも黙って無視する
+          // （再デプロイすれば有効になる。ガジェット自体は従来どおり動く）。
+          await callGas("ping");
+        } catch {
+          // ignore — 温めが効かないだけで実害はない
+        }
+      }
+
+      function startKeepWarm() {
+        stopKeepWarm();
+        void pingGas(); // 開いた直後に1回温める
+        keepWarmTimer = setInterval(pingGas, KEEP_WARM_INTERVAL_MS);
+      }
+      function stopKeepWarm() {
+        if (keepWarmTimer) {
+          clearInterval(keepWarmTimer);
+          keepWarmTimer = null;
+        }
+      }
+      // タブに戻ってきたら即温め直す。隠れている間は打たない（無駄・電池・GASクォータ節約）。
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          markActivity();
+          if (credential) startKeepWarm();
+        } else {
+          stopKeepWarm();
+        }
+      });
 
       // ---------------- settings page (カレンダー設定・個人ルール・AI操作) ----
 

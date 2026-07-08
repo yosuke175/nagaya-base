@@ -42,6 +42,8 @@ function doPost(e) {
   var params = request.params || {};
   try {
     switch (request.action) {
+      case 'ping':
+        return jsonResponse({ ok: true, result: ping() });
       case 'listCalendars':
         return jsonResponse({ ok: true, result: listCalendars() });
       case 'list':
@@ -69,8 +71,18 @@ function doPost(e) {
 }
 
 /**
+ * 温め用の軽量ping。ガジェットが「使用中」の間だけ定期的に呼び、GAS WebApp を
+ * コールド化させないための最小処理。実操作で使う CalendarApp も軽く触って、
+ * コンテナ＋カレンダーサービスの両方を温めておく（getId は高速）。
+ */
+function ping() {
+  var id = CalendarApp.getDefaultCalendar().getId();
+  return { pong: true, calendar: id };
+}
+
+/**
  * ユーザーが持つ（購読含む）すべてのカレンダーの一覧。
- * color は Google カレンダー側で設定した色の colorId（"1"〜"24"）。本家の色を
+ * color は Calendar.getColor() の値（多くは "#f83a22" のような16進文字列）。本家の色を
  * ガジェット側でも再現できるよう、そのまま返す（フロント側で色見本に変換）。
  */
 function listCalendars() {
