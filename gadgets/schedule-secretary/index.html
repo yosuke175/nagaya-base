@@ -211,6 +211,48 @@
         border: 1px solid #d6d3d1;
         border-radius: 8px;
       }
+      /* ---- 日付＋時刻の入力行（カレンダーは左・日付のみ / 時刻はプルダウン＋数字） ---- */
+      .dt-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .dt-date-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border: 1px solid #d6d3d1;
+        border-radius: 8px;
+        background: #fafaf9;
+        font: inherit;
+        cursor: pointer;
+      }
+      .dt-date-btn:hover {
+        background: #f5f5f4;
+      }
+      /* 実ピッカー用の隠しネイティブ日付入力（ボタンから showPicker で開く） */
+      .dt-native {
+        width: 0;
+        height: 0;
+        padding: 0;
+        border: 0;
+        opacity: 0;
+        position: absolute;
+        pointer-events: none;
+      }
+      .dt-time {
+        width: 3.4em;
+        text-align: center;
+        font: inherit;
+        padding: 6px 4px;
+        border: 1px solid #d6d3d1;
+        border-radius: 8px;
+      }
+      .dt-colon {
+        color: #78716c;
+      }
       .with-mic {
         display: flex;
         gap: 6px;
@@ -569,7 +611,7 @@
         <!-- ガジェットのコードは固定URLでキャッシュされやすいので、どの版が読み込まれて
              いるか一目で分かるよう build 文字列を表示する。変更のたびに更新する。 -->
         <span style="font-size: 10px; color: #a8a29e; font-family: monospace"
-          >build 2026-07-08 r14</span
+          >build 2026-07-08 r15</span
         >
       </div>
       <div style="display: flex; gap: 6px">
@@ -689,11 +731,11 @@
               </label>
               <label>
                 開始日時
-                <input id="create-start" type="datetime-local" required />
+                <div id="create-start-mount"></div>
               </label>
               <label>
                 終了日時
-                <input id="create-end" type="datetime-local" required />
+                <div id="create-end-mount"></div>
               </label>
               <label>
                 メモ
@@ -734,6 +776,10 @@
         </div>
       </section>
     </section>
+
+    <!-- 時刻入力の候補（プルダウン）。数字入力もできる（input type=number + list） -->
+    <datalist id="dt-hours"></datalist>
+    <datalist id="dt-minutes"></datalist>
 
     <script type="module">
       // All platform access goes through the SDK (gadget-spec.md §4).
@@ -1101,6 +1147,31 @@
         }
       }
 
+      /**
+       * 押したボタン自身に「○○中…」を出して実行する。共有の busy／全ボタン無効化は
+       * 使わない（別処理の実行中でも押せる＝黙って無視されない）。GASコールドで時間が
+       * かかっても“押した手応え”がボタン上に残るので「無反応」に見えない。
+       * 二重送信は、そのボタンだけを実行中 disabled にすることで防ぐ。
+       */
+      async function runButtonAction(button, busyLabel, loadingText, task) {
+        if (button.disabled) return; // 実行中の二重押しを無視
+        const orig = button.textContent;
+        button.disabled = true;
+        button.textContent = busyLabel;
+        hideError();
+        loadingTextEl.textContent = loadingText;
+        loadingEl.hidden = false;
+        try {
+          await task();
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          button.disabled = false;
+          button.textContent = orig;
+          loadingEl.hidden = true;
+        }
+      }
+
       function setButtonsDisabled(disabled) {
         // chat-send はチャット専用の chatBusy で制御する（共有 busy で無効化すると、
         // 予定取得中に送信ボタンが押せず「無反応」に見えるため除外）。
@@ -1216,6 +1287,28 @@
 
       function calendarName(calendarId) {
         return calendars.find((c) => c.id === calendarId)?.name ?? "カレンダー";
+      }
+
+      /**
+       * 背景色に対して読みやすい文字色（濃い/白）を返す。本家Googleの色には薄い色
+       * （黄・薄緑・水色など）もあり、白文字だと見えないため、輝度で判定して切り替える。
+       */
+      function readableTextColor(bg) {
+        const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(bg));
+        if (!m) return "#ffffff";
+        const toLin = (h) => {
+          const c = parseInt(h, 16) / 255;
+          return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        };
+        const L = 0.2126 * toLin(m[1]) + 0.7152 * toLin(m[2]) + 0.0722 * toLin(m[3]);
+        return L > 0.55 ? "#1c1917" : "#ffffff"; // 明るい背景 → 濃い文字
+      }
+
+      /** 予定ブロック/チップに背景色＋読みやすい文字色をまとめて適用する。 */
+      function applyEventColor(node, calendarId) {
+        const bg = calendarColor(calendarId);
+        node.style.background = bg;
+        node.style.color = readableTextColor(bg);
       }
 
       function renderCalSettings() {
@@ -1441,7 +1534,7 @@
         title.textContent = event.title;
         const tag = document.createElement("span");
         tag.className = "cal-tag";
-        tag.style.background = calendarColor(event.calendarId);
+        applyEventColor(tag, event.calendarId);
         tag.textContent = event.calendarName;
         const titleRow = document.createElement("div");
         titleRow.append(title, tag);
@@ -1458,11 +1551,14 @@
         const moveButton = document.createElement("button");
         moveButton.type = "button";
         moveButton.textContent = "移動";
+        const dupButton = document.createElement("button");
+        dupButton.type = "button";
+        dupButton.textContent = "複製";
         const deleteButton = document.createElement("button");
         deleteButton.type = "button";
         deleteButton.className = "danger";
         deleteButton.textContent = "削除";
-        actions.append(moveButton, deleteButton);
+        actions.append(moveButton, dupButton, deleteButton);
         card.append(actions);
 
         // Inline move editor (sandboxed iframes have no prompt()/confirm()).
@@ -1478,10 +1574,8 @@
           option.textContent = calendar.name;
           calendarSelect.append(option);
         }
-        const startInput = document.createElement("input");
-        startInput.type = "datetime-local";
-        const endInput = document.createElement("input");
-        endInput.type = "datetime-local";
+        const startPicker = buildDateTimePicker(new Date(event.start));
+        const endPicker = buildDateTimePicker(new Date(event.end));
         const editorRow = document.createElement("div");
         editorRow.className = "row";
         const saveButton = document.createElement("button");
@@ -1492,24 +1586,24 @@
         cancelButton.type = "button";
         cancelButton.textContent = "キャンセル";
         editorRow.append(saveButton, cancelButton);
-        editor.append(calendarSelect, startInput, endInput, editorRow);
+        editor.append(calendarSelect, startPicker.el, endPicker.el, editorRow);
         card.append(editor);
 
         moveButton.addEventListener("click", () => {
           editor.hidden = !editor.hidden;
           if (!editor.hidden) {
             calendarSelect.value = event.calendarId;
-            startInput.value = toLocalInputValue(new Date(event.start));
-            endInput.value = toLocalInputValue(new Date(event.end));
+            startPicker.setDate(new Date(event.start));
+            endPicker.setDate(new Date(event.end));
           }
         });
         cancelButton.addEventListener("click", () => {
           editor.hidden = true;
         });
         saveButton.addEventListener("click", () => {
-          const range = readRange(startInput, endInput);
+          const range = readPickerRange(startPicker, endPicker);
           if (!range) return;
-          runAction("予定を更新しています…", async () => {
+          runButtonAction(saveButton, "変更中…", "予定を更新しています…", async () => {
             let eventId = event.id;
             let calendarId = event.calendarId;
             if (calendarSelect.value !== event.calendarId) {
@@ -1526,10 +1620,24 @@
           });
         });
 
+        // 複製: 同じ内容（タイトル・日時・メモ・カレンダー）で新しい予定を作る
+        dupButton.addEventListener("click", () => {
+          runButtonAction(dupButton, "複製中…", "予定を複製しています…", async () => {
+            await callGas("create", {
+              title: event.title,
+              description: event.description || "",
+              start: new Date(event.start).toISOString(),
+              end: new Date(event.end).toISOString(),
+              calendarId: event.calendarId,
+            });
+            await reloadEvents();
+          });
+        });
+
         // Two-step inline delete confirmation
         deleteButton.addEventListener("click", () => {
           if (deleteButton.dataset.confirming) {
-            runAction("予定を削除しています…", async () => {
+            runButtonAction(deleteButton, "削除中…", "予定を削除しています…", async () => {
               await callGas("delete", { eventId: event.id, calendarId: event.calendarId });
               await reloadEvents();
             });
@@ -1563,6 +1671,140 @@
       function toLocalInputValue(date) {
         const pad = (n) => String(n).padStart(2, "0");
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+
+      // ---- 日付＋時刻ピッカー（カレンダーは左・日付のみ / 時刻はプルダウン＋数字入力） ----
+
+      function populateTimeDatalists() {
+        const hours = el("dt-hours");
+        const minutes = el("dt-minutes");
+        if (hours && !hours.children.length) {
+          for (let h = 0; h < 24; h++) {
+            const o = document.createElement("option");
+            o.value = String(h);
+            hours.append(o);
+          }
+        }
+        if (minutes && !minutes.children.length) {
+          for (let m = 0; m < 60; m += 5) {
+            const o = document.createElement("option");
+            o.value = String(m);
+            minutes.append(o);
+          }
+        }
+      }
+
+      /**
+       * 日付＋時刻の入力コンポーネントを作る。
+       * 左端の「📅 日付」ボタンで日付ピッカーを開く（日付のみ）。その右に時・分を、
+       * プルダウン（datalist）でも数字直接入力でも指定できる number 入力で置く。
+       * 返り値: { el, getDate(), setDate(date) }。
+       */
+      function buildDateTimePicker(initialDate) {
+        const pad = (n) => String(n).padStart(2, "0");
+        const wrap = document.createElement("div");
+        wrap.className = "dt-row";
+
+        const native = document.createElement("input"); // 実ピッカー（隠し）
+        native.type = "date";
+        native.className = "dt-native";
+        native.tabIndex = -1;
+
+        const dateBtn = document.createElement("button");
+        dateBtn.type = "button";
+        dateBtn.className = "dt-date-btn";
+
+        const hour = document.createElement("input");
+        hour.type = "number";
+        hour.min = "0";
+        hour.max = "23";
+        hour.className = "dt-time";
+        hour.inputMode = "numeric";
+        hour.setAttribute("list", "dt-hours");
+        hour.setAttribute("aria-label", "時");
+
+        const colon = document.createElement("span");
+        colon.className = "dt-colon";
+        colon.textContent = ":";
+
+        const minute = document.createElement("input");
+        minute.type = "number";
+        minute.min = "0";
+        minute.max = "59";
+        minute.className = "dt-time";
+        minute.inputMode = "numeric";
+        minute.setAttribute("list", "dt-minutes");
+        minute.setAttribute("aria-label", "分");
+
+        let y, mo, d; // 選択中の年・月(0始まり)・日
+        const syncDateBtn = () => {
+          const label = new Intl.DateTimeFormat("ja-JP", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            weekday: "short",
+          }).format(new Date(y, mo, d));
+          dateBtn.textContent = "📅 " + label;
+        };
+        const setFromDate = (date) => {
+          y = date.getFullYear();
+          mo = date.getMonth();
+          d = date.getDate();
+          hour.value = String(date.getHours());
+          minute.value = pad(date.getMinutes());
+          syncDateBtn();
+        };
+
+        dateBtn.addEventListener("click", () => {
+          native.value = `${y}-${pad(mo + 1)}-${pad(d)}`;
+          if (typeof native.showPicker === "function") {
+            try {
+              native.showPicker();
+              return;
+            } catch {
+              // showPicker がユーザー操作外などで弾かれたらフォールバック
+            }
+          }
+          native.focus();
+          native.click();
+        });
+        native.addEventListener("change", () => {
+          if (!native.value) return;
+          const [ny, nm, nd] = native.value.split("-").map(Number);
+          y = ny;
+          mo = nm - 1;
+          d = nd;
+          syncDateBtn();
+        });
+
+        setFromDate(initialDate instanceof Date && !isNaN(initialDate) ? initialDate : new Date());
+        wrap.append(dateBtn, native, hour, colon, minute);
+        return {
+          el: wrap,
+          getDate() {
+            const h = Math.min(23, Math.max(0, parseInt(hour.value, 10) || 0));
+            const mi = Math.min(59, Math.max(0, parseInt(minute.value, 10) || 0));
+            return new Date(y, mo, d, h, mi, 0, 0);
+          },
+          setDate(date) {
+            setFromDate(date);
+          },
+        };
+      }
+
+      /** 2つのピッカーから開始/終了を読み、検証して {start,end}(ISO) を返す。 */
+      function readPickerRange(startPicker, endPicker) {
+        const start = startPicker.getDate();
+        const end = endPicker.getDate();
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          showError("開始日時と終了日時を入力してください");
+          return null;
+        }
+        if (end.getTime() <= start.getTime()) {
+          showError("終了日時は開始日時より後にしてください");
+          return null;
+        }
+        return { start: start.toISOString(), end: end.toISOString() };
       }
 
       // ---- day/4day/week grid view ----
@@ -1604,7 +1846,7 @@
             for (const ev of list) {
               const chip = document.createElement("span");
               chip.className = "grid-allday-chip";
-              chip.style.background = calendarColor(ev.calendarId);
+              applyEventColor(chip, ev.calendarId);
               chip.textContent = ev.title;
               chip.title = ev.calendarName;
               cell.append(chip);
@@ -1725,7 +1967,7 @@
         block.style.left = `calc(${pos.col * widthPct}% + 1px)`;
         block.style.width = `calc(${widthPct}% - 2px)`;
         block.style.right = "auto";
-        block.style.background = calendarColor(item.event.calendarId);
+        applyEventColor(block, item.event.calendarId);
         block.textContent = item.event.title;
         block.title = `${item.event.calendarName} / ${formatTimeRange(item.event)} / ${item.event.title}`;
         block.addEventListener("click", () => openGridEventEditor(item.event));
@@ -1778,7 +2020,7 @@
           for (const ev of shown) {
             const chip = document.createElement("div");
             chip.className = "grid-allday-chip";
-            chip.style.background = calendarColor(ev.calendarId);
+            applyEventColor(chip, ev.calendarId);
             chip.style.display = "block";
             chip.style.marginBottom = "1px";
             chip.textContent = ev.allDay ? ev.title : `${new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date(ev.start))} ${ev.title}`;
@@ -1802,12 +2044,25 @@
 
       // ---------------- create form ----------------
 
+      // 作成フォームの日時ピッカーを組み立てて差し込む
+      let createStartPicker = null;
+      let createEndPicker = null;
+      function mountCreatePickers() {
+        const start = new Date();
+        start.setMinutes(0, 0, 0);
+        start.setHours(start.getHours() + 1);
+        createStartPicker = buildDateTimePicker(start);
+        createEndPicker = buildDateTimePicker(new Date(start.getTime() + 60 * 60 * 1000));
+        el("create-start-mount").replaceChildren(createStartPicker.el);
+        el("create-end-mount").replaceChildren(createEndPicker.el);
+      }
+
       function resetFormDefaults() {
         const start = new Date();
         start.setMinutes(0, 0, 0);
         start.setHours(start.getHours() + 1);
-        el("create-start").value = toLocalInputValue(start);
-        el("create-end").value = toLocalInputValue(new Date(start.getTime() + 60 * 60 * 1000));
+        if (createStartPicker) createStartPicker.setDate(start);
+        if (createEndPicker) createEndPicker.setDate(new Date(start.getTime() + 60 * 60 * 1000));
       }
 
       createForm.addEventListener("submit", (submitEvent) => {
@@ -1817,11 +2072,13 @@
           showError("案件名を入力してください");
           return;
         }
-        const range = readRange(el("create-start"), el("create-end"));
+        const range = readPickerRange(createStartPicker, createEndPicker);
         if (!range) return;
         const description = el("create-memo").value.trim();
         const calendarId = createCalendarSelect.value || undefined;
-        runAction("予定を作成しています…", async () => {
+        const submitBtn = createForm.querySelector('button[type="submit"]');
+        // ボタン自身に「追加中…」を出す（GASコールドで数秒〜数十秒かかっても“押した手応え”が残る）
+        runButtonAction(submitBtn, "追加中…", "予定を作成しています…", async () => {
           await callGas("create", { title, description, calendarId, ...range });
           el("create-title").value = "";
           el("create-memo").value = "";
@@ -2141,7 +2398,8 @@
       });
       el("recheck").addEventListener("click", checkCredentialAndStart);
 
-      resetFormDefaults();
+      populateTimeDatalists();
+      mountCreatePickers();
       init();
     </script>
   </body>
